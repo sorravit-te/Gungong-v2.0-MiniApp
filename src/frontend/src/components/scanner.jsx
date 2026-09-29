@@ -1,5 +1,119 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { banks } from '../utils/script';
+import {
+  banks,
+  checkLink as apiCheckLink,
+  checkSMS as apiCheckSMS,
+  checkBank as apiCheckBank,
+  checkPhone as apiCheckPhone,
+  getErrorMessage
+} from '../utils/script';
+
+const GUNGONG_GREEN = '#3ACE00';
+
+const escapeHtml = (value) => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const showLoadingDialog = (title, text) => {
+  const swal = window.Swal;
+  swal?.fire({
+    title,
+    text,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => swal.showLoading()
+  });
+};
+
+const showRequestError = (error) => {
+  const { title, message } = getErrorMessage(error);
+  window.Swal?.fire({
+    icon: 'error',
+    title,
+    text: message || undefined,
+    confirmButtonColor: GUNGONG_GREEN,
+    confirmButtonText: 'ตกลง'
+  });
+};
+
+const renderResultRows = (rows, statusColor) => `
+  <div style="text-align: left; font-size: 15px;">
+    ${rows.map(([label, value], index) => `
+      <p style="margin: 8px 0;${index === 0 ? ` color: ${statusColor}; font-weight: 700;` : ''}">
+        <strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}
+      </p>
+    `).join('')}
+  </div>
+`;
+
+const showFraudResult = (result, subjectLabel) => {
+  const isSafe = result?.is_safe === true || result?.is_fraud === false;
+  const isRisk = result?.is_fraud === true || result?.is_safe === false;
+  const status = isSafe ? 'ปลอดภัย' : isRisk ? 'มีความเสี่ยง' : 'ไม่สามารถระบุได้';
+  const statusColor = isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#757575';
+  const rows = [['สถานะ', status]];
+
+  if (result?.risk_level) rows.push(['ระดับความเสี่ยง', result.risk_level]);
+  if (result?.category) rows.push(['หมวดหมู่', result.category]);
+  if (result?.confidence_score !== undefined && result?.confidence_score !== null) {
+    rows.push(['ความมั่นใจ', `${result.confidence_score}%`]);
+  }
+  if (result?.reason_th) rows.push(['เหตุผล', result.reason_th]);
+
+  window.Swal?.fire({
+    icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
+    title: `ผลการตรวจสอบ${subjectLabel}`,
+    html: renderResultRows(rows, statusColor),
+    confirmButtonColor: isSafe ? GUNGONG_GREEN : '#E53935',
+    confirmButtonText: 'ตกลง'
+  });
+};
+
+const showBlacklistResult = (result, type, submittedValue, bank) => {
+  if (result?.error) {
+    throw new Error(result.error);
+  }
+
+  const isBlacklisted = result?.is_blacklisted === true;
+  const details = result?.details && typeof result.details === 'object' ? result.details : {};
+  const isBank = type === 'bank';
+  const rows = [[
+    'สถานะ',
+    isBlacklisted ? 'พบข้อมูลตรงกับ Blacklist' : 'ไม่พบข้อมูลใน Blacklist'
+  ]];
+
+  if (isBank) {
+    rows.push(['ธนาคาร', bank?.name || bank?.code || details.bank_code || '-']);
+    rows.push(['เลขบัญชี', details.account_number || submittedValue]);
+  } else {
+    rows.push(['เบอร์โทรศัพท์', details.phone_number || submittedValue]);
+  }
+
+  if (isBlacklisted) {
+    const ownerName = isBank ? details.account_name : details.owner_name;
+    if (ownerName) rows.push([isBank ? 'ชื่อบัญชี' : 'ชื่อที่รายงาน', ownerName]);
+    if (details.category) rows.push(['หมวดหมู่', details.category]);
+    if (details.risk_level) rows.push(['ระดับความเสี่ยง', details.risk_level]);
+    if (details.report_count !== undefined && details.report_count !== null) {
+      rows.push(['จำนวนรายงาน', `${details.report_count} ครั้ง`]);
+    }
+    if (details.last_reported && typeof details.last_reported !== 'object') {
+      rows.push(['รายงานล่าสุด', details.last_reported]);
+    }
+  }
+
+  window.Swal?.fire({
+    icon: isBlacklisted ? 'warning' : 'success',
+    title: isBlacklisted ? 'พบข้อมูลใน Blacklist' : 'ไม่พบข้อมูลใน Blacklist',
+    html: renderResultRows(rows, isBlacklisted ? '#E53935' : GUNGONG_GREEN),
+    confirmButtonColor: isBlacklisted ? '#E53935' : GUNGONG_GREEN,
+    confirmButtonText: 'ตกลง'
+  });
+};
 
 const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   const [currentSubPage, setCurrentSubPage] = useState(null);
@@ -125,19 +239,33 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   const checkLink = async () => {
     const url = inputs.link.trim();
     if (!url) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่ลิงก์', confirmButtonColor: '#3ACE00' });
+      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่ลิงก์', confirmButtonColor: GUNGONG_GREEN });
       return;
     }
-    window.Swal?.fire({ icon: 'info', title: 'กำลังตรวจสอบ...', text: url, confirmButtonColor: '#3ACE00' });
+
+    showLoadingDialog('กำลังตรวจสอบลิงก์...', url);
+    try {
+      const result = await apiCheckLink(url);
+      showFraudResult(result, 'ลิงก์');
+    } catch (error) {
+      showRequestError(error);
+    }
   };
 
   const checkSMS = async () => {
     const text = inputs.sms.trim();
     if (!text) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่ข้อความ', confirmButtonColor: '#3ACE00' });
+      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่ข้อความ', confirmButtonColor: GUNGONG_GREEN });
       return;
     }
-    window.Swal?.fire({ icon: 'info', title: 'กำลังวิเคราะห์...', text: text, confirmButtonColor: '#3ACE00' });
+
+    showLoadingDialog('กำลังวิเคราะห์ข้อความ...', text);
+    try {
+      const result = await apiCheckSMS(text);
+      showFraudResult(result, 'ข้อความ');
+    } catch (error) {
+      showRequestError(error);
+    }
   };
 
   const scanCode = () => {
@@ -152,28 +280,37 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   const checkBank = async () => {
     const accountNumber = inputs.bank.trim();
     if (!selectedBank) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาเลือกธนาคาร', confirmButtonColor: '#3ACE00' });
+      window.Swal?.fire({ icon: 'warning', title: 'กรุณาเลือกธนาคาร', confirmButtonColor: GUNGONG_GREEN });
       return;
     }
     if (!accountNumber) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เลขบัญชี', confirmButtonColor: '#3ACE00' });
+      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เลขบัญชี', confirmButtonColor: GUNGONG_GREEN });
       return;
     }
-    window.Swal?.fire({
-      icon: 'info',
-      title: 'กำลังตรวจสอบ...',
-      text: `ธนาคาร: ${selectedBank.name}\nเลขบัญชี: ${accountNumber}`,
-      confirmButtonColor: '#3ACE00'
-    });
+
+    showLoadingDialog('กำลังตรวจสอบบัญชี...', `ธนาคาร: ${selectedBank.name}`);
+    try {
+      const result = await apiCheckBank(selectedBank.code, accountNumber);
+      showBlacklistResult(result, 'bank', accountNumber, selectedBank);
+    } catch (error) {
+      showRequestError(error);
+    }
   };
 
   const checkPhone = async () => {
     const phone = inputs.phone.trim();
     if (!phone) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เบอร์โทร', confirmButtonColor: '#3ACE00' });
+      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เบอร์โทร', confirmButtonColor: GUNGONG_GREEN });
       return;
     }
-    window.Swal?.fire({ icon: 'info', title: 'กำลังตรวจสอบ...', text: phone, confirmButtonColor: '#3ACE00' });
+
+    showLoadingDialog('กำลังตรวจสอบเบอร์โทร...', phone);
+    try {
+      const result = await apiCheckPhone(phone);
+      showBlacklistResult(result, 'phone', phone);
+    } catch (error) {
+      showRequestError(error);
+    }
   };
 
 
