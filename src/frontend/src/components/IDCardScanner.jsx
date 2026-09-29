@@ -1,5 +1,36 @@
 import React, { useState, useRef } from 'react';
 
+const normalizeThaiId = (value) => String(value || '').replace(/\D/g, '').slice(0, 13);
+
+const formatThaiId = (value) => {
+  const digits = normalizeThaiId(value);
+  return [
+    digits.slice(0, 1),
+    digits.slice(1, 5),
+    digits.slice(5, 10),
+    digits.slice(10, 12),
+    digits.slice(12, 13),
+  ].filter(Boolean).join('-');
+};
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const showLoadingPopup = (title, text) => {
+  window.Swal?.fire({
+    title,
+    text,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => window.Swal?.showLoading(),
+  });
+};
+
 const IDCardScanner = ({ onNavigate }) => {
   const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
@@ -9,6 +40,7 @@ const IDCardScanner = ({ onNavigate }) => {
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const verificationInFlightRef = useRef(false);
 
   // Open camera
   const openCamera = async () => {
@@ -161,6 +193,8 @@ const IDCardScanner = ({ onNavigate }) => {
 
   // Verify ID card by manual input
   const verifyManualIdCard = async () => {
+    if (verificationInFlightRef.current) return;
+
     if (!manualIdNumber || manualIdNumber.length !== 13) {
       window.Swal?.fire({
         icon: 'warning',
@@ -171,7 +205,12 @@ const IDCardScanner = ({ onNavigate }) => {
       return;
     }
 
+    verificationInFlightRef.current = true;
     setIsLoading(true);
+    showLoadingPopup(
+      'กำลังตรวจสอบบัตรประชาชน...',
+      'กำลังตรวจสอบเลขบัตรและ Blacklist'
+    );
 
     try {
       const response = await fetch('/api/v2/verify-id-number', {
@@ -204,15 +243,21 @@ const IDCardScanner = ({ onNavigate }) => {
         confirmButtonColor: '#3ACE00'
       });
     } finally {
+      verificationInFlightRef.current = false;
       setIsLoading(false);
     }
   };
 
   // Verify ID card
   const verifyIDCard = async () => {
-    if (!capturedImage) return;
+    if (!capturedImage || verificationInFlightRef.current) return;
 
+    verificationInFlightRef.current = true;
     setIsLoading(true);
+    showLoadingPopup(
+      'กำลังสแกนบัตรประชาชน...',
+      'กำลังอ่านข้อมูลจากบัตรและตรวจสอบ Blacklist'
+    );
 
     try {
       // Remove data URI prefix (data:image/jpeg;base64,)
@@ -247,6 +292,7 @@ const IDCardScanner = ({ onNavigate }) => {
         confirmButtonColor: '#3ACE00'
       });
     } finally {
+      verificationInFlightRef.current = false;
       setIsLoading(false);
     }
   };
@@ -257,9 +303,23 @@ const IDCardScanner = ({ onNavigate }) => {
     const idNumber = data.id_number || '-';
     const isValid = data.is_valid_format;
     const isBlacklisted = data.is_blacklisted;
-    const isSafe = data.is_safe;
     const riskLevel = data.risk_level || 'UNKNOWN';
-    const reportsCount = data.reports_count || 0;
+    const reportsCount = data.reports_count ?? 0;
+    const category = data.category;
+
+    const formattedIdNumber = formatThaiId(idNumber) || '-';
+    const address = extracted.address ? String(extracted.address) : '';
+    const addressPreview = address
+      ? `${address.substring(0, 50)}${address.length > 50 ? '...' : ''}`
+      : '-';
+    const safeIdNumber = escapeHtml(formattedIdNumber);
+    const safeName = escapeHtml(extracted.name_th || '-');
+    const safeSurname = escapeHtml(extracted.surname_th || '-');
+    const safeDateOfBirth = escapeHtml(extracted.date_of_birth || '-');
+    const safeAddress = escapeHtml(addressPreview);
+    const safeRiskLevel = escapeHtml(riskLevel);
+    const safeReportsCount = escapeHtml(reportsCount);
+    const safeCategory = escapeHtml(category || '-');
 
     // Determine icon and color
     let icon = 'success';
@@ -283,10 +343,10 @@ const IDCardScanner = ({ onNavigate }) => {
         <div style="margin-bottom: 15px;">
           <strong>📋 ข้อมูลบัตร</strong>
           <div style="margin-left: 20px; margin-top: 8px;">
-            <p style="margin: 5px 0;">เลขบัตร: <strong>${idNumber}</strong></p>
-            <p style="margin: 5px 0;">ชื่อ-นามสกุล: ${extracted.name_th || '-'} ${extracted.surname_th || '-'}</p>
-            <p style="margin: 5px 0;">วันเกิด: ${extracted.date_of_birth || '-'}</p>
-            <p style="margin: 5px 0;">ที่อยู่: ${extracted.address ? extracted.address.substring(0, 50) + '...' : '-'}</p>
+            <p style="margin: 5px 0;">เลขบัตร: <strong>${safeIdNumber}</strong></p>
+            <p style="margin: 5px 0;">ชื่อ-นามสกุล: ${safeName} ${safeSurname}</p>
+            <p style="margin: 5px 0;">วันเกิด: ${safeDateOfBirth}</p>
+            <p style="margin: 5px 0;">ที่อยู่: ${safeAddress}</p>
           </div>
         </div>
 
@@ -295,8 +355,9 @@ const IDCardScanner = ({ onNavigate }) => {
           <div style="margin-left: 20px; margin-top: 8px;">
             <p style="margin: 5px 0;">รูปแบบถูกต้อง: ${isValid ? '✅ ใช่' : '❌ ไม่ใช่'}</p>
             <p style="margin: 5px 0;">อยู่ใน Blacklist: ${isBlacklisted ? '⚠️ ใช่' : '✅ ไม่'}</p>
-            <p style="margin: 5px 0;">ระดับความเสี่ยง: <strong>${riskLevel}</strong></p>
-            <p style="margin: 5px 0;">จำนวนรายงาน: ${reportsCount} ครั้ง</p>
+            <p style="margin: 5px 0;">ระดับความเสี่ยง: <strong>${safeRiskLevel}</strong></p>
+            <p style="margin: 5px 0;">จำนวนรายงาน: ${safeReportsCount} ครั้ง</p>
+            ${category ? `<p style="margin: 5px 0;">หมวดหมู่: ${safeCategory}</p>` : ''}
           </div>
         </div>
 
@@ -304,7 +365,7 @@ const IDCardScanner = ({ onNavigate }) => {
           <div style="background: #FFF3CD; padding: 10px; border-radius: 5px; margin-top: 15px;">
             <strong style="color: #856404;">⚠️ คำเตือน</strong>
             <p style="color: #856404; margin: 5px 0; font-size: 14px;">
-              ${isBlacklisted ? `เลขบัตรนี้มี ${reportsCount} รายงานการฉ้อโกง` : 'เลขบัตรไม่ผ่านการตรวจสอบ checksum'}
+              ${isBlacklisted ? `เลขบัตรนี้มี ${safeReportsCount} รายงานการฉ้อโกง` : 'เลขบัตรไม่ผ่านการตรวจสอบ checksum'}
             </p>
             <p style="color: #856404; margin: 5px 0; font-size: 14px;">
               ควรตรวจสอบกับหน่วยงานราชการเพิ่มเติม
@@ -375,10 +436,12 @@ const IDCardScanner = ({ onNavigate }) => {
                 <div className="form-input-group">
                   <input
                     type="text"
-                    maxLength="13"
                     className="form-input"
-                    value={manualIdNumber}
-                    onChange={(e) => setManualIdNumber(e.target.value.replace(/\D/g, ''))}
+                    value={formatThaiId(manualIdNumber)}
+                    onChange={(e) => setManualIdNumber(normalizeThaiId(e.target.value))}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    disabled={isLoading}
                     placeholder="1-2345-67890-12-3"
                   />
                 </div>
@@ -389,7 +452,7 @@ const IDCardScanner = ({ onNavigate }) => {
                   disabled={isLoading || manualIdNumber.length !== 13}
                   style={{ width: '100%' }}
                 >
-                  {isLoading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบข้อมูล'}
+                  ตรวจสอบข้อมูล
                 </button>
               </div>
 
@@ -411,6 +474,7 @@ const IDCardScanner = ({ onNavigate }) => {
                 <button
                   className="form-submit-btn"
                   onClick={openCamera}
+                  disabled={isLoading}
                   style={{
                     width: '100%',
                     background: '#f3f4f6',
@@ -443,6 +507,7 @@ const IDCardScanner = ({ onNavigate }) => {
                 <label
                   htmlFor="file-input"
                   className="form-submit-btn"
+                  aria-disabled={isLoading}
                   style={{
                     width: '100%',
                     background: '#f3f4f6',
@@ -481,6 +546,7 @@ const IDCardScanner = ({ onNavigate }) => {
                   type="file"
                   accept="image/*"
                   onChange={handleFileSelect}
+                  disabled={isLoading}
                   style={{ display: 'none' }}
                 />
               </div>
@@ -581,29 +647,24 @@ const IDCardScanner = ({ onNavigate }) => {
                 style={{ width: '100%', borderRadius: '16px', marginBottom: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
               />
 
-              {isLoading ? (
-                <div style={{ textAlign: 'center', padding: '20px' }}>
-                  <div className="loading-spinner" style={{ margin: '0 auto 10px' }}></div>
-                  <p>กำลังตรวจสอบบัตร...</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <button
-                    className="form-submit-btn"
-                    onClick={verifyIDCard}
-                    style={{ width: '100%' }}
-                  >
-                    ✅ ตรวจสอบบัตร
-                  </button>
-                  <button
-                    className="form-submit-btn"
-                    onClick={retake}
-                    style={{ width: '100%', background: '#f3f4f6', color: '#6b7280' }}
-                  >
-                    🔄 ถ่ายใหม่
-                  </button>
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  className="form-submit-btn"
+                  onClick={verifyIDCard}
+                  disabled={isLoading}
+                  style={{ width: '100%' }}
+                >
+                  ✅ ตรวจสอบบัตร
+                </button>
+                <button
+                  className="form-submit-btn"
+                  onClick={retake}
+                  disabled={isLoading}
+                  style={{ width: '100%', background: '#f3f4f6', color: '#6b7280' }}
+                >
+                  🔄 ถ่ายใหม่
+                </button>
+              </div>
             </div>
           )}
         </div>

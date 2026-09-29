@@ -202,17 +202,18 @@ class IDCardService:
         print(f"[ID-CHECK] Verifying ID number: {id_number[:4]}****{id_number[-2:]}")
 
         # Validate format
-        is_valid_format = self.thai_id_validator.validate(id_number)
+        is_valid_format = validate_thai_id(id_number)
         print(f"[VALIDATION] Format validation: {'Valid' if is_valid_format else 'Invalid'}")
 
         # Check blacklist
         print("[CHECK] Checking blacklist...")
-        blacklist_result = self.database_service.check_blacklist_id_card(id_number)
+        blacklist_result = self.check_id_blacklist(id_number)
 
         is_blacklisted = blacklist_result.get("is_blacklisted", False)
-        reports_count = blacklist_result.get("reports_count", 0)
-        category = blacklist_result.get("category")
-        last_reported = blacklist_result.get("last_reported")
+        blacklist_details = blacklist_result.get("details", {})
+        reports_count = blacklist_details.get("report_count", 1 if is_blacklisted else 0)
+        category = blacklist_details.get("category")
+        last_reported = blacklist_details.get("last_reported")
 
         # Determine risk level
         if is_blacklisted:
