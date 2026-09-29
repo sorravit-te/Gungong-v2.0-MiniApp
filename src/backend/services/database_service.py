@@ -63,7 +63,7 @@ class DatabaseService:
             use_emulator = os.getenv("USE_FIREBASE_EMULATOR", "false").lower() == "true"
             
             # Get database name from environment or use project_id as database name
-            database_name = os.getenv("FIRESTORE_DATABASE_ID", project_id)
+            database_name = os.getenv("FIRESTORE_DATABASE_ID", "(default)")
 
             if use_emulator:
                 # Use Firebase Emulator

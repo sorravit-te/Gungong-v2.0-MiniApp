@@ -106,12 +106,18 @@ if os.path.exists(static_path):
 
     logger.info(f"Frontend (Vite build) mounted from {static_path}")
 elif os.path.exists(frontend_path):
-    # Fallback: Old frontend structure
-    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
-    app.mount("/img", StaticFiles(directory=os.path.join(frontend_path, "img")), name="img")
-    app.mount("/js", StaticFiles(directory=os.path.join(frontend_path, "js")), name="js")
-    app.mount("/style", StaticFiles(directory=os.path.join(frontend_path, "style")), name="style")
-    logger.info(f"Frontend mounted from {frontend_path}")
+    # Local development: Vite frontend runs separately on port 5173
+    public_path = os.path.join(frontend_path, "public")
+    img_path = os.path.join(public_path, "img")
+
+    if os.path.exists(img_path):
+        app.mount("/img", StaticFiles(directory=img_path), name="img")
+        logger.info(f"Images mounted from {img_path}")
+
+    logger.info(
+        "Vite frontend source detected. "
+        "Run the frontend separately with `npm run dev` from src/frontend."
+    )
 else:
     logger.warning(f"Frontend directory not found")
 
@@ -122,13 +128,16 @@ async def startup_event():
     logger.info("Application starting up...")
 
     # Seed mock blacklist data
-    try:
-        blacklist_service = get_blacklist_service()
-        if blacklist_service:
-            blacklist_service.seed_mock_data()
-            logger.info("Mock blacklist data seeded")
-    except Exception as e:
-        logger.warning(f"Failed to seed mock data: {e}")
+    if os.getenv("SEED_MOCK_DATA", "false").lower() == "true":
+        try:
+            blacklist_service = get_blacklist_service()
+            if blacklist_service:
+                blacklist_service.seed_mock_data()
+                logger.info("Mock blacklist data seeded")
+        except Exception as e:
+            logger.warning(f"Failed to seed mock data: {e}")
+        else:
+            logger.info("Mock blacklist seeding disabled")
 
     # Playwright browser warmup disabled to prevent Cloud Run startup timeout
     # Browser will be initialized on first use (lazy loading)
@@ -137,10 +146,11 @@ async def startup_event():
 
 @app.get("/", response_class=FileResponse)
 async def root():
-    """Serve the frontend index.html."""
-    # Try Vite build first, then fallback
+    """Serve the production frontend if built."""
     if os.path.exists(os.path.join(static_path, "index.html")):
         return FileResponse(os.path.join(static_path, "index.html"))
-    elif os.path.exists(os.path.join(frontend_path, "index.html")):
-        return FileResponse(os.path.join(frontend_path, "index.html"))
-    return {"status": "healthy", "message": "Frontend not found, but API is running"}
+
+    return {
+        "status": "healthy",
+        "message": "API is running. Frontend dev server: http://localhost:5173"
+    }
