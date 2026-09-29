@@ -11,15 +11,10 @@ from datetime import datetime
 import io
 
 from ..services.conversation_analyzer_service import get_conversation_analyzer
-from ..services.database_service import DatabaseService
+from ..services.database_service import get_database_service
 
 # Initialize router
 router = APIRouter(prefix="/api/v2", tags=["Conversation Analysis"])
-
-# Initialize services
-conversation_analyzer = get_conversation_analyzer()
-db_service = DatabaseService()
-
 
 # ==================== Request/Response Models ====================
 
@@ -184,11 +179,15 @@ async def analyze_conversation(request: ConversationAnalysisRequest):
     - Cache based on SHA-256 hash of conversation text
     """
     try:
+        db_service = get_database_service()
+
         # Check cache first
-        cached_result = db_service.get_cached_result(
-            request.conversation_text,
-            check_expiration=True
-        )
+        cached_result = None
+        if db_service:
+            cached_result = db_service.get_cached_result(
+                request.conversation_text,
+                check_expiration=True
+            )
 
         if cached_result and "manipulation_score" in cached_result:
             print(f"✅ Cache HIT for conversation analysis")
@@ -211,29 +210,31 @@ async def analyze_conversation(request: ConversationAnalysisRequest):
         print(f"❌ Cache MISS - analyzing conversation with AI")
 
         # Perform AI analysis
+        conversation_analyzer = get_conversation_analyzer()
         result = await conversation_analyzer.analyze_conversation_async(
             request.conversation_text
         )
 
         # Save to cache (7 days TTL)
-        message_hash = db_service.hash_message(request.conversation_text)
-        db_service.save_fraud_result(
-            message_hash=message_hash,
-            classification_result=result,
-            message_text=request.conversation_text[:500],  # Save first 500 chars
-            url_check_result=None,
-            expires_days=7  # Longer cache for conversations
-        )
-
-        # Save to history if user_id provided
-        if request.user_id:
-            db_service.save_to_history(
-                user_id=request.user_id,
+        if db_service:
+            message_hash = db_service.hash_message(request.conversation_text)
+            db_service.save_fraud_result(
+                message_hash=message_hash,
+                classification_result=result,
                 message_text=request.conversation_text[:500],
-                classification=result.get("scam_type", "unknown"),
-                is_fraud=result.get("risk_level") in ["HIGH", "CRITICAL"],
-                url_check_result=None
+                url_check_result=None,
+                expires_days=7
             )
+
+            # Save to history if user_id provided
+            if request.user_id:
+                db_service.save_to_history(
+                    user_id=request.user_id,
+                    message_text=request.conversation_text[:500],
+                    classification=result.get("scam_type", "unknown"),
+                    is_fraud=result.get("risk_level") in ["HIGH", "CRITICAL"],
+                    url_check_result=None
+                )
 
         return ConversationAnalysisResponse(
             manipulation_score=result["manipulation_score"],

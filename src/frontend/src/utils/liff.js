@@ -1,6 +1,21 @@
 // LIFF Configuration
 export const LIFF_ID = "2008548759-KkM4Noxa";
 
+function getPublicAssetUrl(path) {
+    if (typeof window === 'undefined' || !window.location?.origin) {
+        throw new Error("PUBLIC_ORIGIN_NOT_AVAILABLE");
+    }
+
+    const assetUrl = new URL(path, window.location.origin);
+    const isLocalDevelopment = ["localhost", "127.0.0.1"].includes(assetUrl.hostname);
+
+    if (assetUrl.protocol !== "https:" && !isLocalDevelopment) {
+        throw new Error("PUBLIC_ORIGIN_MUST_USE_HTTPS");
+    }
+
+    return assetUrl.href;
+}
+
 // Initialize LIFF
 export async function initLiff() {
     try {
@@ -72,6 +87,7 @@ export async function shareMiniApp() {
         throw new Error("NOT_IN_LINE");
     }
 
+    const mascotUrl = getPublicAssetUrl("/img/mascot1.png");
     const message = [
         {
             type: "flex",
@@ -80,7 +96,7 @@ export async function shareMiniApp() {
                 type: "bubble",
                 hero: {
                     type: "image",
-                    url: "https://gungong-143631414136.asia-southeast1.run.app/img/mascot1.png",
+                    url: mascotUrl,
                     size: "full",
                     aspectRatio: "20:13",
                     aspectMode: "cover"
@@ -140,7 +156,7 @@ export async function shareVerificationCard(profile, level = 'silver') {
         throw new Error("NOT_IN_LINE");
     }
 
-    const baseUrl = "https://gungong-143631414136.asia-southeast1.run.app/img";
+    const baseUrl = getPublicAssetUrl("/img");
 
     const cardConfig = {
         silver: {

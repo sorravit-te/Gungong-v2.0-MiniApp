@@ -27,10 +27,6 @@ router = APIRouter(prefix="/api/v2", tags=["Verification"])
 limiter = Limiter(key_func=get_remote_address)
 logger = get_logger(__name__)
 
-# Initialize service
-verification_service = get_verification_service()
-
-
 # ==================== Request/Response Models ====================
 
 class PhoneVerificationRequest(BaseModel):
@@ -144,6 +140,7 @@ async def verify_phone(http_request: Request, request: PhoneVerificationRequest)
     ```
     """
     try:
+        verification_service = get_verification_service()
         logger.info(f"🔍 Verifying phone: {request.phone}")
 
         # Verify phone
@@ -217,6 +214,7 @@ async def verify_bank(http_request: Request, request: BankVerificationRequest):
     **Note:** For MVP, real data for blacklisted accounts, basic validation for others.
     """
     try:
+        verification_service = get_verification_service()
         logger.info(f"🏦 Verifying bank account: {request.account_number} ({request.bank_code})")
 
         # Verify bank account
@@ -294,6 +292,7 @@ async def verify_social(http_request: Request, request: SocialVerificationReques
     **Note:** MVP provides basic URL validation. Full profile analysis in Phase 2.
     """
     try:
+        verification_service = get_verification_service()
         logger.info(f"👤 Verifying social profile: {request.profile_url}")
 
         # Verify social profile

@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 
 try:
     from playwright.async_api import async_playwright, Browser, Page, Playwright
-    from playwright_stealth import stealth_async
+    from playwright_stealth import Stealth
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
@@ -225,7 +225,7 @@ class HeadlessBrowserService:
 
             # Create page and apply stealth
             page = await context.new_page()
-            await stealth_async(page)
+            await Stealth().apply_stealth_async(page)
 
             # Navigate with faster wait strategy
             try:

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     )
 
     # Google Gemini API
-    google_api_key: str
+    google_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.5-flash-lite"
 
     # LINE Bot

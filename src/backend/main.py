@@ -56,6 +56,8 @@ ALLOWED_ORIGINS = [
     "https://liff.line.me",  # LINE LIFF
     "http://localhost:8000",  # Local development
     "http://127.0.0.1:8000",  # Local development
+    "http://localhost:5173",  # Local Vite development
+    "http://127.0.0.1:5173",  # Local Vite development
 ]
 
 # Add ngrok URL from environment if available (for development/testing)

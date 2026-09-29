@@ -33,7 +33,7 @@ from ..core.logger import get_logger
 try:
     get_line_service()
     LINE_SERVICE_AVAILABLE = True
-except (ImportError, SyntaxError):
+except (ImportError, SyntaxError, ValueError):
     LINE_SERVICE_AVAILABLE = False
 
 router = APIRouter()

@@ -637,6 +637,25 @@ tail -f logs/gungong_$(date +%Y%m%d).log
 
 ---
 
+## Render deployment (Docker)
+
+GunGong deploys as one Docker Web Service. The Docker build compiles the Vite frontend and copies its output to `src/backend/static`, where FastAPI serves the React application and the API from the same origin. Firestore remains an external Firebase service.
+
+After pushing the deployment files to the private GitHub repository:
+
+1. In Render, connect the private GitHub repository.
+2. Create a Blueprint from the repository-root `render.yaml` (or create one Docker Web Service using the root `Dockerfile`).
+3. Enter the prompted secret environment variables: `GOOGLE_API_KEY`, `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET`, and `VIRUSTOTAL_API_KEY`.
+4. Under the service's **Environment > Secret Files**, add a file named `service-account.json` containing the Firebase service-account JSON. Render exposes it at `/etc/secrets/service-account.json`; never add this file to Git or the Docker image.
+5. Deploy the service. Render supplies `PORT`; the container defaults to port `10000` only when `PORT` is absent.
+6. Verify the production React application at `/`, the health response at `/health`, and the webhook readiness response at `/webhook`.
+7. Update the LINE LIFF Endpoint URL to the Render HTTPS service URL.
+8. Update the LINE Messaging API webhook URL to `https://<render-host>/webhook`.
+9. Use **Verify** in the LINE Developers Console to confirm webhook reachability.
+10. Open the LIFF app inside LINE and test QR scanning and the end-to-end fraud-check flow.
+
+The Firebase Secret File is runtime-only and is not used during the Docker build. `scripts/deploy-to-cloud-run.sh` is retained as legacy infrastructure; Render is the current deployment target.
+
 ## 🔧 Troubleshooting
 
 ### Common Issues

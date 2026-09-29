@@ -15,7 +15,7 @@ langchain-core==0.3.21
 # LINE Bot SDK (compatible with pydantic v2)
 line-bot-sdk==3.12.0
 
-# Data validation (relaxed versions for Python 3.14 compatibility)
+# Data validation (Python 3.12 runtime)
 pydantic>=2.8.0
 pydantic-settings>=2.4.0
 
@@ -31,8 +31,8 @@ pythainlp==5.0.4
 
 # Web scraping
 beautifulsoup4==4.12.3
-# playwright>=1.40.0
-playwright-stealth>=1.0.6
+playwright==1.63.0
+playwright-stealth==2.0.3
 
 # Language detection (v2.0)
 langdetect==1.0.9
