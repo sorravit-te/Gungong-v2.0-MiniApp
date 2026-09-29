@@ -2,62 +2,58 @@ import React, { useState, useEffect } from 'react';
 import { loadHistory, formatTime, getTypeName } from '../utils/script';
 import HistoryCalendar from './shared/HistoryCalendar';
 
+const escapeHtml = (value) => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const parseHistoryDate = (dateString) => {
+  if (!dateString) return null;
+
+  const date = new Date(dateString);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const History = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [historyData, setHistoryData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // Sample history data (will be replaced by API data)
-  const sampleHistoryItems = [
-    {
-      id: '1',
-      type: 'link',
-      message_text: 'https://bit.ly/scam123',
-      is_safe: false,
-      is_fraud: true,
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '2',
-      type: 'phone',
-      phone_number: '091-234-5678',
-      message_text: '091-234-5678',
-      is_safe: true,
-      is_fraud: false,
-      created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '3',
-      type: 'bank',
-      account_number: 'xxx-x-xxxxx-x',
-      message_text: 'xxx-x-xxxxx-x (KBANK)',
-      is_safe: false,
-      is_fraud: true,
-      created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '4',
-      type: 'sms',
-      message_text: 'คุณได้รับเงินคืนภาษี กรุณากดลิงก์...',
-      is_safe: false,
-      is_fraud: true,
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '5',
-      type: 'link',
-      message_text: 'https://kbank.co.th',
-      is_safe: true,
-      is_fraud: false,
-      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-
   useEffect(() => {
-    // Use sample data for now
-    setHistoryData(sampleHistoryItems);
+    let isMounted = true;
+
+    const fetchHistory = async () => {
+      setLoading(true);
+      setLoadError('');
+
+      try {
+        const entries = await loadHistory();
+        if (isMounted) {
+          setHistoryData(Array.isArray(entries) ? entries : []);
+        }
+      } catch (error) {
+        console.error('Failed to load history:', error);
+        if (isMounted) {
+          setHistoryData([]);
+          setLoadError('ไม่สามารถโหลดประวัติการตรวจสอบได้ กรุณาลองใหม่อีกครั้ง');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchHistory();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const getTypeIcon = (type) => {
@@ -107,38 +103,22 @@ const History = () => {
   };
 
   const getTimeString = (dateString) => {
-    if (!dateString) return '';
-    const dateObj = new Date(dateString);
-    return dateObj.toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getTypeLabelName = (type) => {
-    const names = {
-      link: 'Link',
-      message: 'Message',
-      text: 'Text',
-      sms: 'SMS',
-      qr: 'QrCode',
-      bank: 'Bank',
-      phone: 'Phone',
-    };
-    return names[type] || 'Unknown';
+    return parseHistoryDate(dateString) ? formatTime(dateString) : '--:--';
   };
 
   const handleCardClick = (item) => {
     const isSafe = item.is_safe;
+    const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
+    const hasConfidence = item.confidence_score !== undefined && item.confidence_score !== null;
     window.Swal?.fire({
       title: isSafe ? 'ปลอดภัย ✅' : 'อันตราย! ⚠️',
       html: `
         <div style="text-align: left; font-size: 14px;">
-          <p><b>ข้อความ:</b> ${item.message_text || item.account_number || item.phone_number || 'No content'}</p>
+          <p><b>ข้อความ:</b> ${escapeHtml(displayText)}</p>
           <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-          <p><b>ประเภท:</b> ${getTypeLabelName(item.type)}</p>
-          ${item.confidence_score ? `<p><b>ความมั่นใจ:</b> ${item.confidence_score}%</p>` : ''}
-          ${item.reason ? `<p><b>เหตุผล:</b> ${item.reason}</p>` : ''}
+          <p><b>ประเภท:</b> ${escapeHtml(getTypeName(item.type))}</p>
+          ${hasConfidence ? `<p><b>ความมั่นใจ:</b> ${escapeHtml(item.confidence_score)}%</p>` : ''}
+          ${item.reason ? `<p><b>เหตุผล:</b> ${escapeHtml(item.reason)}</p>` : ''}
         </div>
       `,
       icon: isSafe ? 'success' : 'warning',
@@ -148,7 +128,7 @@ const History = () => {
     });
   };
 
-  const handleReport = (e, item) => {
+  const handleReport = (e) => {
     e.stopPropagation();
     window.Swal?.fire({
       title: 'ต้องการรายงานผล?',
@@ -206,12 +186,13 @@ const History = () => {
 
   const filteredItems = historyData.filter(item => {
     const text = item.message_text || item.account_number || item.phone_number || '';
-    const matchesSearch = text.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = String(text).toLowerCase().includes(searchQuery.toLowerCase());
 
     // Date filtering
     if (selectedDate) {
-      const itemDate = new Date(item.created_at);
-      const matchesDate = itemDate.getFullYear() === selectedDate.getFullYear() &&
+      const itemDate = parseHistoryDate(item.created_at);
+      const matchesDate = itemDate &&
+                         itemDate.getFullYear() === selectedDate.getFullYear() &&
                          itemDate.getMonth() === selectedDate.getMonth() &&
                          itemDate.getDate() === selectedDate.getDate();
       return matchesSearch && matchesDate;
@@ -220,6 +201,7 @@ const History = () => {
   });
 
   const displayedItems = expanded ? filteredItems : filteredItems.slice(0, 3);
+  const calendarHistoryItems = historyData.filter(item => parseHistoryDate(item.created_at));
 
   return (
     <section id="history-page">
@@ -232,7 +214,7 @@ const History = () => {
           {/* Calendar Sidebar */}
           <div className="history-calendar-sidebar">
             <HistoryCalendar
-              historyItems={historyData}
+              historyItems={calendarHistoryItems}
               selectedDate={selectedDate}
               onDateSelect={setSelectedDate}
             />
@@ -277,6 +259,10 @@ const History = () => {
             <div style={{ textAlign: 'center', padding: '20px', color: '#aaa' }}>
               กำลังโหลดข้อมูล...
             </div>
+          ) : loadError ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: '#FF5C5C' }}>
+              {loadError}
+            </div>
           ) : displayedItems.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
               ไม่พบประวัติการตรวจสอบ
@@ -287,6 +273,7 @@ const History = () => {
               const isFraud = item.is_fraud;
               const statusClass = isSafe ? 'safe' : 'dangerous';
               const iconClass = isFraud ? 'icon-dangerous' : (isSafe ? 'icon-safe' : 'icon-unknown');
+              const itemDate = parseHistoryDate(item.created_at);
               const timeStr = getTimeString(item.created_at);
               const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
               const animDelay = `${0.05 + index * 0.08}s`;
@@ -300,13 +287,13 @@ const History = () => {
                 >
                   <div className="card-left-line"></div>
                   <div className="card-date-block">
-                    <span className="date-day">{new Date(item.created_at).getDate()}</span>
-                    <span className="date-month">{new Date(item.created_at).toLocaleString('th-TH', { month: 'short' })}</span>
-                    <span className="date-time">{new Date(item.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="date-day">{itemDate ? itemDate.getDate() : '--'}</span>
+                    <span className="date-month">{itemDate ? itemDate.toLocaleString('th-TH', { month: 'short' }) : 'ไม่ทราบ'}</span>
+                    <span className="date-time">{timeStr}</span>
                   </div>
                   <div className="h-card-content">
                     <div className="h-card-top">
-                      <span className="type-label">Type : {getTypeLabelName(item.type)}</span>
+                      <span className="type-label">Type : {getTypeName(item.type)}</span>
                     </div>
                     <div className="h-card-main">
                       <div className={`h-icon ${iconClass}`}>
@@ -332,7 +319,7 @@ const History = () => {
                           DANGEROUS
                         </div>
                       )}
-                      <button className="feedback-btn" onClick={(e) => handleReport(e, item)}>
+                      <button className="feedback-btn" onClick={handleReport}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                           <circle cx="12" cy="12" r="10"></circle>
                           <line x1="12" y1="8" x2="12" y2="12"></line>
