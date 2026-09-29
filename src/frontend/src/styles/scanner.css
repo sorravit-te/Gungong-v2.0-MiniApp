@@ -5,7 +5,8 @@
 #check-bank-page,
 #check-phone-page,
 #check-content-page,
-#check-personal-page
+#check-personal-page,
+#scan-image-page
 {padding: 0px 20px 0px 20px;}
 
 /* ==================== MODERN SUBPAGE STYLES ==================== */
@@ -946,7 +947,8 @@ html.dark-mode .feature-yes {
 
 #check-content-page .section-content,
 #check-personal-page .section-content,
-#scan-qr-page .section-content {
+#scan-qr-page .section-content,
+#scan-image-page .section-content {
   animation: subpageSlideIn 0.4s ease-out;
 }
 

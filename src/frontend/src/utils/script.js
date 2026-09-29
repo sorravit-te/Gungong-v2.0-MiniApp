@@ -48,7 +48,11 @@ export async function callFraudCheckApi(message, type) {
             "Content-Type": "application/json",
             "ngrok-skip-browser-warning": "true",
         },
-        body: JSON.stringify({ message: message, user_id: userId }),
+        body: JSON.stringify({
+            message: message,
+            user_id: userId,
+            message_type: type,
+        }),
     });
 
     if (!response.ok) {

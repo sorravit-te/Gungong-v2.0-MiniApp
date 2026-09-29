@@ -2,7 +2,7 @@
 
 import asyncio
 import re
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from slowapi import Limiter
@@ -21,10 +21,30 @@ limiter = Limiter(key_func=get_remote_address)
 logger = get_logger(__name__)
 
 
+HistoryMessageType = Literal["link", "text", "sms", "qr"]
+
+
 class FraudCheckRequest(BaseModel):
     """Request model for fraud checking."""
     message: str
     user_id: Optional[str] = None
+    message_type: Optional[HistoryMessageType] = None
+
+
+def _resolve_history_message_type(
+    requested_type: Optional[HistoryMessageType],
+    url_check: Optional[dict],
+    has_malicious_urls: bool = False,
+) -> Optional[str]:
+    """Resolve history metadata without changing fraud analysis behavior."""
+    if requested_type:
+        return "text" if requested_type == "sms" else requested_type
+
+    if has_malicious_urls or (url_check and url_check.get("has_urls")):
+        return "link"
+
+    # Let DatabaseService preserve its existing link/text auto-detection.
+    return None
 
 
 @router.post("/analyze-message")
@@ -143,7 +163,12 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest):
                         reasoning_summary=cached_result.get("reasoning_summary"),
                         url_check_result=cached_result.get("url_check"),
                         has_malicious_urls=cached_result.get("has_malicious_urls"),
-                        model_used=cached_result.get("model")
+                        model_used=cached_result.get("model"),
+                        message_type=_resolve_history_message_type(
+                            fraud_request.message_type,
+                            cached_result.get("url_check"),
+                            cached_result.get("has_malicious_urls", False),
+                        ),
                     )
                     logger.debug(f"📜 Saved cache hit to history for user {fraud_request.user_id}")
 
@@ -293,9 +318,11 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest):
             # Save to history log
             if fraud_request.user_id:
                 try:
-                    msg_type = "text"
-                    if has_malicious_urls or (url_check and url_check.get("has_urls")):
-                        msg_type = "link"
+                    msg_type = _resolve_history_message_type(
+                        fraud_request.message_type,
+                        url_check,
+                        has_malicious_urls,
+                    )
 
                     db_service.save_history(
                         user_id=fraud_request.user_id,
