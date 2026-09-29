@@ -1,0 +1,103 @@
+GNU AFFERO GENERAL PUBLIC LICENSE
+Version 3, 19 November 2007
+
+Copyright (C) 2025 GunGong (กันโกง) - AI Fraud Detection System
+All Rights Reserved.
+
+DUAL LICENSING NOTICE:
+This software is available under a dual-license model:
+
+1. AGPL-3.0 License (for non-commercial, educational, and open-source use)
+2. Commercial License (for commercial use, contact owner for licensing terms)
+
+================================================================================
+
+TERMS AND CONDITIONS FOR NON-COMMERCIAL USE:
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+================================================================================
+
+COMMERCIAL USE RESTRICTIONS:
+
+If you wish to use this software for commercial purposes, including but not
+limited to:
+- Selling the software or services based on this software
+- Using the software in a commercial product or service
+- Providing SaaS (Software as a Service) using this software
+
+You MUST obtain a separate Commercial License from the copyright holder.
+
+For commercial licensing inquiries, please contact the project owner.
+
+================================================================================
+
+ADDITIONAL TERMS:
+
+1. ATTRIBUTION: You must retain all copyright notices and attributions in
+   the source code and any derivative works.
+
+2. NETWORK USE: If you run a modified version of this software accessible
+   over a network, you must make the complete source code of your modified
+   version available to users (as per AGPL-3.0 Section 13).
+
+3. PROPRIETARY COMPONENTS: The following components contain proprietary
+   algorithms and trade secrets:
+   - fraud_patterns.json (Fraud detection pattern database)
+   - gemini_service.py (AI prompt engineering)
+   - performance_config.py (Performance optimization logic)
+   - homoglyph_detector.py (Unicode spoofing detection)
+   - fraud_message_service.py (TF-IDF similarity algorithm)
+
+   These components are provided for evaluation and educational purposes only.
+   Commercial use or extraction of these algorithms requires explicit permission.
+
+4. NO DERIVATIVE COMMERCIAL WORKS: You may NOT create commercial derivative
+   works based on the proprietary components listed above without obtaining
+   a Commercial License.
+
+================================================================================
+
+DISCLAIMER OF WARRANTY:
+
+THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
+EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER
+PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS
+TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM
+PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR
+CORRECTION.
+
+================================================================================
+
+LIMITATION OF LIABILITY:
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY
+COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS THE PROGRAM
+AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL,
+INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE
+THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED
+INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE
+PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY
+HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+================================================================================
+
+For the complete text of the GNU Affero General Public License v3.0, visit:
+https://www.gnu.org/licenses/agpl-3.0.html
+
+================================================================================
+
+© 2025 GunGong (กันโกง) - AI Fraud Detection System. All Rights Reserved.

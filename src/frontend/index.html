@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="icon" type="image/png" href="/img/logo.png" />
+  <title>GunGong</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@100..900&display=swap" rel="stylesheet" />
+
+  <!-- LIFF SDK -->
+  <script src="https://cdn.jsdelivr.net/gh/iamprompt/liff-sdk@latest/liff/edge/2/sdk.js"></script>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <style>
+    .deep-link-mode main,
+    .deep-link-mode nav {
+      display: none !important;
+    }
+  </style>
+  <script>
+    if (new URLSearchParams(window.location.search).has("historyId")) {
+      document.documentElement.classList.add("deep-link-mode");
+    }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>

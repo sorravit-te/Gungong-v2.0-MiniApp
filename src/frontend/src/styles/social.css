@@ -1,0 +1,243 @@
+#social-page {
+  padding: 0px 20px 0px 20px;
+}
+
+.social-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 20px;
+}
+
+/* ==================== SOCIAL CARD (Verify Menu Style) ==================== */
+.social-card {
+  background: #fff;
+  border-radius: 16px;
+  position: relative;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  display: flex;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 120px;
+  cursor: pointer;
+}
+
+.social-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.social-card:active {
+  transform: scale(0.98);
+}
+
+/* เส้นขอบด้านข้าง */
+.social-card .card-left-line {
+  width: 8px;
+  flex-shrink: 0;
+  background: #E5E7EB; /* สี Default */
+}
+
+.social-card.warning .card-left-line {
+  background: #FDBA74; /* สีส้ม */
+}
+
+.social-card.danger .card-left-line {
+  background: #FCA5A5; /* สีแดง */
+}
+
+/* เนื้อหาภายใน */
+.s-card-content {
+  flex-grow: 1;
+  padding: 12px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.s-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #999;
+  font-weight: 500;
+}
+
+.author-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.author-avatar-svg {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #E5E7EB; /* Grey background */
+  color: #9CA3AF; /* Icon color */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.author-avatar-svg svg {
+  width: 28px; /* Percentage or px size relative to container */
+  height: 28px;
+}
+
+.author-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.author-name {
+  font-weight: 700;
+  color: #6d6d6d;
+  font-size: 14px;
+}
+
+.post-time {
+  font-size: 11px;
+  color: #999;
+}
+
+.more-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.more-btn:hover {
+  color: #6d6d6d;
+}
+
+.s-card-main {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* ไอคอน */
+.s-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.s-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: #fff;
+}
+
+.s-icon.icon-warning { background-color: #FDBA74; }
+.s-icon.icon-danger { background-color: #FCA5A5; }
+.s-icon.icon-default { background-color: #E5E7EB; }
+
+.s-text-group {
+  flex: 1;
+}
+
+.post-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6d6d6d;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.post-image {
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  display: block;
+}
+
+/* ส่วนล่างและปุ่ม Action */
+.s-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #F3F4F6;
+}
+
+.badge-community {
+  background: #DCFCE7;
+  color: #16A34A;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.action-group {
+  display: flex;
+  gap: 8px;
+}
+
+.social-action-btn {
+  background: transparent;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #6B7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.social-action-btn:hover {
+  background: #F9FAFB;
+}
+
+.social-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Dark Mode Support */
+html.dark-mode .social-card {
+  background: #2D3748;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+html.dark-mode .author-name {
+  color: #E2E8F0;
+}
+
+html.dark-mode .author-avatar-svg {
+  background: #4A5568;
+  color: #E2E8F0;
+  border-color: #4A5568;
+}
+
+html.dark-mode .post-text {
+  color: #E2E8F0;
+}
+
+html.dark-mode .social-action-btn {
+  border-color: #4A5568;
+  color: #A0AEC0;
+}
+
+html.dark-mode .social-action-btn:hover {
+  background: #374151;
+}
+
+html.dark-mode .s-card-bottom {
+  border-top-color: #3D4A5C;
+}

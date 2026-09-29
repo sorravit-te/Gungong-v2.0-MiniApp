@@ -1,0 +1,299 @@
+/* ==================== COVERFLOW 3D BANNER SLIDER ==================== */
+.coverflow-banner-container {
+  width: 100%;
+  padding: 20px 0 10px 0;
+  perspective: 1200px;
+  box-sizing: border-box;
+}
+
+.coverflow-swiper {
+  width: 100%;
+  padding-top: 10px;
+  padding-bottom: 50px;
+  overflow: visible !important;
+}
+
+.coverflow-swiper .swiper-wrapper {
+  align-items: center;
+}
+
+.coverflow-swiper .swiper-slide {
+  width: 340px !important;
+  max-width: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  transition: opacity 0.5s ease;
+  background: #fff;
+}
+
+.coverflow-swiper .swiper-slide img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 780 / 388;
+  object-fit: cover;
+  display: block;
+}
+
+/* Active slide - full opacity */
+.coverflow-swiper .swiper-slide-active {
+  opacity: 1;
+}
+
+/* Non-active slides - reduced opacity */
+.coverflow-swiper .swiper-slide:not(.swiper-slide-active) {
+  opacity: 0.7;
+}
+
+/* Custom Pagination Bullets */
+.coverflow-swiper .swiper-pagination-bullet {
+  width: 8px;
+  height: 8px;
+  background: #d1d5db;
+  opacity: 1;
+  transition: all 0.3s ease;
+}
+
+.coverflow-swiper .swiper-pagination-bullet-active {
+  width: 24px;
+  border-radius: 10px;
+  background: #3ACE00;
+}
+
+/* Custom Navigation Arrows */
+.coverflow-swiper .swiper-button-prev,
+.coverflow-swiper .swiper-button-next {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.coverflow-swiper .swiper-button-prev:after,
+.coverflow-swiper .swiper-button-next:after {
+  font-size: 100px;
+  font-weight: 900;
+  color: #3ACE00;
+}
+
+.coverflow-swiper .swiper-button-prev:hover,
+.coverflow-swiper .swiper-button-next:hover {
+  background: #3ACE00;
+  transform: scale(1.1);
+}
+
+.coverflow-swiper .swiper-button-prev:hover:after,
+.coverflow-swiper .swiper-button-next:hover:after {
+  color: #fff;
+}
+
+.coverflow-swiper .swiper-button-disabled {
+  opacity: 0.3;
+}
+
+
+
+/* ==================== STATUS BAR (Verify Menu Style) ==================== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 12px 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: none;
+}
+
+.status-bar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.status-bar:active {
+  transform: scale(0.98);
+}
+
+.status-icon-bg {
+  width: 40px;
+  height: 40px;
+  background: #86EFAC;
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.status-icon-bg svg {
+  width: 20px;
+  height: 20px;
+  stroke: #fff;
+}
+
+.status-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-info h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #6d6d6d;
+  margin: 0 0 2px 0;
+}
+
+.status-info p {
+  font-size: 11px;
+  color: #999;
+  font-weight: 500;
+  margin: 0;
+}
+
+.status-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.status-bar:hover .status-action {
+  opacity: 1;
+}
+
+.status-action span {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.status-action svg {
+  width: 14px;
+  height: 14px;
+  stroke: #64748b;
+}
+
+/* Dark Mode Status Bar */
+html.dark-mode .status-bar {
+  background: #2d3748;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+html.dark-mode .status-info h3 {
+  color: #e2e8f0;
+}
+
+html.dark-mode .status-info p {
+  color: #94a3b8;
+}
+
+html.dark-mode .status-action span {
+  color: #94a3b8;
+}
+
+html.dark-mode .status-action svg {
+  stroke: #94a3b8;
+}
+
+/* ==================== SUMMARY CARD ==================== */
+.summary-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 20px rgba(187, 187, 187, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;}
+
+.summary-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;}
+
+.summary-title h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #8f8f8f;
+  margin: 0;}
+
+.summary-title span {
+  font-size: 14px;
+  color: #a0a0a0;
+  font-weight: 400;}
+
+.summary-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke: #999;
+  stroke-width: 2;}
+
+.summary-stats-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 15px;}
+
+.summary-item {
+  flex: 1;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 16px;
+  padding: 15px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;}
+
+.summary-item .label {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 5px;
+  text-transform: lowercase}
+
+.summary-item .value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #838383;
+  line-height: 1;}
+
+.summary-item.green-1 {
+  background-color: #f4fdf6;
+  border-color: #ffffff;}
+
+.summary-item.green-1 .value {
+  color: #88c057;}
+
+.summary-item.green-2 {
+  background-color: #ecfce8;
+  border-color: #ffffff;}
+
+.summary-item.green-2 .value {
+  color: #6bb92d;}
+
+.summary-item.green-3 {
+  background-color: #e3fadd;
+  border-color: #ffffff;}
+
+.summary-item.green-3 .value {
+  color: #3ACE00;}
+
+.summary-item .label {
+  color: #777;
+  font-weight: 500;}

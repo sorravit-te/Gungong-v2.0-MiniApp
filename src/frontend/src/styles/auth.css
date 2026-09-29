@@ -1,0 +1,225 @@
+/* ==================== GOOGLE LOGIN BUTTON ==================== */
+.google-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 20px;
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: "Noto Sans Thai", sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.google-login-btn:hover {
+  background: #f9fafb;
+  border-color: #3ACE00;
+  box-shadow: 0 4px 16px rgba(58, 206, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.google-login-btn:active {
+  transform: scale(0.98);
+}
+
+.google-login-btn.loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.google-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3ACE00;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== GOOGLE USER CARD ==================== */
+.google-user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1.5px solid #86efac;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(58, 206, 0, 0.1);
+}
+
+.google-user-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #3ACE00;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.google-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.google-user-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #166534;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.google-user-email {
+  font-size: 12px;
+  color: #4ade80;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.google-logout-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1.5px solid #fca5a5;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.google-logout-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: #ef4444;
+}
+
+.google-logout-btn:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.google-logout-btn:active {
+  transform: scale(0.95);
+}
+
+/* ==================== DARK MODE ==================== */
+html.dark-mode .google-login-btn {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e2e8f0;
+}
+
+html.dark-mode .google-login-btn:hover {
+  background: #4b5563;
+  border-color: #3ACE00;
+}
+
+html.dark-mode .google-user-card {
+  background: linear-gradient(135deg, #1a3a1a 0%, #14532d 100%);
+  border-color: #22c55e;
+}
+
+html.dark-mode .google-user-name {
+  color: #bbf7d0;
+}
+
+html.dark-mode .google-user-email {
+  color: #6ee7b7;
+}
+
+html.dark-mode .google-logout-btn {
+  background: #374151;
+  border-color: #f87171;
+}
+
+html.dark-mode .google-logout-btn:hover {
+  background: #4b5563;
+}
+
+html.dark-mode .loading-spinner {
+  border-color: #4b5563;
+  border-top-color: #4ade80;
+}
+
+/* ==================== HEADER LOGIN BUTTON ==================== */
+.google-login-header-btn {
+  background: #ffffff !important;
+  border: 1.5px solid #e5e7eb !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.google-login-header-btn:hover {
+  border-color: #3ACE00 !important;
+  box-shadow: 0 4px 12px rgba(58, 206, 0, 0.2);
+  transform: scale(1.05);
+}
+
+.google-login-header-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.header-user-menu {
+  position: relative;
+}
+
+.header-user-avatar {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #3ACE00;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(58, 206, 0, 0.2);
+}
+
+.header-user-avatar:hover {
+  transform: scale(1.1);
+  border-color: #22c55e;
+  box-shadow: 0 4px 12px rgba(58, 206, 0, 0.3);
+}
+
+.header-user-avatar:active {
+  transform: scale(0.95);
+}
+
+/* Dark Mode */
+html.dark-mode .google-login-header-btn {
+  background: #374151 !important;
+  border-color: #4b5563 !important;
+}
+
+html.dark-mode .google-login-header-btn:hover {
+  border-color: #4ade80 !important;
+}
+
+html.dark-mode .header-user-avatar {
+  border-color: #4ade80;
+}

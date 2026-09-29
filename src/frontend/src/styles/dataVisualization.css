@@ -1,0 +1,312 @@
+.summary-viz-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 20px 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  animation: slideInUp 0.5s ease-out forwards;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.summary-viz-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header Section - Verify Menu Style */
+.summary-viz-header {
+  display: flex;
+  align-items: center;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 15px;
+}
+
+.summary-viz-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #f0f9eb 0%, #e8f5e1 100%);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.summary-viz-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: #3ACE00;
+}
+
+.summary-viz-title {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-viz-title h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #6d6d6d;
+  margin: 0 0 2px 0;
+}
+
+.summary-viz-title span {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+}
+
+.summary-viz-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.summary-viz-action:hover {
+  opacity: 1;
+}
+
+.summary-viz-action span {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.summary-viz-action svg {
+  width: 14px;
+  height: 14px;
+  stroke: #64748b;
+}
+
+/* Stats Row - Compact Inline Style */
+.summary-stats-inline {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  padding: 12px 0;
+  margin-bottom: 10px;
+}
+
+.stat-item-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  text-transform: lowercase;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Chart Container */
+.chart-container {
+  width: 100%;
+  height: 180px;
+}
+
+/* Chart Bars Animation */
+.chart-bar {
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.chart-bar:hover {
+  opacity: 0.85;
+  filter: brightness(1.1);
+}
+
+/* Axis Styling - Light Mode */
+.chart-axis-tick {
+  fill: #6b7280;
+}
+
+/* Custom Glassmorphism Tooltip */
+.chart-tooltip {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tooltip-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tooltip-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.tooltip-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+/* ==================== DARK MODE SUPPORT ==================== */
+html.dark-mode .summary-viz-card {
+  background: #2d3748;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+html.dark-mode .summary-viz-header {
+  border-bottom-color: #3d4a5c;
+}
+
+/* Removed dark mode icon background change to invoke consistent style */
+/* html.dark-mode .summary-viz-icon {
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+} */
+
+html.dark-mode .summary-viz-title h3 {
+  color: #e2e8f0;
+}
+
+html.dark-mode .summary-viz-title span {
+  color: #94a3b8;
+}
+
+html.dark-mode .summary-viz-action span {
+  color: #94a3b8;
+}
+
+html.dark-mode .summary-viz-action svg {
+  stroke: #94a3b8;
+}
+
+html.dark-mode .stat-item-inline {
+  background: #374151;
+}
+
+html.dark-mode .stat-label {
+  color: #9ca3af;
+}
+
+html.dark-mode .chart-axis-tick {
+  fill: #9ca3af !important;
+}
+
+/* Override Recharts text elements in dark mode */
+html.dark-mode .recharts-cartesian-axis-tick-value {
+  fill: #9ca3af !important;
+}
+
+html.dark-mode .recharts-text {
+  fill: #9ca3af !important;
+}
+
+/* Dark Mode Tooltip */
+html.dark-mode .chart-tooltip {
+  background: rgba(45, 55, 72, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+html.dark-mode .tooltip-label {
+  color: #9ca3af;
+}
+
+html.dark-mode .tooltip-value {
+  color: #f0f0f5;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+@media (max-width: 480px) {
+  .summary-viz-card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .summary-stats-inline {
+    gap: 6px;
+  }
+
+  .stat-item-inline {
+    padding: 6px 8px;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .chart-container {
+    height: 160px;
+  }
+
+  .summary-viz-title h3 {
+    font-size: 15px;
+  }
+}
