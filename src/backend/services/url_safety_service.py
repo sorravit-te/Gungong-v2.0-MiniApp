@@ -47,6 +47,7 @@ class RedirectHTTPResponse:
     headers: Mapping[str, str]
     body_preview: bytes = b""
     body_truncated: bool = False
+    body_read_status: str = "complete"
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class RedirectResolutionResult:
     redirect_kinds: tuple[str, ...] = ()
     client_redirect_checked: bool = False
     client_redirect_status: str = "not_checked"
+    content_fetch_status: str = "complete"
 
 
 Resolver = Callable[[str, int], Awaitable[Iterable[str]]]
@@ -231,63 +233,93 @@ class SafeRedirectResolver:
         requester: Optional[Requester] = None,
         max_redirects: Optional[int] = None,
         total_timeout: Optional[float] = None,
+        content_timeout: Optional[float] = None,
+        client_factory: Optional[Callable[[], httpx.AsyncClient]] = None,
     ):
         config = get_performance_config()
         self.resolver = resolver
-        self.requester = requester or self._request
+        self.requester = requester
         self.max_redirects = max_redirects if max_redirects is not None else config.MAX_REDIRECTS
         self.total_timeout = total_timeout if total_timeout is not None else config.URL_EXPANSION_TIMEOUT
+        self.content_timeout = content_timeout if content_timeout is not None else config.CONTENT_FETCH_TIMEOUT
         self.max_content_bytes = config.MAX_CONTENT_PREVIEW_BYTES
+        self.client_factory = client_factory or self._client
 
-    async def _request(self, url: str, timeout: float) -> RedirectHTTPResponse:
+    @staticmethod
+    def _client() -> httpx.AsyncClient:
         limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-        async with httpx.AsyncClient(
+        return httpx.AsyncClient(
             follow_redirects=False,
-            timeout=httpx.Timeout(timeout),
+            timeout=None,
             limits=limits,
             trust_env=False,
-            headers={"User-Agent": "GunGong-URLVerifier/1.0"},
-        ) as client:
-            async with client.stream("GET", url) as response:
-                preview = bytearray()
-                truncated = False
-                if response.status_code not in REDIRECT_STATUSES:
-                    async for chunk in response.aiter_bytes():
-                        remaining = self.max_content_bytes - len(preview)
-                        if remaining <= 0:
-                            truncated = True
-                            break
-                        preview.extend(chunk[:remaining])
-                        if len(chunk) > remaining:
-                            truncated = True
-                            break
-                return RedirectHTTPResponse(
-                    response.status_code,
-                    dict(response.headers),
-                    bytes(preview),
-                    truncated,
-                )
+            headers={"User-Agent": "GunGong-URLVerifier/1.0", "Accept": "text/html,text/plain;q=0.9"},
+        )
+
+    async def _request(self, client: httpx.AsyncClient, url: str, timeout: float) -> RedirectHTTPResponse:
+        # Headers/connect stay inside the redirect budget. Body reads get the
+        # existing content budget; the enclosing resolver/global deadline wins.
+        request = client.build_request("GET", url, timeout=httpx.Timeout(max(timeout, self.content_timeout)))
+        response = await asyncio.wait_for(client.send(request, stream=True), timeout=timeout)
+        preview = bytearray()
+        truncated = False
+        read_status = "complete"
+
+        async def read_preview() -> None:
+            nonlocal truncated, read_status
+            async for chunk in response.aiter_bytes():
+                remaining = self.max_content_bytes - len(preview)
+                preview.extend(chunk[:remaining])
+                if len(preview) >= self.max_content_bytes:
+                    truncated = True
+                    read_status = "byte_limit"
+                    break
+
+        try:
+            content_type = response.headers.get("content-type", "").lower()
+            if response.status_code not in REDIRECT_STATUSES and (
+                not content_type or "text" in content_type or "html" in content_type
+            ):
+                try:
+                    await asyncio.wait_for(read_preview(), timeout=self.content_timeout)
+                except (asyncio.TimeoutError, httpx.TimeoutException):
+                    truncated = True
+                    read_status = "timeout"
+            return RedirectHTTPResponse(
+                response.status_code, dict(response.headers), bytes(preview), truncated, read_status,
+            )
+        finally:
+            await response.aclose()
 
     async def resolve(self, raw_url: str) -> RedirectResolutionResult:
+        chain: list[str] = []
         try:
-            return await asyncio.wait_for(self._resolve(raw_url), timeout=self.total_timeout)
-        except asyncio.TimeoutError as exc:
-            raise RedirectResolutionError("timeout", "Redirect resolution timed out") from exc
+            if self.requester is not None:
+                return await asyncio.wait_for(
+                    self._resolve(raw_url, self.requester, chain), timeout=self.total_timeout,
+                )
+            async with self.client_factory() as client:
+                return await asyncio.wait_for(
+                    self._resolve(raw_url, lambda url, budget: self._request(client, url, budget), chain),
+                    timeout=self.total_timeout + self.content_timeout,
+                )
+        except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
+            raise RedirectResolutionError("timeout", "Redirect resolution timed out", list(chain)) from exc
 
-    async def _resolve(self, raw_url: str) -> RedirectResolutionResult:
-        original_url = await validate_public_url(raw_url, self.resolver)
-        current_url = original_url
-        chain = [original_url]
-        seen = {original_url}
+    async def _resolve(self, raw_url: str, requester: Requester, chain: list[str]) -> RedirectResolutionResult:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.total_timeout
+        original_url = await asyncio.wait_for(validate_public_url(raw_url, self.resolver), timeout=self.total_timeout)
+        current_url = original_url
+        chain.append(original_url)
+        seen = {original_url}
         redirect_kinds: list[str] = []
 
         for _ in range(self.max_redirects + 1):
             remaining = deadline - loop.time()
             if remaining <= 0:
                 raise RedirectResolutionError("timeout", "Redirect resolution timed out", chain)
-            response = await self.requester(current_url, remaining)
+            response = await requester(current_url, remaining)
             if response.status_code not in REDIRECT_STATUSES:
                 content_type = response.headers.get("content-type", "")
                 preview = ""
@@ -307,7 +339,12 @@ class SafeRedirectResolver:
                     if meta_target is not None:
                         if len(chain) - 1 >= self.max_redirects:
                             raise RedirectResolutionError("too_many_redirects", "Redirect limit exceeded", chain)
-                        next_url = await validate_public_url(urljoin(current_url, meta_target), self.resolver)
+                        remaining = deadline - loop.time()
+                        if remaining <= 0:
+                            raise RedirectResolutionError("timeout", "Redirect resolution timed out", list(chain))
+                        next_url = await asyncio.wait_for(
+                            validate_public_url(urljoin(current_url, meta_target), self.resolver), timeout=remaining,
+                        )
                         if next_url in seen:
                             raise RedirectResolutionError("redirect_loop", "Redirect loop detected", chain + [next_url])
                         seen.add(next_url)
@@ -330,6 +367,7 @@ class SafeRedirectResolver:
                     tuple(redirect_kinds),
                     client_redirect_checked,
                     client_redirect_status,
+                    response.body_read_status,
                 )
 
             location = response.headers.get("location") or response.headers.get("Location")
@@ -338,7 +376,12 @@ class SafeRedirectResolver:
             if len(chain) - 1 >= self.max_redirects:
                 raise RedirectResolutionError("too_many_redirects", "Redirect limit exceeded", chain)
 
-            next_url = await validate_public_url(urljoin(current_url, location), self.resolver)
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise RedirectResolutionError("timeout", "Redirect resolution timed out", list(chain))
+            next_url = await asyncio.wait_for(
+                validate_public_url(urljoin(current_url, location), self.resolver), timeout=remaining,
+            )
             if next_url in seen:
                 raise RedirectResolutionError("redirect_loop", "Redirect loop detected", chain + [next_url])
             seen.add(next_url)

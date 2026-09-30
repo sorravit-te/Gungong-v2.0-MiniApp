@@ -1,7 +1,11 @@
 """Deterministic URL normalization, SSRF, and redirect-boundary tests."""
 
 import asyncio
+import time
 import unittest
+from unittest.mock import AsyncMock, Mock
+
+import httpx
 
 from src.backend.services.url_safety_service import (
     RedirectHTTPResponse,
@@ -237,6 +241,118 @@ class URLSafetyTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(RedirectResolutionError, "timed out"):
             await SafeRedirectResolver(resolver=public_dns, requester=slow_requester, total_timeout=0.01).resolve("https://example.com/")
+
+
+class BoundedHTTPFetchTests(unittest.IsolatedAsyncioTestCase):
+    class Stream(httpx.AsyncByteStream):
+        def __init__(self, chunks, delay=0):
+            self.chunks = chunks
+            self.delay = delay
+            self.closed = False
+
+        async def __aiter__(self):
+            for chunk in self.chunks:
+                if self.delay:
+                    await asyncio.sleep(self.delay)
+                yield chunk
+
+        async def aclose(self):
+            self.closed = True
+
+    def resolver(self, handler, **kwargs):
+        factory = Mock(side_effect=lambda: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False,
+        ))
+        resolver = SafeRedirectResolver(resolver=public_dns, client_factory=factory, **kwargs)
+        return resolver, factory
+
+    async def test_generic_large_head_reaches_visible_body_beyond_old_64k_limit(self):
+        body = b'<head><script>' + b'x' * 90000 + b'</script></head><body><p>' + b'Library resources and opening hours. ' * 8 + b'</p></body>'
+        stream = self.Stream([body[:65536], body[65536:]])
+        resolver, _ = self.resolver(lambda request: httpx.Response(200, headers={"content-type": "text/html"}, stream=stream))
+        result = await resolver.resolve("https://ordinary.test/")
+        self.assertIn("Library resources", result.content_preview)
+        self.assertFalse(result.content_truncated)
+        self.assertTrue(stream.closed)
+
+    async def test_native_redirects_share_one_client_and_revalidate_each_hop(self):
+        calls = []
+
+        def handler(request):
+            calls.append(str(request.url))
+            return httpx.Response(302, headers={"location": "/final"}) if request.url.path == "/start" else httpx.Response(200, text="ordinary page")
+
+        resolver, factory = self.resolver(handler)
+        dns = AsyncMock(side_effect=public_dns)
+        resolver.resolver = dns
+        result = await resolver.resolve("https://ordinary.test/start")
+        self.assertEqual(calls, ["https://ordinary.test/start", "https://ordinary.test/final"])
+        factory.assert_called_once()
+        self.assertEqual(dns.await_count, 2)
+        self.assertEqual(result.redirect_count, 1)
+
+    async def test_body_budget_is_separate_from_header_budget(self):
+        stream = self.Stream([b"readable body"], delay=0.08)
+        resolver, _ = self.resolver(
+            lambda request: httpx.Response(200, headers={"content-type": "text/plain"}, stream=stream),
+            total_timeout=0.05, content_timeout=0.2,
+        )
+        result = await resolver.resolve("https://ordinary.test/")
+        self.assertEqual(result.content_preview, "readable body")
+        self.assertEqual(result.content_fetch_status, "complete")
+        self.assertTrue(stream.closed)
+
+    async def test_stalled_body_returns_partial_incomplete_evidence_and_closes_stream(self):
+        class Stalled(self.Stream):
+            async def __aiter__(self):
+                yield b'<form>Bank login<input type=password></form>'
+                await asyncio.sleep(1)
+
+        stream = Stalled([])
+        resolver, _ = self.resolver(
+            lambda request: httpx.Response(200, headers={"content-type": "text/html"}, stream=stream),
+            content_timeout=0.05,
+        )
+        started = time.monotonic()
+        result = await resolver.resolve("https://ordinary.test/")
+        self.assertLess(time.monotonic() - started, 0.3)
+        self.assertEqual(result.content_fetch_status, "timeout")
+        self.assertIn("password", result.content_preview)
+        self.assertTrue(stream.closed)
+
+    async def test_download_cap_is_enforced(self):
+        stream = self.Stream([b'a' * 64, b'b' * 64, b'c' * 64])
+        resolver, _ = self.resolver(lambda request: httpx.Response(200, headers={"content-type": "text/plain"}, stream=stream))
+        resolver.max_content_bytes = 100
+        result = await resolver.resolve("https://ordinary.test/")
+        self.assertEqual(len(result.content_preview), 100)
+        self.assertTrue(result.content_truncated)
+        self.assertEqual(result.content_fetch_status, "byte_limit")
+        self.assertTrue(stream.closed)
+
+    async def test_slow_headers_remain_inside_redirect_deadline(self):
+        async def handler(request):
+            await asyncio.sleep(1)
+            return httpx.Response(200, text="body")
+
+        resolver, _ = self.resolver(handler, total_timeout=0.05, content_timeout=0.2)
+        started = time.monotonic()
+        with self.assertRaises(RedirectResolutionError) as error:
+            await resolver.resolve("https://ordinary.test/")
+        self.assertLess(time.monotonic() - started, 0.3)
+        self.assertEqual(error.exception.code, "timeout")
+        self.assertEqual(error.exception.chain, ["https://ordinary.test/"])
+
+    async def test_timeout_preserves_completed_redirect_chain(self):
+        async def requester(url, timeout):
+            if url.endswith("/start"):
+                return RedirectHTTPResponse(302, {"location": "/final"})
+            await asyncio.sleep(1)
+
+        resolver = SafeRedirectResolver(resolver=public_dns, requester=requester, total_timeout=0.05)
+        with self.assertRaises(RedirectResolutionError) as error:
+            await resolver.resolve("https://ordinary.test/start")
+        self.assertEqual(error.exception.chain, ["https://ordinary.test/start", "https://ordinary.test/final"])
 
 
 if __name__ == "__main__":

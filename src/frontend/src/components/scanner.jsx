@@ -63,7 +63,8 @@ const showFraudResult = (result, subjectLabel) => {
   if (presentation.showConfidence && result?.confidence_score !== undefined && result?.confidence_score !== null) {
     rows.push(['ความมั่นใจ', `${result.confidence_score}%`]);
   }
-  if (result?.reason_th) rows.push(['เหตุผล', result.reason_th]);
+  if (result?.reason_th && result.reason_th !== presentation.explanation) rows.push(['เหตุผล', result.reason_th]);
+  if (presentation.explanation) rows.push([presentation.explanationLabel, presentation.explanation]);
 
   window.Swal?.fire({
     icon: presentation.icon,

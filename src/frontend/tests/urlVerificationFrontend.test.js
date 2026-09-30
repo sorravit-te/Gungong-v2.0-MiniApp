@@ -148,3 +148,154 @@ test('no-threat wording does not claim that a URL is absolutely safe', () => {
   assert.equal(result.status, 'ไม่พบสัญญาณอันตรายจากการตรวจสอบ');
   assert.equal(result.status.includes('ปลอดภัย'), false);
 });
+
+const amtsoReason = 'หน้าเว็บนี้เป็นหน้าทดสอบมาตรฐานของ AMTSO (Anti-Malware Testing Standards Organization) ซึ่งใช้สำหรับตรวจสอบว่าซอฟต์แวร์ป้องกันมัลแวร์สามารถตรวจจับหน้าฟิชชิ่งได้หรือไม่ ไม่ใช่หน้าเว็บฟิชชิ่งหรือหลอกลวงจริง';
+const cleanGemini = {
+  status: 'clean', complete: true, evidence_sufficient: true, reason_th: amtsoReason,
+};
+
+test('fresh and cached URL results preserve the specific AI explanation alongside honest status', () => {
+  for (const cached of [false, true]) {
+    const result = getFraudResultPresentation({
+      cached, verification_verdict: 'NO_THREAT_FOUND',
+      reason_th: 'ไม่พบสัญญาณอันตรายจากแหล่งข้อมูลที่ตรวจสอบ',
+      checks: { gemini: cleanGemini },
+    });
+    assert.equal(result.analysisReason, amtsoReason);
+    assert.equal(result.status, 'ไม่พบสัญญาณอันตรายจากการตรวจสอบ');
+    assert.equal(result.showConfidence, false);
+  }
+});
+
+test('nested URL check metadata also supplies the completed AI explanation', () => {
+  const result = getFraudResultPresentation({
+    verification_verdict: 'NO_THREAT_FOUND', url_check: { checks: { gemini: cleanGemini } },
+  });
+  assert.equal(result.analysisReason, amtsoReason);
+});
+
+test('clean AI explanations cannot contradict danger, incomplete, or invalid aggregate verdicts', () => {
+  for (const verdict of ['MALICIOUS', 'SUSPICIOUS', 'INCOMPLETE', 'INVALID']) {
+    const result = getFraudResultPresentation({
+      verification_verdict: verdict, checks: { gemini: cleanGemini },
+    });
+    assert.equal(result.analysisReason, '');
+    assert.equal(result.isSafe, false);
+  }
+});
+
+test('missing, insufficient, unfinished, malformed, empty, and duplicate explanations are omitted', () => {
+  for (const gemini of [
+    undefined, { ...cleanGemini, complete: false },
+    { ...cleanGemini, evidence_sufficient: false },
+    { ...cleanGemini, status: 'uncertain' },
+    { ...cleanGemini, reason_th: 123 }, { ...cleanGemini, reason_th: '  ' },
+  ]) {
+    assert.equal(getFraudResultPresentation({
+      verification_verdict: 'NO_THREAT_FOUND', checks: { gemini },
+    }).analysisReason, '');
+  }
+  assert.equal(getFraudResultPresentation({
+    verification_verdict: 'NO_THREAT_FOUND', reason_th: ` ${amtsoReason} `,
+    checks: { gemini: cleanGemini },
+  }).analysisReason, '');
+});
+
+test('completed AI danger explanations are retained without changing the aggregate status', () => {
+  for (const [verdict, status] of [['SUSPICIOUS', 'suspicious'], ['MALICIOUS', 'malicious']]) {
+    const result = getFraudResultPresentation({
+      verification_verdict: verdict,
+      checks: { gemini: { status, complete: true, reason_th: 'พบสัญญาณหลอกขอรหัส OTP' } },
+    });
+    assert.equal(result.analysisReason, 'พบสัญญาณหลอกขอรหัส OTP');
+    assert.equal(result.status, 'มีความเสี่ยง');
+  }
+});
+
+test('legacy text results keep their existing reason and confidence presentation', () => {
+  const result = getFraudResultPresentation({
+    is_safe: true, reason_th: 'ข้อความทั่วไป', checks: { gemini: cleanGemini },
+  });
+  assert.equal(result.analysisReason, '');
+  assert.equal(result.showConfidence, true);
+  assert.equal(result.explanation, '');
+});
+
+test('every URL verdict has a Thai explanation even without an AI result', () => {
+  for (const verdict of ['NO_THREAT_FOUND', 'SUSPICIOUS', 'MALICIOUS', 'INCOMPLETE', 'INVALID', 'UNKNOWN']) {
+    const result = getFraudResultPresentation({ verification_verdict: verdict });
+    assert.match(result.explanation, /[ก-๙]/u);
+    assert.equal(result.explanationLabel, 'คำอธิบายการตรวจสอบ');
+    assert.equal(result.analysisReason, '');
+  }
+});
+
+test('trusted fast-path explains actual core evidence without pretending to use AI', () => {
+  const result = getFraudResultPresentation({
+    verification_verdict: 'NO_THREAT_FOUND',
+    checks: {
+      route: { status: 'FAST_SAFE' }, redirect: { status: 'clean', complete: true },
+      content: { status: 'clean', complete: true, evidence_sufficient: true, content_truncated: true },
+      local_reputation: { status: 'not_listed', complete: true },
+      gemini: { status: 'skipped_not_needed', complete: null },
+    },
+  });
+  assert.match(result.explanation, /ไม่จำเป็นต้องเรียก AI/u);
+  assert.match(result.explanation, /ไม่ได้ตรวจเนื้อหาทั้งหน้า/u);
+  assert.equal(result.explanationLabel, 'คำอธิบายการตรวจสอบ');
+  assert.equal(result.analysisReason, '');
+});
+
+test('route name alone cannot claim completed trusted core evidence', () => {
+  const result = getFraudResultPresentation({
+    verification_verdict: 'NO_THREAT_FOUND', checks: { route: { status: 'FAST_SAFE' } },
+  });
+  assert.doesNotMatch(result.explanation, /ผ่านเกณฑ์โดเมนที่เชื่อถือ|ไม่จำเป็นต้องเรียก AI/u);
+});
+
+test('English AI explanations receive a Thai system fallback for fresh and cached results', () => {
+  for (const cached of [false, true]) {
+    const reason = 'The provided webpage is the official BBC homepage.';
+    const result = getFraudResultPresentation({
+      cached, verification_verdict: 'NO_THREAT_FOUND',
+      checks: { gemini: { ...cleanGemini, reason_th: reason } },
+    });
+    assert.equal(result.analysisReason, '');
+    assert.match(result.explanation, /[ก-๙]/u);
+    assert.equal(result.explanation.includes(reason), false);
+    assert.equal(result.explanationLabel, 'คำอธิบายการตรวจสอบ');
+    assert.equal(result.isSafe, true);
+  }
+});
+
+test('consistent Thai AI explanations are attributed to AI and preserved in full', () => {
+  const result = getFraudResultPresentation({
+    verification_verdict: 'NO_THREAT_FOUND', checks: { gemini: cleanGemini },
+  });
+  assert.equal(result.explanation, amtsoReason);
+  assert.equal(result.explanationLabel, 'คำอธิบายการตรวจสอบ (AI)');
+});
+
+test('incomplete explanations identify only unfinished required stages and never use clean AI wording', () => {
+  const result = getFraudResultPresentation({
+    verification_verdict: 'INCOMPLETE',
+    checks: {
+      content: { status: 'timeout', complete: false, required: true },
+      virustotal: { status: 'timeout', complete: false, required: false },
+      gemini: cleanGemini,
+    },
+  });
+  assert.match(result.explanation, /เนื้อหาหน้าเว็บ/u);
+  assert.match(result.explanation, /ยังไม่สามารถยืนยันความปลอดภัย/u);
+  assert.equal(result.explanation.includes(amtsoReason), false);
+  assert.doesNotMatch(result.explanation, /VirusTotal/u);
+  assert.equal(result.isSafe, false);
+});
+
+test('nested URL metadata supplies a Thai explanation without altering text-only results', () => {
+  const result = getFraudResultPresentation({
+    url_check: { verification_verdict: 'NO_THREAT_FOUND', checks: { gemini: cleanGemini } },
+  });
+  assert.equal(result.explanation, amtsoReason);
+  assert.equal(result.showConfidence, false);
+});

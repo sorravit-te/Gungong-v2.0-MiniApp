@@ -1,6 +1,7 @@
 """Fraud detection router with AI-based analysis and URL checking."""
 
 import asyncio
+import hashlib
 import re
 from typing import Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
@@ -15,7 +16,8 @@ from ..services.fraud_message_service import get_fraud_message_service
 from ..services.similarity_service import get_similarity_service
 from ..services.prescreen_service import get_prescreen_service
 from ..services.url_safety_service import URLSafetyError, normalize_public_url
-from ..services.url_verification_service import get_url_verification_service
+from ..services.url_verification_service import POLICY_VERSION, get_url_verification_service
+from ..core.config import settings
 from ..core.logger import get_logger
 
 router = APIRouter()
@@ -50,7 +52,8 @@ def _resolve_history_message_type(
 
 
 def _link_cache_key(normalized_url: str) -> str:
-    return f"url-verification-v2:{normalized_url}"
+    policy_digest = hashlib.sha256(settings.url_trusted_origins.encode("utf-8")).hexdigest()[:12]
+    return f"{POLICY_VERSION}:{policy_digest}:{normalized_url}"
 
 
 def _cached_link_response(cached: dict) -> dict:
@@ -61,6 +64,8 @@ def _cached_link_response(cached: dict) -> dict:
         "NO_THREAT_FOUND": "Low",
     }.get(verdict, "Unknown")
     cached["url_check"] = cached.get("url_check") or {}
+    cached["policy_version"] = POLICY_VERSION
+    cached["verification_route"] = (cached.get("checks") or {}).get("route", {}).get("status", "CORE_FAILURE")
     return cached
 
 
@@ -119,7 +124,11 @@ async def _check_link_request(
 
     if db_service:
         cached = db_service.get_cached_result(fraud_request.message, cache_key=cache_key)
-        if cached and cached.get("verification_complete") is True and cached.get("verification_verdict"):
+        if (
+            cached and cached.get("verification_complete") is True
+            and cached.get("verification_verdict") in {"NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS"}
+            and (cached.get("url_check") or {}).get("policy_version") == POLICY_VERSION
+        ):
             cached = _cached_link_response(cached)
             if fraud_request.user_id:
                 if background_tasks:

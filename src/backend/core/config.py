@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     virustotal_api_key: Optional[str] = None
     virustotal_submit_unknown_urls: bool = False
 
+    # Exact HTTPS origins; no wildcard/subdomain inheritance. Each request
+    # still requires resolved public DNS and sufficient clean page evidence.
+    url_trusted_origins: str = (
+        "https://www.youtube.com,https://youtube.com,"
+        "https://www.wikipedia.org,https://en.wikipedia.org,https://th.wikipedia.org"
+    )
+
     # Database (Google Cloud Firestore)
     google_application_credentials: Optional[str] = None
     firestore_project_id: Optional[str] = None

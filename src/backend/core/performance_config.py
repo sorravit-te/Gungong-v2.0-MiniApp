@@ -22,6 +22,9 @@ class PerformanceConfig:
     # Total redirect-resolution timeout
     URL_EXPANSION_TIMEOUT: float = 2.0
 
+    # Final page body has its own budget, still inside the global deadline.
+    CONTENT_FETCH_TIMEOUT: float = 2.0
+
     # Local/content analysis timeout (interactive path never launches headless)
     GAMBLING_DETECTION_TIMEOUT: float = 2.0
 
@@ -33,10 +36,17 @@ class PerformanceConfig:
 
     # Redirect and response limits for attacker-controlled URLs.
     MAX_REDIRECTS: int = 5
-    MAX_CONTENT_PREVIEW_BYTES: int = 65536
+    MAX_CONTENT_PREVIEW_BYTES: int = 1024 * 1024
+
+    # Minimum extracted visible text for a meaningful core page assessment.
+    MIN_PAGE_VISIBLE_TEXT_CHARS: int = 80
+    GEMINI_BENIGN_CONFIDENCE_THRESHOLD: float = 80.0
 
     # Bound synchronous Firestore operations around the interactive pipeline.
     DATABASE_OPERATION_TIMEOUT: float = 0.5
+
+    # Dedicated URL core reputation RPC budget; other database operations stay unchanged.
+    LOCAL_REPUTATION_LOOKUP_TIMEOUT: float = 1.0
 
     # ============ Feature Flags ============
     # Enable/disable features for performance

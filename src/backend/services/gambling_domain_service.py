@@ -6,9 +6,14 @@ Manages gambling_domains collection for auto-detected gambling websites using Fi
 
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
+import logging
+from time import monotonic
 from .database_service import DatabaseService, get_database_service
 from ..core.models import COLLECTION_GAMBLING_DOMAINS, COLLECTION_WHITELISTED_DOMAINS
 from ..core.performance_config import get_performance_config
+
+
+logger = logging.getLogger(__name__)
 
 
 def now_utc() -> datetime:
@@ -160,6 +165,44 @@ class GamblingDomainService:
         except Exception as e:
             print(f"❌ Error checking gambling domain {domain}: {e}")
             return False
+
+    def lookup_domain_evidence(self, domain: str, min_confidence: float = 0.5) -> Dict:
+        """URL core lookup: distinguish a miss from an unavailable database."""
+        started = monotonic()
+        timeout = get_performance_config().LOCAL_REPUTATION_LOOKUP_TIMEOUT
+        diagnostic = {"stage": "firestore_local_reputation", "timeout_seconds": timeout}
+        try:
+            doc = self.db.collection(COLLECTION_GAMBLING_DOMAINS).document(domain).get(
+                retry=None,
+                timeout=timeout
+            )
+            data = doc.to_dict() if doc.exists else {}
+            if data.get("confidence", 0.0) >= min_confidence:
+                diagnostic["outcome"] = "malicious"
+                return {"status": "malicious", "complete": True, "source": "local_blocklist"}
+            diagnostic["outcome"] = "not_listed"
+            return {"status": "not_listed", "complete": True, "source": "local_blocklist"}
+        except Exception as error:
+            # No exception message, document data, URL, credentials or headers.
+            # Code extraction must not introduce another failure on this path.
+            status_code = None
+            try:
+                code = getattr(error, "code", None)
+                code = code() if callable(code) else code
+                if isinstance(code, int) and not isinstance(code, bool):
+                    status_code = code
+                elif isinstance(getattr(code, "name", None), str):
+                    status_code = code.name
+            except Exception:
+                pass
+            diagnostic.update(outcome="unavailable", error_type=type(error).__name__, status_code=status_code)
+            return {"status": "unavailable", "complete": False, "source": "local_blocklist"}
+        finally:
+            diagnostic["elapsed_ms"] = round((monotonic() - started) * 1000)
+            logger.log(
+                logging.ERROR if diagnostic.get("outcome") == "unavailable" else logging.INFO,
+                "local_reputation_lookup %s", diagnostic,
+            )
 
     def get_domain_info(self, domain: str) -> Optional[Dict]:
         """
