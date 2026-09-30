@@ -2,6 +2,7 @@ services:
   - type: web
     name: gungong
     runtime: docker
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
