@@ -35,38 +35,71 @@ export const banks = [
 
 // ==================== API FUNCTIONS ==================== //
 
-import { getUserId } from './liff';
+import { getUserId } from './liff.js';
 
 // Fraud Check API
-export async function callFraudCheckApi(message, type) {
+export async function callFraudCheckApi(message, type, options = {}) {
     const apiUrl = `${API_BASE_URL}/check-fraud`;
+    const timeoutMs = options.timeoutMs;
+    const resolveUserId = options.getUserIdFn || getUserId;
+    const controller = timeoutMs ? new AbortController() : null;
+    let didTimeout = false;
+    let timeoutId = null;
 
-    const userId = await getUserId();
-    const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({
-            message: message,
-            user_id: userId,
-            message_type: type,
-        }),
-    });
+    const requestPromise = (async () => {
+        const userId = await resolveUserId();
+        const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "true",
+            },
+            body: JSON.stringify({
+                message: message,
+                user_id: userId,
+                message_type: type,
+            }),
+            signal: controller?.signal,
+        });
 
-    if (!response.ok) {
+        if (response.ok) {
+            try {
+                return await response.json();
+            } catch {
+                throw new Error("INVALID_RESPONSE");
+            }
+        }
+
         let errorMessage = `Server Error (${response.status})`;
         try {
             const errorData = await response.json();
             errorMessage = errorData.detail || errorMessage;
-        } catch (e) {
+        } catch {
             errorMessage = response.statusText || errorMessage;
         }
         throw new Error(errorMessage);
-    }
+    })();
 
-    return await response.json();
+    const timeoutPromise = timeoutMs ? new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+            reject(new Error("REQUEST_TIMEOUT"));
+        }, timeoutMs);
+    }) : null;
+
+    try {
+        return await (timeoutPromise
+            ? Promise.race([requestPromise, timeoutPromise])
+            : requestPromise);
+    } catch (error) {
+        if (didTimeout || error?.name === "AbortError") {
+            throw new Error("REQUEST_TIMEOUT");
+        }
+        throw error;
+    } finally {
+        if (timeoutId !== null) clearTimeout(timeoutId);
+    }
 }
 
 // Bank Blacklist Check API
@@ -96,7 +129,7 @@ export async function checkLink(url) {
     if (!url || !url.trim()) {
         throw new Error("EMPTY_INPUT");
     }
-    return await callFraudCheckApi(url.trim(), "link");
+    return await callFraudCheckApi(url.trim(), "link", { timeoutMs: 12000 });
 }
 
 // Check SMS/Message
@@ -282,7 +315,17 @@ export function getTypeName(type) {
 export function getErrorMessage(error) {
     const errorString = error.message || error.toString();
 
-    if (errorString.includes("Failed to fetch") || errorString.includes("NetworkError")) {
+    if (errorString === "REQUEST_TIMEOUT") {
+        return {
+            title: "การตรวจสอบลิงก์หมดเวลา",
+            message: "การตรวจสอบลิงก์ใช้เวลานานเกินกำหนด กรุณาลองใหม่อีกครั้ง"
+        };
+    } else if (errorString === "INVALID_RESPONSE") {
+        return {
+            title: "ได้รับผลการตรวจสอบไม่สมบูรณ์",
+            message: "กรุณาลองตรวจสอบอีกครั้ง"
+        };
+    } else if (errorString.includes("Failed to fetch") || errorString.includes("NetworkError")) {
         return {
             title: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์",
             message: "กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตและลองใหม่อีกครั้ง"

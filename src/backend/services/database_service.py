@@ -10,6 +10,7 @@ from google.oauth2 import service_account
 import os
 
 from ..core.config import settings
+from ..core.performance_config import get_performance_config
 from ..core.models import (
     COLLECTION_FRAUD_CHECK_CACHE,
     COLLECTION_GAMBLING_DOMAINS,
@@ -96,8 +97,13 @@ class DatabaseService:
         normalized = message.strip().lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def hash_cache_key(cache_key: str) -> str:
+        """Hash a versioned cache key without changing case-sensitive URL parts."""
+        return hashlib.sha256(cache_key.encode("utf-8")).hexdigest()
+
     def get_cached_result(
-        self, message: str, check_expiration: bool = True
+        self, message: str, check_expiration: bool = True, cache_key: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached fraud detection result for a message.
@@ -109,11 +115,12 @@ class DatabaseService:
         Returns:
             Cached result dict or None if not found/expired
         """
-        message_hash = self.hash_message(message)
+        message_hash = self.hash_cache_key(cache_key) if cache_key else self.hash_message(message)
         
         try:
             doc_ref = self.db.collection(COLLECTION_FRAUD_CHECK_CACHE).document(message_hash)
-            doc = doc_ref.get()
+            timeout = get_performance_config().DATABASE_OPERATION_TIMEOUT
+            doc = doc_ref.get(timeout=timeout)
 
             if not doc.exists:
                 return None
@@ -126,7 +133,7 @@ class DatabaseService:
                 # Firestore returns datetime with timezone
                 if expires_at and now_utc() > expires_at:
                     # Cache expired - delete it
-                    doc_ref.delete()
+                    doc_ref.delete(timeout=timeout)
                     return None
 
             # Update hit count and last accessed time asynchronously (fire and forget)
@@ -135,7 +142,7 @@ class DatabaseService:
                 doc_ref.update({
                     "hit_count": firestore.Increment(1),
                     "last_accessed_at": now_utc()
-                })
+                }, timeout=timeout)
             except Exception as e:
                 print(f"⚠️ Failed to update cache stats: {e}")
 
@@ -162,6 +169,12 @@ class DatabaseService:
                 "cached": True,
                 "cache_hit_count": data.get("hit_count", 0) + 1,
                 "cached_at": data.get("created_at", now_utc()).isoformat(),
+                "verification_verdict": data.get("verification_verdict"),
+                "verification_complete": data.get("verification_complete"),
+                "checks": data.get("checks"),
+                "original_url": data.get("original_url"),
+                "final_url": data.get("final_url"),
+                "redirect_chain": data.get("redirect_chain"),
             }
 
             return result
@@ -224,7 +237,7 @@ class DatabaseService:
                 "timestamp": now_utc() # Redundant but useful for some queries
             }
             
-            doc_ref.set(data)
+            doc_ref.set(data, timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT)
             return doc_ref.id
 
         except Exception as e:
@@ -274,6 +287,13 @@ class DatabaseService:
         model_used: Optional[str] = None,
         cache_ttl_days: int = 30,
         user_id: Optional[str] = None,
+        cache_key: Optional[str] = None,
+        verification_verdict: Optional[str] = None,
+        verification_complete: Optional[bool] = None,
+        checks: Optional[Dict] = None,
+        original_url: Optional[str] = None,
+        final_url: Optional[str] = None,
+        redirect_chain: Optional[List[str]] = None,
     ) -> bool:
         """
         Save fraud detection result to cache.
@@ -291,7 +311,7 @@ class DatabaseService:
             cache_ttl_days: Cache time-to-live in days
             user_id: User ID for history tracking
         """
-        message_hash = self.hash_message(message)
+        message_hash = self.hash_cache_key(cache_key) if cache_key else self.hash_message(message)
         
         try:
             doc_ref = self.db.collection(COLLECTION_FRAUD_CHECK_CACHE).document(message_hash)
@@ -314,7 +334,13 @@ class DatabaseService:
                 "model_used": model_used,
                 "updated_at": now_utc(),
                 "expires_at": expires_at,
-                "user_id": user_id
+                "user_id": user_id,
+                "verification_verdict": verification_verdict,
+                "verification_complete": verification_complete,
+                "checks": checks,
+                "original_url": original_url,
+                "final_url": final_url,
+                "redirect_chain": redirect_chain,
             }
             
             # Use set with merge=True to update existing or create new
@@ -327,15 +353,16 @@ class DatabaseService:
             # And preserve hit_count.
             
             # Transactional update would be best, but for simplicity:
-            doc = doc_ref.get()
+            timeout = get_performance_config().DATABASE_OPERATION_TIMEOUT
+            doc = doc_ref.get(timeout=timeout)
             if doc.exists:
                 # Update
-                doc_ref.set(data, merge=True)
+                doc_ref.set(data, merge=True, timeout=timeout)
             else:
                 # Create new
                 data["created_at"] = now_utc()
                 data["hit_count"] = 0
-                doc_ref.set(data)
+                doc_ref.set(data, timeout=timeout)
 
             return True
 

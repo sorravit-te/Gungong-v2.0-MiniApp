@@ -11,22 +11,32 @@ class PerformanceConfig:
     """Performance optimization settings."""
 
     # ============ API Timeouts (seconds) ============
-    # Aggressive timeouts to meet < 3s target for Hackathon
+    # Interactive provider budgets.
 
     # Gemini AI timeout
-    GEMINI_TIMEOUT: float = 2.0
+    GEMINI_TIMEOUT: float = 4.5
 
     # VirusTotal API timeout (per URL)
-    VIRUSTOTAL_TIMEOUT: float = 1.5
+    VIRUSTOTAL_TIMEOUT: float = 2.8
 
-    # URL expansion timeout (per URL)
-    URL_EXPANSION_TIMEOUT: float = 0.5
+    # Total redirect-resolution timeout
+    URL_EXPANSION_TIMEOUT: float = 2.0
 
-    # Gambling detection timeout (Headless browser)
-    GAMBLING_DETECTION_TIMEOUT: float = 2.5
+    # Local/content analysis timeout (interactive path never launches headless)
+    GAMBLING_DETECTION_TIMEOUT: float = 2.0
 
-    # Global timeout    # Maximum time for total processing (seconds)
-    MAX_TOTAL_PROCESSING_TIME: float = 3.0
+    # Maximum time for the URL evidence pipeline (seconds)
+    MAX_TOTAL_PROCESSING_TIME: float = 9.0
+
+    # Browser/client deadline is intentionally higher than this backend budget.
+    FRONTEND_LINK_TIMEOUT: float = 12.0
+
+    # Redirect and response limits for attacker-controlled URLs.
+    MAX_REDIRECTS: int = 5
+    MAX_CONTENT_PREVIEW_BYTES: int = 65536
+
+    # Bound synchronous Firestore operations around the interactive pipeline.
+    DATABASE_OPERATION_TIMEOUT: float = 0.5
 
     # ============ Feature Flags ============
     # Enable/disable features for performance
@@ -62,6 +72,16 @@ class PerformanceConfig:
 
     # URL reputation cache TTL (days)
     URL_CACHE_TTL_DAYS: int = 7
+
+    # Provider 404s remain incomplete and are cached briefly only to protect
+    # the very small public VirusTotal request budget.
+    VIRUSTOTAL_NOT_FOUND_CACHE_TTL_SECONDS: float = 1800.0
+
+    # Free public VirusTotal API budget. The in-process guard is conservative;
+    # provider-side limits remain authoritative across multiple app instances.
+    VIRUSTOTAL_REQUESTS_PER_MINUTE: int = 4
+    VIRUSTOTAL_REQUESTS_PER_DAY: int = 500
+    VIRUSTOTAL_RATE_LIMIT_COOLDOWN: float = 60.0
 
     # Fraud check cache TTL (days)
     FRAUD_CHECK_CACHE_TTL_DAYS: int = 30

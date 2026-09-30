@@ -9,6 +9,7 @@ import {
 } from '../utils/script';
 import { scanCode as liffScanCode } from '../utils/liff';
 import { getQrScanError, isQrScanCancelled, readQrUrl } from '../utils/qrScan';
+import { getFraudResultPresentation } from '../utils/fraudResultPresentation';
 
 const GUNGONG_GREEN = '#3ACE00';
 
@@ -53,24 +54,22 @@ const renderResultRows = (rows, statusColor) => `
 `;
 
 const showFraudResult = (result, subjectLabel) => {
-  const isSafe = result?.is_safe === true || result?.is_fraud === false;
-  const isRisk = result?.is_fraud === true || result?.is_safe === false;
-  const status = isSafe ? 'ปลอดภัย' : isRisk ? 'มีความเสี่ยง' : 'ไม่สามารถระบุได้';
-  const statusColor = isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#757575';
+  const presentation = getFraudResultPresentation(result);
+  const { isSafe, isRisk, status, statusColor } = presentation;
   const rows = [['สถานะ', status]];
 
   if (result?.risk_level) rows.push(['ระดับความเสี่ยง', result.risk_level]);
   if (result?.category) rows.push(['หมวดหมู่', result.category]);
-  if (result?.confidence_score !== undefined && result?.confidence_score !== null) {
+  if (presentation.showConfidence && result?.confidence_score !== undefined && result?.confidence_score !== null) {
     rows.push(['ความมั่นใจ', `${result.confidence_score}%`]);
   }
   if (result?.reason_th) rows.push(['เหตุผล', result.reason_th]);
 
   window.Swal?.fire({
-    icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
+    icon: presentation.icon,
     title: `ผลการตรวจสอบ${subjectLabel}`,
     html: renderResultRows(rows, statusColor),
-    confirmButtonColor: isSafe ? GUNGONG_GREEN : '#E53935',
+    confirmButtonColor: isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#D97706',
     confirmButtonText: 'ตกลง'
   });
 };

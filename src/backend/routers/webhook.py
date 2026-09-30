@@ -198,7 +198,9 @@ async def webhook(
 
                 # Step 1: Pre-screen message (fast, rule-based)
                 # This also expands URLs and scrapes content for a more accurate analysis
-                prescreen_result = prescreen_service.check_message(message_text)
+                # Network enrichment is intentionally disabled here; URL fetching
+                # belongs to the bounded verifier rather than the legacy headless path.
+                prescreen_result = prescreen_service.check_message(message_text, allow_network=False)
                 prescreen_confidence = prescreen_result.confidence
                 
                 # Use the processed message for all downstream analysis
@@ -425,7 +427,7 @@ async def webhook(
                             url_check = None
                             try:
                                 if vt_service and routing_strategy == "full":
-                                    url_check = vt_service.check_text_for_malicious_urls(analysis_message)
+                                    url_check = await vt_service.check_text_for_malicious_urls_async(analysis_message)
                             except Exception as vt_e:
                                 print(f"⚠️  VirusTotal fallback check also failed: {vt_e}")
                                 url_check = None

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # VirusTotal API
     virustotal_api_key: Optional[str] = None
+    virustotal_submit_unknown_urls: bool = False
 
     # Database (Google Cloud Firestore)
     google_application_credentials: Optional[str] = None

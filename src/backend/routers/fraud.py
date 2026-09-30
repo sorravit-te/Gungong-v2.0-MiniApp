@@ -3,7 +3,7 @@
 import asyncio
 import re
 from typing import Literal, Optional
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -14,6 +14,8 @@ from ..services.virustotal_service import get_virustotal_service
 from ..services.fraud_message_service import get_fraud_message_service
 from ..services.similarity_service import get_similarity_service
 from ..services.prescreen_service import get_prescreen_service
+from ..services.url_safety_service import URLSafetyError, normalize_public_url
+from ..services.url_verification_service import get_url_verification_service
 from ..core.logger import get_logger
 
 router = APIRouter()
@@ -45,6 +47,100 @@ def _resolve_history_message_type(
 
     # Let DatabaseService preserve its existing link/text auto-detection.
     return None
+
+
+def _link_cache_key(normalized_url: str) -> str:
+    return f"url-verification-v2:{normalized_url}"
+
+
+def _cached_link_response(cached: dict) -> dict:
+    verdict = cached.get("verification_verdict")
+    cached["risk_level"] = {
+        "MALICIOUS": "High",
+        "SUSPICIOUS": "Medium",
+        "NO_THREAT_FOUND": "Low",
+    }.get(verdict, "Unknown")
+    cached["url_check"] = cached.get("url_check") or {}
+    return cached
+
+
+def _save_link_history(db_service, fraud_request: FraudCheckRequest, response: dict) -> None:
+    url_check = response.get("url_check", {})
+    db_service.save_history(
+        user_id=fraud_request.user_id,
+        message=fraud_request.message,
+        classification=response.get("category"),
+        is_fraud=response.get("is_fraud"),
+        is_safe=response.get("is_safe"),
+        confidence_score=response.get("confidence_score"),
+        reason=response.get("reason_th"),
+        url_check_result=url_check,
+        has_malicious_urls=bool(url_check.get("malicious_urls")),
+        model_used=response.get("model"),
+        message_type=_resolve_history_message_type(fraud_request.message_type, url_check),
+    )
+
+
+def _save_complete_link_cache(db_service, fraud_request: FraudCheckRequest, response: dict, cache_key: str) -> None:
+    url_check = response.get("url_check", {})
+    db_service.save_result(
+        message=fraud_request.message,
+        classification=response["category"],
+        is_fraud=response["is_fraud"],
+        is_safe=response["is_safe"],
+        confidence_score=response.get("confidence_score"),
+        reason=response.get("reason_th"),
+        url_check_result=url_check,
+        has_malicious_urls=bool(url_check.get("malicious_urls")),
+        model_used=response.get("model"),
+        cache_ttl_days=1,
+        user_id=fraud_request.user_id,
+        cache_key=cache_key,
+        verification_verdict=response.get("verification_verdict"),
+        verification_complete=True,
+        checks=response.get("checks"),
+        original_url=response.get("original_url"),
+        final_url=response.get("final_url"),
+        redirect_chain=response.get("redirect_chain"),
+    )
+
+
+async def _check_link_request(
+    fraud_request: FraudCheckRequest,
+    background_tasks: Optional[BackgroundTasks] = None,
+) -> dict:
+    """Run the versioned URL-only pipeline and preserve history/cache contracts."""
+    db_service = get_database_service()
+    try:
+        normalized = normalize_public_url(fraud_request.message)
+    except URLSafetyError:
+        normalized = fraud_request.message.strip()
+    cache_key = _link_cache_key(normalized)
+
+    if db_service:
+        cached = db_service.get_cached_result(fraud_request.message, cache_key=cache_key)
+        if cached and cached.get("verification_complete") is True and cached.get("verification_verdict"):
+            cached = _cached_link_response(cached)
+            if fraud_request.user_id:
+                if background_tasks:
+                    background_tasks.add_task(_save_link_history, db_service, fraud_request, cached)
+                else:
+                    _save_link_history(db_service, fraud_request, cached)
+            return cached
+
+    response = await get_url_verification_service().verify(fraud_request.message)
+    if db_service and fraud_request.user_id:
+        if background_tasks:
+            background_tasks.add_task(_save_link_history, db_service, fraud_request, response)
+        else:
+            _save_link_history(db_service, fraud_request, response)
+
+    if db_service and response.get("verification_complete") and response.get("verification_verdict") != "INVALID":
+        if background_tasks:
+            background_tasks.add_task(_save_complete_link_cache, db_service, fraud_request, response, cache_key)
+        else:
+            _save_complete_link_cache(db_service, fraud_request, response, cache_key)
+    return response
 
 
 @router.post("/analyze-message")
@@ -106,7 +202,7 @@ async def analyze_message(http_request: Request, request: FraudCheckRequest):
 
 @router.post("/check-fraud")
 @limiter.limit("10/minute")
-async def check_fraud(request: Request, fraud_request: FraudCheckRequest):
+async def check_fraud(request: Request, fraud_request: FraudCheckRequest, background_tasks: BackgroundTasks):
     """
     Check if a message is fraudulent (with database caching and URL scanning).
 
@@ -139,6 +235,9 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest):
             }
         }
     """
+    if fraud_request.message_type == "link":
+        return await _check_link_request(fraud_request, background_tasks)
+
     try:
         # 1. Check database cache first
         db_service = get_database_service()
@@ -215,7 +314,7 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest):
 
         # 6. Check and save adult websites from prescreen
         prescreen_service = get_prescreen_service()
-        prescreen_result = prescreen_service.check_message(fraud_request.message)
+        prescreen_result = prescreen_service.check_message(fraud_request.message, allow_network=False)
 
         if db_service and prescreen_result.matched_patterns:
             adult_patterns = [p for p in prescreen_result.matched_patterns if "adult_websites" in p]
@@ -393,41 +492,8 @@ async def check_url(request: Request, url_request: FraudCheckRequest):
 
     This is a lightweight check that only uses VirusTotal, not the full AI model.
     """
-    # Extract URLs from message
-    urls = extract_urls(url_request.message)
-    if not urls:
-        return {
-            "is_safe": True,
-            "is_fraud": False,
-            "confidence_score": 0.0,
-            "category": "SAFE_NORMAL",
-            "reason_th": "ไม่พบลิงก์ในข้อความ",
-            "url_check": {
-                "has_urls": False,
-                "urls_found": [],
-                "malicious_urls": [],
-                "gambling_urls": [],
-                "is_dangerous": False,
-                "details": []
-            }
-        }
-
     try:
-        # Get VirusTotal service
-        vt_service = get_virustotal_service()
-
-        if vt_service is None:
-            raise HTTPException(
-                status_code=503,
-                detail="VirusTotal service not configured. Please set VIRUSTOTAL_API_KEY in .env"
-            )
-
-        # Check URLs in message
-        result = vt_service.check_text_for_malicious_urls(url_request.message)
-
-        return result
-
-    except HTTPException:
-        raise
+        return await get_url_verification_service().verify(url_request.message)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"URL check failed: {str(e)}")
+        logger.error("URL check failed: %s", type(e).__name__)
+        raise HTTPException(status_code=500, detail="URL check failed")

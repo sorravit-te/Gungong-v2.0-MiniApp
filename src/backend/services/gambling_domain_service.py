@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from .database_service import DatabaseService, get_database_service
 from ..core.models import COLLECTION_GAMBLING_DOMAINS, COLLECTION_WHITELISTED_DOMAINS
+from ..core.performance_config import get_performance_config
 
 
 def now_utc() -> datetime:
@@ -50,7 +51,7 @@ class GamblingDomainService:
         """
         try:
             doc_ref = self.db.collection(COLLECTION_WHITELISTED_DOMAINS).document(domain)
-            doc = doc_ref.get()
+            doc = doc_ref.get(timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT)
             return doc.exists
         except Exception as e:
             print(f"❌ Error checking whitelist for {domain}: {e}")
@@ -147,7 +148,7 @@ class GamblingDomainService:
         """
         try:
             doc_ref = self.db.collection(COLLECTION_GAMBLING_DOMAINS).document(domain)
-            doc = doc_ref.get()
+            doc = doc_ref.get(timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT)
 
             if doc.exists:
                 data = doc.to_dict()

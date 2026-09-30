@@ -86,6 +86,7 @@ class FraudPrescreenService:
 
         Args:
             message: Message text to check
+            allow_network: Opt in to the legacy expander/headless enrichment path.
 
         Returns:
             True if message contains safe domain, False otherwise
@@ -139,7 +140,7 @@ class FraudPrescreenService:
         # Combine and return unique URLs
         return list(set(standard_urls + schemeless_urls))
 
-    def check_message(self, message: str) -> PrescreenResult:
+    def check_message(self, message: str, allow_network: bool = False) -> PrescreenResult:
         """Pre-screen a message for fraud indicators.
 
         Args:
@@ -148,19 +149,21 @@ class FraudPrescreenService:
         Returns:
             PrescreenResult with suspicion level and matched patterns
         """
-        # Expand URLs, replace them in the message, and then scrape content
-        url_expander = get_url_expander_service()
-        scraper = get_headless_scraper()
-        
         # Use a copy of the message for analysis
         analysis_message = message
+        matched_patterns = []
+        score = 0.0
         
         urls = self._normalize_and_find_urls(analysis_message)
         
         scraped_content = []
         expand_results = {}
 
-        if urls:
+        if urls and allow_network:
+            # Legacy enrichment is explicitly opt-in. Interactive verification uses
+            # the bounded SafeRedirectResolver path instead of this headless flow.
+            url_expander = get_url_expander_service()
+            scraper = get_headless_scraper()
             expand_results = url_expander.expand_multiple(urls)
             final_urls_to_scrape = []
             
@@ -209,7 +212,10 @@ class FraudPrescreenService:
             analysis_message += " " + " ".join(scraped_content)
 
         # Correctly extract final URLs for the result
-        final_urls_found = [res.final_url for res in expand_results.values() if res and not res.error]
+        final_urls_found = (
+            [res.final_url for res in expand_results.values() if res and not res.error]
+            if allow_network else urls
+        )
 
         # Check for legitimate context BEFORE all other checks
         has_legit_context = self._has_legitimate_context(analysis_message)
@@ -225,9 +231,6 @@ class FraudPrescreenService:
                 is_educational_context=has_legit_context,
                 urls_found=final_urls_found,
             )
-
-        matched_patterns = []
-        score = 0.0
 
         # Add context to matched_patterns if detected
         if has_legit_context:
