@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ScanImage from './ScanImage';
 import {
   banks,
   checkLink as apiCheckLink,
@@ -8,6 +7,8 @@ import {
   checkPhone as apiCheckPhone,
   getErrorMessage
 } from '../utils/script';
+import { scanCode as liffScanCode } from '../utils/liff';
+import { getQrScanError, isQrScanCancelled, readQrUrl } from '../utils/qrScan';
 
 const GUNGONG_GREEN = '#3ACE00';
 
@@ -122,6 +123,7 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   const [selectedBank, setSelectedBank] = useState(null);
   const [contentTab, setContentTab] = useState('link'); // 'link' or 'sms'
   const [personalTab, setPersonalTab] = useState('bank'); // 'bank' or 'phone'
+  const [isQrScanning, setIsQrScanning] = useState(false);
   const bankDropdownRef = useRef(null);
   const linkTextareaRef = useRef(null);
   const smsTextareaRef = useRef(null);
@@ -142,7 +144,10 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
 
   // Sync external subpage prop with internal state
   useEffect(() => {
-    if (externalSubPage && externalSubPage !== 'scanner') {
+    if (externalSubPage === 'scan-qr') {
+      setCurrentSubPage('check-content');
+      setContentTab('link');
+    } else if (externalSubPage && externalSubPage !== 'scanner') {
       setCurrentSubPage(externalSubPage);
     } else if (externalSubPage === 'scanner') {
       setCurrentSubPage(null);
@@ -212,12 +217,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   }, [inputs.link, inputs.sms, contentTab, currentSubPage]);
 
   const goBack = () => {
-    // If coming from scan-qr, go back to scan-image (mode selection)
-    if (currentSubPage === 'scan-qr' && onNavigate) {
-      onNavigate('scan-image');
-      return;
-    }
-
     setCurrentSubPage(null);
     // Clear all inputs when exiting subpages
     setInputs({ link: '', sms: '', bank: '', phone: '' });
@@ -250,6 +249,35 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
       showFraudResult(result, 'ลิงก์');
     } catch (error) {
       showRequestError(error);
+    }
+  };
+
+  const scanQrIntoLinkInput = async () => {
+    if (isQrScanning) return;
+
+    setIsQrScanning(true);
+    try {
+      const scannedUrl = await readQrUrl(liffScanCode);
+      handleInputChange('link', scannedUrl);
+      window.Swal?.fire({
+        icon: 'success',
+        title: 'สแกน QR Code สำเร็จ',
+        text: 'ตรวจสอบ URL ในช่องด้านบน แล้วกด “ตรวจสอบลิงก์” เมื่อต้องการวิเคราะห์',
+        confirmButtonColor: GUNGONG_GREEN,
+        confirmButtonText: 'ตกลง'
+      });
+    } catch (error) {
+      if (isQrScanCancelled(error)) return;
+      const details = getQrScanError(error);
+      window.Swal?.fire({
+        icon: details.icon,
+        title: details.title,
+        text: details.message,
+        confirmButtonColor: GUNGONG_GREEN,
+        confirmButtonText: 'ตกลง'
+      });
+    } finally {
+      setIsQrScanning(false);
     }
   };
 
@@ -383,6 +411,24 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
                   ตรวจสอบลิงก์
                 </button>
+                <div className="qr-option-divider" aria-hidden="true">
+                  <span>หรือ</span>
+                </div>
+                <button
+                  type="button"
+                  className="form-secondary-btn"
+                  onClick={scanQrIntoLinkInput}
+                  disabled={isQrScanning}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                    <path d="M14 14h3v3h-3zM18 18h3v3h-3zM18 14h3M14 18v3"></path>
+                  </svg>
+                  {isQrScanning ? 'กำลังเปิดเครื่องสแกน...' : 'สแกน QR Code'}
+                </button>
+                <p className="form-hint qr-option-hint">QR Code ต้องมี URL และจะยังไม่ถูกตรวจสอบจนกว่าคุณจะกดปุ่มด้านบน</p>
               </>
             ) : (
               <>
@@ -414,10 +460,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
         </div>
       </section>
     );
-  }
-
-  if (currentSubPage === 'scan-qr') {
-    return <ScanImage onNavigate={onNavigate} initialTab="qr" backTarget="scan-image" />;
   }
 
   if (currentSubPage === 'check-personal') {
@@ -600,23 +642,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
             <button className="package-btn">เลือกใช้งาน</button>
           </div>
 
-          {/* Card 3: Scan Image */}
-          <div className="scanner-package-card animate-card" style={{ animationDelay: '0.25s' }} onClick={() => onNavigate('scan-image')}>
-            <div className="package-icon icon-qrcode">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-              </svg>
-            </div>
-            <h3 className="package-title">ตรวจสอบรูปภาพ</h3>
-            <p className="package-desc">สแกน QR Code และบัตรประชาชน</p>
-            <ul className="package-features">
-              <li className="feature-yes"><span className="check-icon">✓</span> สแกน QR Code</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> สแกนบัตรประชาชน</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> ตรวจสอบ Payment QR</li>
-            </ul>
-            <button className="package-btn">เลือกใช้งาน</button>
-          </div>
         </div>
       </div>
     </section>

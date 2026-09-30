@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { SCANNER_ROUTE_IDS, SCANNER_SUBMENU_ITEMS } from '../../utils/scannerNavigation';
 import '../../styles/sidebar.css';
 
 const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
@@ -58,8 +59,9 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
 
   // Auto-expand scanner submenu when navigating to a scanner sub-page
   useEffect(() => {
-    const scannerSubPages = ['check-content', 'check-personal', 'scan-image', 'scan-qr', 'id-card-scanner'];
-    if (scannerSubPages.includes(currentPage)) {
+    if (SCANNER_ROUTE_IDS.includes(currentPage)) {
+      // Keep the existing auto-expand behavior when a scanner route is selected.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpandedMenus(prev => ({ ...prev, scanner: true }));
     }
   }, [currentPage]);
@@ -116,8 +118,8 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
           hasSubItems: true,
           subItems: [
             {
-              id: 'check-content',
-              label: 'Check Content',
+              id: SCANNER_SUBMENU_ITEMS[0].id,
+              label: SCANNER_SUBMENU_ITEMS[0].label,
               icon: (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
@@ -126,22 +128,12 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
               ),
             },
             {
-              id: 'check-personal',
-              label: 'Check Personal',
+              id: SCANNER_SUBMENU_ITEMS[1].id,
+              label: SCANNER_SUBMENU_ITEMS[1].label,
               icon: (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                   <line x1="1" y1="10" x2="23" y2="10"></line>
-                </svg>
-              ),
-            },
-            {
-              id: 'scan-image',
-              label: 'Scan Image',
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
                 </svg>
               ),
             },

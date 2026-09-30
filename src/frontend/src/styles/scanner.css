@@ -275,6 +275,75 @@
   transform: scale(1.02);
 }
 
+.qr-option-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.qr-option-divider::before,
+.qr-option-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e5e7eb;
+}
+
+.form-secondary-btn {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #3ACE00;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #2da900;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: "Noto Sans Thai", sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.form-secondary-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.form-secondary-btn:hover:not(:disabled) {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+.form-secondary-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.qr-option-hint {
+  margin-top: 10px;
+  text-align: center;
+}
+
+html.dark-mode .form-secondary-btn {
+  background: #374151;
+  color: #86efac;
+}
+
+html.dark-mode .form-secondary-btn:hover:not(:disabled) {
+  background: #4b5563;
+}
+
+html.dark-mode .qr-option-divider::before,
+html.dark-mode .qr-option-divider::after {
+  background: #4b5563;
+}
+
 /* QR Scan Card Special Styles */
 .qr-card {
   text-align: center;
@@ -310,6 +379,10 @@
   flex-grow: 1;
   text-align: left;
   margin-left: 15px;}
+
+.scanner-wide .scanner-header h2 {
+  margin-left: 0;
+}
 
 .back-btn {
   background: none;
@@ -352,13 +425,13 @@
 
 /* Scanner page wider layout */
 .scanner-wide {
-  max-width: 800px !important;
+  max-width: 528px !important;
 }
 
 /* Vertical Card Grid */
 .scanner-card-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
