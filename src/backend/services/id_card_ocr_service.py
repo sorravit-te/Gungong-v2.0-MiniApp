@@ -1,14 +1,20 @@
 """ID Card OCR Service using Google Gemini Vision."""
 
 import google.generativeai as genai
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import base64
+import binascii
 import io
 import json
 import re
 from typing import Dict, Any
 
 from ..core.config import settings
+
+
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_PIXELS = 25_000_000
+SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG"}
 
 
 class IDCardOCRService:
@@ -45,15 +51,70 @@ class IDCardOCRService:
             >>> print(result['id_number'])
             "1234567890123"
         """
+        if not isinstance(image_base64, str) or not image_base64.strip():
+            return {
+                "success": False,
+                "error": "Image payload is required",
+                "error_code": "invalid_image",
+            }
+
+        # Remove a data URI prefix and whitespace before strict decoding.
+        payload = image_base64.strip()
+        if payload.startswith("data:") and "," in payload:
+            payload = payload.split(",", 1)[1]
+        payload = re.sub(r"\s+", "", payload)
+
+        max_base64_chars = ((MAX_IMAGE_BYTES + 2) // 3) * 4
+        if len(payload) > max_base64_chars:
+            return {
+                "success": False,
+                "error": "Image payload is too large",
+                "error_code": "invalid_image",
+            }
+
         try:
-            # Remove data URI prefix if present
-            if ',' in image_base64 and image_base64.startswith('data:'):
-                image_base64 = image_base64.split(',')[1]
+            image_data = base64.b64decode(payload, validate=True)
+        except (binascii.Error, ValueError):
+            return {
+                "success": False,
+                "error": "Image payload is not valid base64",
+                "error_code": "invalid_image",
+            }
 
-            # Decode base64 image
-            image_data = base64.b64decode(image_base64)
-            image = Image.open(io.BytesIO(image_data))
+        if not image_data or len(image_data) > MAX_IMAGE_BYTES:
+            return {
+                "success": False,
+                "error": "Image payload is empty or too large",
+                "error_code": "invalid_image",
+            }
 
+        try:
+            with Image.open(io.BytesIO(image_data)) as candidate:
+                if candidate.format not in SUPPORTED_IMAGE_FORMATS:
+                    return {
+                        "success": False,
+                        "error": "Image must be JPEG or PNG",
+                        "error_code": "invalid_image",
+                    }
+                if candidate.width * candidate.height > MAX_IMAGE_PIXELS:
+                    return {
+                        "success": False,
+                        "error": "Image dimensions are too large",
+                        "error_code": "invalid_image",
+                    }
+                candidate.verify()
+
+            with Image.open(io.BytesIO(image_data)) as candidate:
+                candidate.load()
+                image = candidate.copy()
+        except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError):
+            return {
+                "success": False,
+                "error": "Image payload is not a valid image",
+                "error_code": "invalid_image",
+            }
+
+        try:
             # Gemini Vision prompt in Thai
             prompt = """
 วิเคราะห์ภาพบัตรประจำตัวประชาชนไทยนี้และแยกข้อมูลออกมาในรูปแบบ JSON
@@ -99,7 +160,7 @@ class IDCardOCRService:
                     return {
                         "success": False,
                         "error": "Could not extract ID number from card image",
-                        "raw_response": text
+                        "error_code": "ocr_failed",
                     }
 
                 # Clean up ID number (remove any non-digits)
@@ -110,8 +171,8 @@ class IDCardOCRService:
                 if len(data.get("id_number", "")) != 13:
                     return {
                         "success": False,
-                        "error": f"Invalid ID number length: {len(data.get('id_number', ''))} (expected 13)",
-                        "raw_response": text
+                        "error": "Could not extract a 13-digit ID number",
+                        "error_code": "ocr_failed",
                     }
 
                 data["success"] = True
@@ -121,19 +182,20 @@ class IDCardOCRService:
                 return {
                     "success": False,
                     "error": "Could not parse JSON from OCR result",
-                    "raw_response": text
+                    "error_code": "ocr_failed",
                 }
 
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             return {
                 "success": False,
-                "error": f"JSON parsing error: {str(e)}",
-                "raw_response": text if 'text' in locals() else None
+                "error": "Could not parse JSON from OCR result",
+                "error_code": "ocr_failed",
             }
-        except Exception as e:
+        except Exception:
             return {
                 "success": False,
-                "error": f"OCR extraction failed: {str(e)}"
+                "error": "OCR service unavailable",
+                "error_code": "ocr_unavailable",
             }
 
 

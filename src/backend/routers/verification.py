@@ -14,7 +14,11 @@ from slowapi.util import get_remote_address
 from datetime import datetime
 
 from ..services.verification_service import get_verification_service
-from ..services.id_card_service import get_id_card_service
+from ..services.id_card_service import (
+    BLACKLIST_UNAVAILABLE,
+    OCR_UNAVAILABLE,
+    get_id_card_service,
+)
 from ..core.logger import get_logger
 from ..core.models import (
     IDCardVerificationRequest,
@@ -26,6 +30,25 @@ from ..core.models import (
 router = APIRouter(prefix="/api/v2", tags=["Verification"])
 limiter = Limiter(key_func=get_remote_address)
 logger = get_logger(__name__)
+
+ID_DEPENDENCY_ERRORS = {BLACKLIST_UNAVAILABLE, OCR_UNAVAILABLE}
+
+
+def _raise_id_verification_failure(result: Dict[str, Any], default_message: str) -> None:
+    """Convert expected service failures into safe JSON HTTP errors."""
+    error_code = result.get("error_code")
+    if error_code in ID_DEPENDENCY_ERRORS:
+        detail = (
+            "Blacklist service unavailable"
+            if error_code == BLACKLIST_UNAVAILABLE
+            else "OCR service unavailable"
+        )
+        raise HTTPException(status_code=503, detail=detail)
+
+    raise HTTPException(
+        status_code=400,
+        detail=result.get("error") or default_message,
+    )
 
 # ==================== Request/Response Models ====================
 
@@ -372,7 +395,7 @@ async def verify_id_card(request: Request, req_body: IDCardVerificationRequest):
     **Rate Limit:** 20 requests/minute (lower due to image processing)
     """
     try:
-        logger.info(f"🪪 Verifying ID card for user: {req_body.user_id}")
+        logger.info("Verifying ID card image for user %s", req_body.user_id)
 
         # Get ID card service
         id_card_service = get_id_card_service()
@@ -381,10 +404,7 @@ async def verify_id_card(request: Request, req_body: IDCardVerificationRequest):
         result = id_card_service.verify_id_card(req_body.image_base64)
 
         if not result.get("success"):
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", "ID card verification failed")
-            )
+            _raise_id_verification_failure(result, "ID card verification failed")
 
         # Build response
         extracted_data = result.get("extracted_data")
@@ -398,8 +418,13 @@ async def verify_id_card(request: Request, req_body: IDCardVerificationRequest):
             expiry_date=extracted_data.get("expiry_date")
         ) if extracted_data else None
 
-        logger.info(f"✅ ID card verified: {result['id_number'][:4]}****{result['id_number'][-2:]}, "
-                   f"safe: {result['is_safe']}, risk: {result['risk_level']}")
+        logger.info(
+            "ID card check completed for %s****%s, safe=%s, risk=%s",
+            result["id_number"][:4],
+            result["id_number"][-2:],
+            result["is_safe"],
+            result["risk_level"],
+        )
 
         return IDCardVerificationResponse(
             id_number=result["id_number"],
@@ -415,18 +440,23 @@ async def verify_id_card(request: Request, req_body: IDCardVerificationRequest):
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"❌ ID card verification failed: {e}")
+    except Exception as exc:
+        logger.error("ID card verification failed (%s)", type(exc).__name__)
         raise HTTPException(
             status_code=500,
-            detail=f"ID card verification failed: {str(e)}"
+            detail="ID card verification failed"
         )
 
 
 class IDNumberVerificationRequest(BaseModel):
     """Request model for ID number verification without image."""
 
-    id_number: str = Field(..., min_length=13, max_length=13, description="Thai National ID number (13 digits)")
+    id_number: str = Field(
+        ...,
+        min_length=1,
+        max_length=32,
+        description="Thai National ID number; separators are normalized before validation",
+    )
     user_id: Optional[str] = Field(None, description="User ID for tracking")
 
 
@@ -472,7 +502,11 @@ async def verify_id_number(request: Request, req_body: IDNumberVerificationReque
     **Rate Limit:** 30 requests/minute
     """
     try:
-        logger.info(f"🪪 Verifying ID number: {req_body.id_number[:4]}****{req_body.id_number[-2:]}")
+        logger.info(
+            "Verifying ID number %s****%s",
+            req_body.id_number[:4],
+            req_body.id_number[-2:],
+        )
 
         # Get ID card service
         id_card_service = get_id_card_service()
@@ -481,13 +515,15 @@ async def verify_id_number(request: Request, req_body: IDNumberVerificationReque
         result = id_card_service.verify_id_number_only(req_body.id_number)
 
         if not result.get("success"):
-            raise HTTPException(
-                status_code=400,
-                detail=result.get("error", "ID number verification failed")
-            )
+            _raise_id_verification_failure(result, "ID number verification failed")
 
-        logger.info(f"✅ ID number verified: {result['id_number'][:4]}****{result['id_number'][-2:]}, "
-                   f"safe: {result['is_safe']}, risk: {result['risk_level']}")
+        logger.info(
+            "ID number check completed for %s****%s, safe=%s, risk=%s",
+            result["id_number"][:4],
+            result["id_number"][-2:],
+            result["is_safe"],
+            result["risk_level"],
+        )
 
         return IDCardVerificationResponse(
             id_number=result["id_number"],
@@ -503,11 +539,11 @@ async def verify_id_number(request: Request, req_body: IDNumberVerificationReque
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"❌ ID number verification failed: {e}")
+    except Exception as exc:
+        logger.error("ID number verification failed (%s)", type(exc).__name__)
         raise HTTPException(
             status_code=500,
-            detail=f"ID number verification failed: {str(e)}"
+            detail="ID number verification failed"
         )
 
 

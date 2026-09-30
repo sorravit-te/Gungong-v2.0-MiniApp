@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { parseApiResponse } from '../utils/parseApiResponse';
 
 const normalizeThaiId = (value) => String(value || '').replace(/\D/g, '').slice(0, 13);
 
@@ -224,11 +225,7 @@ const IDCardScanner = ({ onNavigate }) => {
         })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'API Error');
-      }
+      const data = await parseApiResponse(response);
 
       // Show result
       showResult(data);
@@ -274,11 +271,7 @@ const IDCardScanner = ({ onNavigate }) => {
         })
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'API Error');
-      }
+      const data = await parseApiResponse(response);
 
       // Show result with SweetAlert
       showResult(data);
@@ -324,7 +317,7 @@ const IDCardScanner = ({ onNavigate }) => {
     // Determine icon and color
     let icon = 'success';
     let color = '#00C851';
-    let statusText = 'ปลอดภัย';
+    let statusText = 'ไม่พบใน Blacklist';
 
     if (isBlacklisted) {
       icon = 'error';
@@ -341,7 +334,7 @@ const IDCardScanner = ({ onNavigate }) => {
         <h3 style="color: ${color}; margin-bottom: 20px; text-align: center;">${statusText}</h3>
 
         <div style="margin-bottom: 15px;">
-          <strong>📋 ข้อมูลบัตร</strong>
+          <strong>ข้อมูลบัตร</strong>
           <div style="margin-left: 20px; margin-top: 8px;">
             <p style="margin: 5px 0;">เลขบัตร: <strong>${safeIdNumber}</strong></p>
             <p style="margin: 5px 0;">ชื่อ-นามสกุล: ${safeName} ${safeSurname}</p>
@@ -351,10 +344,10 @@ const IDCardScanner = ({ onNavigate }) => {
         </div>
 
         <div style="margin-bottom: 15px;">
-          <strong>🔍 ผลการตรวจสอบ</strong>
+          <strong>ผลการตรวจสอบ</strong>
           <div style="margin-left: 20px; margin-top: 8px;">
-            <p style="margin: 5px 0;">รูปแบบถูกต้อง: ${isValid ? '✅ ใช่' : '❌ ไม่ใช่'}</p>
-            <p style="margin: 5px 0;">อยู่ใน Blacklist: ${isBlacklisted ? '⚠️ ใช่' : '✅ ไม่'}</p>
+            <p style="margin: 5px 0;">รูปแบบถูกต้อง: ${isValid ? 'ใช่' : 'ไม่ใช่'}</p>
+            <p style="margin: 5px 0;">อยู่ใน Blacklist: ${isBlacklisted ? 'ใช่' : 'ไม่'}</p>
             <p style="margin: 5px 0;">ระดับความเสี่ยง: <strong>${safeRiskLevel}</strong></p>
             <p style="margin: 5px 0;">จำนวนรายงาน: ${safeReportsCount} ครั้ง</p>
             ${category ? `<p style="margin: 5px 0;">หมวดหมู่: ${safeCategory}</p>` : ''}
@@ -363,7 +356,7 @@ const IDCardScanner = ({ onNavigate }) => {
 
         ${isBlacklisted || !isValid ? `
           <div style="background: #FFF3CD; padding: 10px; border-radius: 5px; margin-top: 15px;">
-            <strong style="color: #856404;">⚠️ คำเตือน</strong>
+            <strong style="color: #856404;">คำเตือน</strong>
             <p style="color: #856404; margin: 5px 0; font-size: 14px;">
               ${isBlacklisted ? `เลขบัตรนี้มี ${safeReportsCount} รายงานการฉ้อโกง` : 'เลขบัตรไม่ผ่านการตรวจสอบ checksum'}
             </p>
@@ -614,7 +607,7 @@ const IDCardScanner = ({ onNavigate }) => {
                   pointerEvents: 'none',
                   whiteSpace: 'nowrap'
                 }}>
-                  👆 แตะหน้าจอเพื่อโฟกัส
+                  แตะหน้าจอเพื่อโฟกัส
                 </div>
               </div>
               <button
@@ -654,7 +647,7 @@ const IDCardScanner = ({ onNavigate }) => {
                   disabled={isLoading}
                   style={{ width: '100%' }}
                 >
-                  ✅ ตรวจสอบบัตร
+                  ตรวจสอบบัตร
                 </button>
                 <button
                   className="form-submit-btn"
@@ -662,7 +655,7 @@ const IDCardScanner = ({ onNavigate }) => {
                   disabled={isLoading}
                   style={{ width: '100%', background: '#f3f4f6', color: '#6b7280' }}
                 >
-                  🔄 ถ่ายใหม่
+                  ถ่ายใหม่
                 </button>
               </div>
             </div>

@@ -1,26 +1,75 @@
-"""ID Card Service for verification and blacklist checking."""
+"""Thai ID checksum, OCR, and fraud-blacklist verification service."""
 
-from typing import Dict, Any
-from datetime import datetime
+from typing import Any, Dict, Optional
 
 from .database_service import DatabaseService, get_database_service
-from .id_card_ocr_service import get_ocr_service
-from ..utils.thai_id_validator import validate_thai_id, normalize_thai_id
+from .id_card_ocr_service import IDCardOCRService, get_ocr_service
+from ..core.logger import get_logger
 from ..core.models import COLLECTION_BLACKLIST_ID_CARDS
+from ..utils.thai_id_validator import normalize_thai_id, validate_thai_id
+
+
+logger = get_logger(__name__)
+
+BLACKLIST_UNAVAILABLE = "blacklist_unavailable"
+OCR_UNAVAILABLE = "ocr_unavailable"
+
+
+def _mask_id(id_number: str) -> str:
+    """Return a log-safe representation without exposing the full ID."""
+    clean_id = normalize_thai_id(id_number)
+    if len(clean_id) < 6:
+        return "****"
+    return f"{clean_id[:4]}****{clean_id[-2:]}"
+
+
+def _risk_level_for_reports(report_count: int) -> str:
+    """Apply the shared blacklist report-count risk thresholds."""
+    if report_count >= 20:
+        return "CRITICAL"
+    if report_count >= 10:
+        return "HIGH"
+    if report_count >= 5:
+        return "MEDIUM"
+    return "LOW"
 
 
 class IDCardService:
-    """Service for Thai ID card verification and blacklist checking."""
+    """Check Thai ID checksums and the fraud blacklist, with optional OCR."""
 
-    def __init__(self, db_service: DatabaseService = None):
+    def __init__(
+        self,
+        db_service: Optional[DatabaseService] = None,
+        ocr_service: Optional[IDCardOCRService] = None,
+    ):
         """
         Initialize ID Card Service.
 
         Args:
             db_service: Database service instance (defaults to singleton)
         """
-        self.db_service = db_service or get_database_service()
-        self.ocr_service = get_ocr_service()
+        self.db_service = db_service if db_service is not None else get_database_service()
+        self._ocr_service = ocr_service
+
+    def _get_ocr_service(self) -> IDCardOCRService:
+        """Initialize Gemini OCR only when the image flow needs it."""
+        if self._ocr_service is None:
+            self._ocr_service = get_ocr_service()
+        return self._ocr_service
+
+    @staticmethod
+    def _failure(error: str, error_code: str) -> Dict[str, Any]:
+        """Build a fail-closed result that can never be interpreted as safe."""
+        return {
+            "success": False,
+            "error": error,
+            "error_code": error_code,
+            "is_valid_format": False,
+            "is_blacklisted": False,
+            "is_safe": False,
+            "reports_count": 0,
+            "risk_level": "UNKNOWN",
+        }
 
     def check_id_blacklist(self, id_number: str) -> Dict[str, Any]:
         """
@@ -51,6 +100,13 @@ class IDCardService:
                     "error": "Invalid ID number format"
                 }
 
+            if self.db_service is None:
+                return {
+                    "is_blacklisted": False,
+                    "error": "Blacklist service unavailable",
+                    "error_code": BLACKLIST_UNAVAILABLE,
+                }
+
             # Query Firestore
             doc_ref = self.db_service.db.collection(COLLECTION_BLACKLIST_ID_CARDS).document(clean_id)
             doc = doc_ref.get()
@@ -64,11 +120,12 @@ class IDCardService:
 
             return {"is_blacklisted": False}
 
-        except Exception as e:
-            print(f"[ERROR] Error checking ID blacklist: {e}")
+        except Exception as exc:
+            logger.error("ID blacklist lookup failed (%s)", type(exc).__name__)
             return {
                 "is_blacklisted": False,
-                "error": str(e)
+                "error": "Blacklist service unavailable",
+                "error_code": BLACKLIST_UNAVAILABLE,
             }
 
     def verify_id_card(self, image_base64: str) -> Dict[str, Any]:
@@ -99,45 +156,43 @@ class IDCardService:
             >>> result = service.verify_id_card(base64_image)
             >>> print(f"Safe: {result['is_safe']}, Risk: {result['risk_level']}")
         """
-        # Step 1: Extract data from image using OCR
-        print("[OCR] Starting OCR extraction...")
-        ocr_result = self.ocr_service.extract_id_card_data(image_base64)
+        # Step 1: Extract data from image using OCR. Model creation stays lazy so
+        # the number-only flow never requires Gemini configuration.
+        logger.info("Starting ID card OCR extraction")
+        try:
+            ocr_service = self._get_ocr_service()
+            ocr_result = ocr_service.extract_id_card_data(image_base64)
+        except Exception as exc:
+            logger.error("ID card OCR initialization failed (%s)", type(exc).__name__)
+            return self._failure("OCR service unavailable", OCR_UNAVAILABLE)
 
         if not ocr_result.get("success"):
-            print(f"[ERROR] OCR failed: {ocr_result.get('error')}")
-            return {
-                "success": False,
-                "error": "OCR failed: " + ocr_result.get("error", "Unknown error"),
-                "is_valid_format": False,
-                "is_blacklisted": False,
-                "is_safe": False,
-                "reports_count": 0,
-                "risk_level": "UNKNOWN"
-            }
+            error_code = ocr_result.get("error_code", "ocr_failed")
+            error = ocr_result.get("error", "Could not read ID card image")
+            logger.warning("ID card OCR did not produce a usable result (%s)", error_code)
+            return self._failure(error, error_code)
 
-        id_number = ocr_result.get("id_number")
+        id_number = normalize_thai_id(ocr_result.get("id_number", ""))
 
-        if not id_number:
-            print("[ERROR] Could not extract ID number")
-            return {
-                "success": False,
-                "error": "Could not extract ID number from card",
-                "is_valid_format": False,
-                "is_blacklisted": False,
-                "is_safe": False,
-                "reports_count": 0,
-                "risk_level": "UNKNOWN"
-            }
+        if len(id_number) != 13:
+            return self._failure("Could not extract a 13-digit ID number", "ocr_failed")
 
-        print(f"[OK] OCR successful, extracted ID: {id_number[:4]}****{id_number[-2:]}")
+        ocr_result = {**ocr_result, "id_number": id_number}
+        logger.info("ID card OCR succeeded for %s", _mask_id(id_number))
 
         # Step 2: Validate format using checksum
         is_valid_format = validate_thai_id(id_number)
-        print(f"[VALIDATION] Format validation: {'Valid' if is_valid_format else 'Invalid'}")
+        logger.info("ID checksum validation: %s", "valid" if is_valid_format else "invalid")
 
         # Step 3: Check blacklist
-        print("[CHECK] Checking blacklist...")
+        logger.info("Checking ID fraud blacklist")
         blacklist_result = self.check_id_blacklist(id_number)
+        if blacklist_result.get("error"):
+            return self._failure(
+                "Blacklist service unavailable",
+                BLACKLIST_UNAVAILABLE,
+            )
+
         is_blacklisted = blacklist_result.get("is_blacklisted", False)
 
         # Calculate risk level and build response
@@ -145,17 +200,9 @@ class IDCardService:
             details = blacklist_result.get("details", {})
             report_count = details.get("report_count", 1)
 
-            # Calculate risk level based on report count
-            if report_count >= 20:
-                risk_level = "CRITICAL"
-            elif report_count >= 10:
-                risk_level = "HIGH"
-            elif report_count >= 5:
-                risk_level = "MEDIUM"
-            else:
-                risk_level = "LOW"
+            risk_level = _risk_level_for_reports(report_count)
 
-            print(f"[WARNING] BLACKLISTED: {report_count} reports, risk: {risk_level}")
+            logger.warning("ID is blacklisted: %s reports, risk %s", report_count, risk_level)
 
             return {
                 "success": True,
@@ -173,7 +220,7 @@ class IDCardService:
         else:
             # Not blacklisted
             risk_level = "LOW" if is_valid_format else "MEDIUM"
-            print(f"[OK] Safe: Not in blacklist, risk: {risk_level}")
+            logger.info("ID not found in blacklist; risk %s", risk_level)
 
             return {
                 "success": True,
@@ -199,15 +246,25 @@ class IDCardService:
         Returns:
             dict: Verification result
         """
-        print(f"[ID-CHECK] Verifying ID number: {id_number[:4]}****{id_number[-2:]}")
+        clean_id = normalize_thai_id(id_number)
+        logger.info("Verifying ID number %s", _mask_id(clean_id))
+
+        if len(clean_id) != 13:
+            return self._failure("ID number must contain 13 digits", "invalid_id")
 
         # Validate format
-        is_valid_format = validate_thai_id(id_number)
-        print(f"[VALIDATION] Format validation: {'Valid' if is_valid_format else 'Invalid'}")
+        is_valid_format = validate_thai_id(clean_id)
+        logger.info("ID checksum validation: %s", "valid" if is_valid_format else "invalid")
 
         # Check blacklist
-        print("[CHECK] Checking blacklist...")
-        blacklist_result = self.check_id_blacklist(id_number)
+        logger.info("Checking ID fraud blacklist")
+        blacklist_result = self.check_id_blacklist(clean_id)
+
+        if blacklist_result.get("error"):
+            return self._failure(
+                "Blacklist service unavailable",
+                BLACKLIST_UNAVAILABLE,
+            )
 
         is_blacklisted = blacklist_result.get("is_blacklisted", False)
         blacklist_details = blacklist_result.get("details", {})
@@ -217,23 +274,18 @@ class IDCardService:
 
         # Determine risk level
         if is_blacklisted:
-            if reports_count >= 10:
-                risk_level = "CRITICAL"
-            elif reports_count >= 5:
-                risk_level = "HIGH"
-            else:
-                risk_level = "MEDIUM"
-            print(f"[WARNING] BLACKLISTED: {reports_count} reports, risk: {risk_level}")
+            risk_level = _risk_level_for_reports(reports_count)
+            logger.warning("ID is blacklisted: %s reports, risk %s", reports_count, risk_level)
         else:
             risk_level = "LOW" if is_valid_format else "MEDIUM"
-            print(f"[OK] Safe: Not in blacklist, risk: {risk_level}")
+            logger.info("ID not found in blacklist; risk %s", risk_level)
 
         # Overall safety
         is_safe = is_valid_format and not is_blacklisted
 
         return {
             "success": True,
-            "id_number": id_number,
+            "id_number": clean_id,
             "is_valid_format": is_valid_format,
             "is_blacklisted": is_blacklisted,
             "is_safe": is_safe,
