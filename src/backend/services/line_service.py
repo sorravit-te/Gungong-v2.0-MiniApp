@@ -110,6 +110,46 @@ class LineService:
             print(f"Stack trace:\n{traceback.format_exc()}")
             raise
 
+    def create_url_verification_flex_message(self, result: dict) -> dict:
+        """Render URL verdicts without equating missing evidence with safe/fraud."""
+        labels = {
+            "NO_THREAT_FOUND": ("ไม่พบสัญญาณอันตรายจากการตรวจสอบ", "#248A3D"),
+            "SUSPICIOUS": ("พบสัญญาณความเสี่ยง", "#B86000"),
+            "MALICIOUS": ("พบหลักฐานอันตราย", "#D32F2F"),
+            "INCOMPLETE": ("ยังสรุปไม่ได้ — ตรวจสอบได้ไม่ครบ", "#B86000"),
+            "INVALID": ("ลิงก์ไม่ถูกต้องหรือปลายทางไม่อนุญาต", "#616161"),
+        }
+        label, color = labels.get(result.get("verification_verdict"), labels["INCOMPLETE"])
+        reason = result.get("reason_th") or "ยังไม่มีข้อมูลเพียงพอสำหรับสรุปผลการตรวจสอบ"
+        texts = [
+            {"type": "text", "text": "GunGong · ผลการตรวจสอบลิงก์",
+             "weight": "bold", "wrap": True},
+            {"type": "text", "text": label, "weight": "bold",
+             "color": color, "wrap": True},
+            {"type": "text", "text": str(reason)[:1500], "size": "sm", "wrap": True},
+        ]
+        ai_reason = ((result.get("checks") or {}).get("gemini") or {}).get("reason_th")
+        if isinstance(ai_reason, str) and ai_reason.strip() and ai_reason != reason:
+            texts.append({"type": "text", "text": f"คำอธิบายจาก AI: {ai_reason}"[:1500],
+                          "size": "sm", "wrap": True})
+        return {
+            "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
+            "contents": {
+                "type": "bubble",
+                "body": {
+                    "type": "box", "layout": "vertical", "spacing": "md",
+                    "contents": texts,
+                },
+                "footer": {
+                    "type": "box", "layout": "vertical",
+                    "contents": [{"type": "button", "action": {
+                        "type": "uri", "label": "เปิด Mini App",
+                        "uri": "https://miniapp.line.me/2008548759-KkM4Noxa",
+                    }}],
+                },
+            },
+        }
+
     def create_fraud_flex_message(
         self,
         classification: str,

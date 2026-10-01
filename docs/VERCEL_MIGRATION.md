@@ -1,6 +1,16 @@
 # Vercel migration preparation
 
-Status: isolated Hobby Preview deployed with explicitly approved provider and
+Current status (2026-10-01): the existing container/Vite architecture is deployed
+and promoted to **Vercel Hobby Production** at
+<https://gungong-vercel-preview.vercel.app>. LINE Messaging webhook has moved to
+that origin and LINE's endpoint test passes. The user reports the LIFF endpoint
+change, supplied a screenshot of the Firebase authorized domain, and accepted a
+physical QR scan and real bot reply. Google login fails and is explicitly deferred.
+The bot's URL pipeline alignment follow-up is now deployed; live cross-channel
+verdict acceptance remains outstanding. Render is retained for rollback, not as
+the application's API origin. See the Production cutover and follow-up below.
+
+Historical Preview status: isolated Hobby Preview deployed with explicitly approved provider and
 existing Firestore credentials; not a production cutover or acceptance of live
 scanning. Project `gungong-vercel-preview` has no Git integration. The complete
 local service-account JSON was stored as a sensitive, Preview-only server-side
@@ -342,3 +352,139 @@ subject to the existing URL policy; migration does not redefine verdicts.
 - [Container images, ports, scaling, and limits](https://vercel.com/docs/functions/container-images)
 - [Function region configuration](https://vercel.com/docs/functions/configuring-functions/region)
 - [Singapore region identifier](https://vercel.com/docs/regions)
+
+## Production cutover (2026-10-01)
+
+The user requested the existing application move entirely from Render to Vercel
+under a free-only constraint and explicitly approved existing provider, Firestore
+and LINE credentials for Production. They separately approved making only the
+Production domain public. No paid integration, upgrade, new cloud renderer,
+database migration, Git commit/push or Render deletion was performed.
+
+- Deployment `dpl_9TvUqCwxmPjPU8qJKaDU8543R3ft`: READY, Production, Singapore
+  `sin1`, promoted to `https://gungong-vercel-preview.vercel.app`. Source is
+  commit `590b26ad9e1a265f0a8cad5e92a2d9e3f279bfaa` plus the uncommitted narrow
+  webhook-signature fix. The post-deployment documentation is not in that build.
+- Fourteen server-side Production variables were created from approved existing
+  local configuration. Five credential variables are Secrets, never `VITE_`
+  values. Preview values and local credential files were not changed. Credentials
+  were sent through stdin without printing values or writing a new key file.
+  Bulk-API attempts returned 400 before mutation; standard `env add` succeeded.
+- Upload dry-run: 144 files, zero forbidden credential/environment/dependency
+  paths. Both existing services built remotely. No new runtime rewrite or
+  frontend change was needed.
+- Production uses Standard Protection
+  (`prod_deployment_urls_and_all_previews`), after explicit approval. Public
+  domain serves the app; generated Production and old Preview URLs both still
+  redirect to authentication (302). No global protection disable was used.
+- Required narrow security fix: authenticate raw webhook bytes using LINE's
+  base64 HMAC-SHA256 and constant-time comparison before JSON/event processing.
+  Missing/invalid signatures return 403; absent secret returns 503. Seven new
+  tests cover valid, invalid, missing, changed-body, missing-secret, parsing-order
+  and signed-invalid-JSON cases. Together with migration/startup tests, **26
+  tests pass**. `git diff --check` passes. No actual bot message was sent.
+- Public smoke: frontend and referenced JS asset 200 (863,538 bytes); API health
+  200 in 8.609 seconds after idle. Root plus asset took 1.313 seconds. Empty bank,
+  phone and ID-card API requests returned their expected 422 JSON validation
+  responses; this proves routing, not end-to-end personal verification/OCR.
+- Reading only a deliberately nonexistent synthetic History ID returned 404,
+  proving database read access without querying a user's records.
+- One cache-miss example.com link scan returned 200, `NO_THREAT_FOUND`,
+  `AI_CONFIRMATION`, in 2.297 seconds after health/route checks had warmed the
+  API. Core checks completed, Gemini was clean and VirusTotal was
+  `skipped_not_needed`. This is **not** a first-scan/cold-start guarantee.
+- One synthetic text request returned 200. The smoke formatter failed because
+  its optional `checks` field was null, not because the API failed. A subsequent
+  read of the same text through the API returned `SAFE_NORMAL`, cached. No code
+  or verdict policy was changed to make that check pass. Scans had no `user_id`,
+  so no personal History entry was created. Normal cache writes may occur.
+- Initial protected-CLI smoke requests failed at the CLI/transport layer; do not
+  count those as successful application/provider checks. Public HTTP smoke above
+  is the actual cloud evidence. There was no repeated live URL retry loop.
+- Public webhook rejects invalid signatures (403) and accepts a correctly signed
+  empty event batch (200). LINE itself tested the new URL successfully. Webhook
+  was then changed from `https://gungong.onrender.com/webhook` to
+  `https://gungong-vercel-preview.vercel.app/webhook`; post-change LINE test was
+  successful and GET confirmed the new endpoint with `active=true`.
+
+### Account-owner steps remaining
+
+1. LINE Developers Console: LINE Login channel → LIFF app
+   `2008548759-KkM4Noxa` → set Endpoint URL to
+   `https://gungong-vercel-preview.vercel.app/`. Preserve QR, scopes and other
+   existing settings. The available credential is a Messaging API token, not a
+   LINE Login token; do not reuse it to edit the LIFF channel.
+2. Firebase project `gungong-6502f` → Authentication → Settings → Authorized
+   domains: add `gungong-vercel-preview.vercel.app` (no scheme/path). Read-only
+   Firebase configuration confirms it is not yet authorized. Keep existing
+   domains. No Firebase Auth configuration was changed automatically.
+3. After those two settings, perform one physical LIFF QR input-only/manual-submit
+   check, one Google login and one real LINE bot message. The signed empty webhook
+   test does not prove a real reply, and an HTTP frontend smoke is not a mobile
+   LIFF authentication/QR test.
+
+### Scope and limits retained
+
+This moves the existing web/API and Messaging endpoint, not Community mock data
+or new desktop features. Those require separate task acceptance. Application
+timeouts remain backend 9 seconds / frontend 12 seconds. Free container startup
+still exists; the 8.609-second health sample and prior first-scan overrun do not
+establish the strict 12-second contract for every cold request. Isolated cloud
+renderer remains disabled/unvalidated, and denied/unreadable sites can still
+produce honest INCOMPLETE results. No safety/SSRF or sandbox control was relaxed.
+Project has no Git integration, so a push alone does not update this deployment.
+Retain Render until the account-owner steps and smoke succeed.
+
+### User acceptance and bot URL alignment follow-up (2026-10-01)
+
+- The user reports changing the LIFF endpoint to the Production domain; their
+  screenshot shows the Firebase authorized domain added. These supersede the
+  pending console settings above, but Google login still fails and is deferred
+  at the user's request, not accepted as working.
+- The user reports a physical QR scan of developers.line.biz populated the URL
+  and could be checked, and a real bot message received a reply. However, the
+  same iLaw URL appeared as a dangerous Message from the bot and inconclusive
+  Link from the Mini App. This is not evidence that iLaw is malicious.
+- Source inspection confirms the webhook still used legacy message pre-screen,
+  unversioned message cache and parallel message AI/URL checks, whereas the
+  Mini App used the staged URL pipeline. The old event's exact provider evidence
+  has not been read, so its specific dangerous verdict cause is not established.
+- The local follow-up routes single URL inputs (including bare domains and
+  invalid/private HTTP URLs) directly through `_check_link_request`, sharing
+  normalization, versioned cache, risk evidence, deadlines, verdict and Link
+  History persistence with the Mini App. Mixed text/multiple URLs retain their
+  existing text pipeline; group opt-in is unchanged.
+- URL-specific LINE Flex output renders all five verdicts explicitly and keeps
+  an AI explanation separate from the overall verdict. INCOMPLETE never becomes
+  safe/dangerous from a boolean fallback or confidence percentage. The button
+  opens the Mini App; it does not promise a selected History item because shared
+  History writes run after the response via background tasks. Existing message
+  Flex templates and historical records are unchanged.
+- The follow-up was deployed and promoted to the public Production domain as
+  `dpl_4WMb4SNbF2kugcBVZ5vDhL5Q7XZU` (READY, Singapore `sin1`, build 3m 39s).
+  Inspecting `gungong-vercel-preview.vercel.app` resolves to this exact deployment.
+  Public root and health return 200 in 0.968s and 9.125s respectively; the health
+  startup latency is not a verifier deadline measurement. No Render, environment
+  variable or deployment-protection setting was changed in this deployment.
+- Per the user's requested order, deployment preceded commit/push and live URL
+  regression testing. Deployment metadata therefore references base `590b26a`
+  plus the working-tree fixes, not the subsequent commit SHA. These deployed
+  backend source files were unchanged between upload and commit preparation.
+  The documentation was updated after upload and is not in this built artifact.
+  Deterministic tests cannot establish a live iLaw verdict or guarantee unchanged
+  content between independent scans; the live regression follows push.
+- Validation: 158 focused backend tests pass, including 16 new URL-recognition,
+  signed-event routing, cache/history, provider-call and URL Flex tests; 49
+  frontend tests pass. Build passes in 11.79 seconds outside the filesystem
+  sandbox, with the existing large-bundle warning. Whitespace checks pass.
+- Full discovery ran 250 tests: 241 passed and nine controlled Chromium tests
+  failed under the sandbox. The entire affected Chromium class (10 tests) then
+  passed outside the sandbox in 14.918 seconds without changing renderer code or
+  browser sandbox flags. This is local controlled-browser evidence, not a live
+  provider or enabled-cloud-renderer test. No full-suite single-run PASS outside
+  the sandbox is claimed. UTF-8 console output is required for legacy emoji logs
+  on this Windows test host.
+- Deployment error scan: zero error log rows for the exact new deployment over
+  the last 10 minutes (bounded to 20 rows). This is a point-in-time observation,
+  not an ongoing monitoring or absence-of-all-errors guarantee. No drain or paid
+  monitoring integration was created.

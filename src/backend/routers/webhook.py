@@ -1,10 +1,13 @@
 """LINE Webhook router for handling bot messages and events."""
 
 import json
+import base64
+import hashlib
+import hmac
 import re
 import asyncio
 from typing import Optional
-from fastapi import APIRouter, Request, HTTPException, Header
+from fastapi import APIRouter, BackgroundTasks, Request, HTTPException, Header
 from urllib.parse import parse_qs
 
 from ..core.config import get_settings
@@ -28,6 +31,8 @@ from ..services.image_classifier_service import get_image_classifier_service
 from ..utils.message_helpers import is_analysis_request, is_bot_mentioned
 from ..utils.flex_templates import create_id_card_verification_flex
 from ..core.logger import get_logger
+from ..services.url_safety_service import URLSafetyError, normalize_user_url
+from .fraud import FraudCheckRequest, _check_link_request
 
 # Check LINE service availability
 try:
@@ -39,6 +44,21 @@ except (ImportError, SyntaxError, ValueError):
 router = APIRouter()
 logger = get_logger(__name__)
 settings = get_settings()
+
+
+def _is_url_only(message: str) -> bool:
+    """Recognize a single URL without fetching it or changing mixed-text routing."""
+    candidate = message.strip()
+    if not candidate or any(char.isspace() for char in candidate):
+        return False
+    # Explicit URLs, including invalid/blocked ones, belong to the URL verifier.
+    if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", candidate):
+        return True
+    try:
+        normalize_user_url(candidate)
+        return True
+    except URLSafetyError:
+        return False
 
 
 @router.get("/webhook")
@@ -58,6 +78,7 @@ async def webhook_info():
 @router.post("/webhook")
 async def webhook(
     request: Request,
+    background_tasks: BackgroundTasks,
     x_line_signature: str = Header(None, alias="X-Line-Signature"),
 ):
     """
@@ -78,24 +99,25 @@ async def webhook(
             status_code=503,
             detail="LINE service is not available (SDK compatibility issue with Python 3.13)"
         )
+    # Authenticate the unmodified request bytes before parsing any events.
+    if not settings.line_channel_secret:
+        raise HTTPException(status_code=503, detail="LINE webhook is not configured")
+    if not x_line_signature:
+        raise HTTPException(status_code=403, detail="Invalid LINE signature")
+
     # Get request body
     body = await request.body()
-    body_str = body.decode("utf-8")
-
-    # Verify LINE signature (optional but recommended)
-    if settings.line_channel_secret and x_line_signature:
-        try:
-            line_service = get_line_service()
-            # Note: Full signature verification requires parsing events
-            # For now, we'll proceed if credentials exist
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid signature: {str(e)}")
+    expected_signature = base64.b64encode(hmac.new(
+        settings.line_channel_secret.encode("utf-8"), body, hashlib.sha256
+    ).digest())
+    if not hmac.compare_digest(expected_signature, x_line_signature.encode("utf-8")):
+        raise HTTPException(status_code=403, detail="Invalid LINE signature")
 
     # Parse webhook body
     try:
-        webhook_data = json.loads(body_str)
+        webhook_data = json.loads(body)
         events = webhook_data.get("events", [])
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, UnicodeDecodeError):
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     # Process each event
@@ -148,6 +170,26 @@ async def webhook(
                 continue
 
             try:
+                # Use precisely the Mini App's versioned URL/cache/history path.
+                # Do this before legacy message pre-screening or message-cache lookup.
+                if _is_url_only(message_text):
+                    if is_group and not is_bot_mentioned(event):
+                        continue
+                    source_id = (source.get("userId") or source.get("groupId")
+                                 or source.get("roomId"))
+                    result = await _check_link_request(FraudCheckRequest(
+                        message=message_text.strip(), user_id=source_id,
+                        message_type="link",
+                    ), background_tasks)
+                    line_service = get_line_service()
+                    flex_message = line_service.create_url_verification_flex_message(result)
+                    line_service.reply_message(
+                        reply_token, flex_message=flex_message, quote_token=quote_token,
+                    )
+                    logger.info("webhook_url verdict=%s cached=%s",
+                                result.get("verification_verdict"), result.get("cached", False))
+                    continue
+
                 # Get services
                 prescreen_service = get_prescreen_service()
                 line_service = get_line_service()
@@ -732,7 +774,6 @@ async def webhook(
                     image_content = line_bot_blob_api.get_message_content(message_id)
 
                     # Convert to base64
-                    import base64
                     image_base64 = base64.b64encode(image_content).decode('utf-8')
 
                     print(f"[OK] Image downloaded, size: {len(image_content)} bytes")
