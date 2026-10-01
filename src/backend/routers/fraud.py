@@ -23,6 +23,7 @@ from ..services.url_risk_evidence_service import lookup_recent_risk, save_recent
 from ..core.performance_config import get_performance_config
 from ..core.config import settings
 from ..core.logger import get_logger
+from ..services.user_identity_service import require_user
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -129,11 +130,14 @@ def _save_complete_link_cache(db_service, fraud_request: FraudCheckRequest, resp
 async def _check_link_request(
     fraud_request: FraudCheckRequest,
     background_tasks: Optional[BackgroundTasks] = None,
+    *, persist_history_before_return: bool = False,
+    timeout: Optional[float] = None,
 ) -> dict:
     """Run the versioned URL-only pipeline and preserve history/cache contracts."""
     db_service = get_database_service()
     started = monotonic()
     config = get_performance_config()
+    budget = min(config.MAX_TOTAL_PROCESSING_TIME, timeout) if timeout is not None else config.MAX_TOTAL_PROCESSING_TIME
     try:
         normalized = normalize_user_url(fraud_request.message)
     except URLSafetyError:
@@ -163,26 +167,26 @@ async def _check_link_request(
             if background_tasks:
                 background_tasks.add_task(db_service.record_url_cache_access, cache_key)
             else:
-                remaining = config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)
+                remaining = budget - (monotonic() - started)
                 if remaining > 0:
                     try:
                         await asyncio.wait_for(asyncio.to_thread(db_service.record_url_cache_access, cache_key), timeout=remaining)
                     except Exception:
                         logger.warning("url_cache_stats outcome=unavailable")
             if fraud_request.user_id:
-                if background_tasks:
+                if background_tasks and not persist_history_before_return:
                     background_tasks.add_task(_save_link_history, db_service, fraud_request, cached)
                 else:
-                    _save_link_history(db_service, fraud_request, cached)
+                    await asyncio.to_thread(_save_link_history, db_service, fraud_request, cached)
             return cached
 
     response = await get_url_verification_service().verify(
         fraud_request.message, initial_risk=prior_risk,
-        timeout=max(0.0, config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)),
+        timeout=max(0.0, budget - (monotonic() - started)),
     )
     # Save positive evidence even when core is incomplete. Clean results never
     # write this store; do not depend on a background benign cache replacement.
-    remaining = config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)
+    remaining = budget - (monotonic() - started)
     if remaining > 0:
         try:
             await asyncio.wait_for(save_recent_risk(db_service, response), timeout=remaining)
@@ -192,10 +196,10 @@ async def _check_link_request(
     else:
         await save_recent_risk(db_service, response, persist=False)
     if db_service and fraud_request.user_id:
-        if background_tasks:
+        if background_tasks and not persist_history_before_return:
             background_tasks.add_task(_save_link_history, db_service, fraud_request, response)
         else:
-            _save_link_history(db_service, fraud_request, response)
+            await asyncio.to_thread(_save_link_history, db_service, fraud_request, response)
 
     if (db_service and response.get("verification_complete") and response.get("verification_verdict") != "INVALID"
             and response.get("checks", {}).get("risk_history", {}).get("status") != "suspicious"):
@@ -298,8 +302,16 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
             }
         }
     """
+    # Public anonymous checking remains supported, but personal History may
+    # only be written under a verified identity, never a supplied user_id.
+    request_started = monotonic()
+    if fraud_request.user_id or request.headers.get("Authorization"):
+        user = await require_user(request.headers.get("Authorization", ""),
+                                  request.headers.get("X-Auth-Provider", ""))
+        fraud_request.user_id = user.user_id
     if fraud_request.message_type == "link":
-        return await _check_link_request(fraud_request, background_tasks)
+        return await _check_link_request(fraud_request, background_tasks, timeout=max(
+            0.0, get_performance_config().MAX_TOTAL_PROCESSING_TIME - (monotonic() - request_started)))
 
     try:
         # 1. Check database cache first

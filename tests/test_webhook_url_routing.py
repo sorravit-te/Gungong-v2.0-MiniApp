@@ -96,6 +96,7 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         return result, gemini, vt, requester
 
     async def test_unknown_benign_calls_gemini_once_vt_zero_and_saves_link_history(self):
+        self.line.reply_message.side_effect = lambda *args, **kwargs: self.assertEqual(len(self.db.saved_history), 1)
         url = "https://www.ilaw.or.th/%E0%B8%A3%E0%B8%B9%E0%B9%89"
         result, gemini, vt, requester = await self.run_candidate(url)
         self.assertEqual(result["verification_verdict"], "NO_THREAT_FOUND")
@@ -233,6 +234,28 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         prescreen.check_message.assert_called_once_with("สวัสดีครับ", allow_network=False)
         detector.classify_with_details_async.assert_awaited_once_with("สวัสดีครับ")
         self.line.create_url_verification_flex_message.assert_not_called()
+
+    async def test_text_cache_hit_persists_private_history_before_reply_without_click(self):
+        db = Mock()
+        db.get_cached_result.return_value = {
+            "category": "SAFE_NORMAL", "is_fraud": False, "is_safe": True,
+            "reason_th": "ข้อความทั่วไป", "url_check": {"has_urls": False},
+        }
+        db.save_history.return_value = 'stored-before-reply'
+        prescreen = Mock()
+        prescreen.check_message.return_value = SimpleNamespace(
+            confidence=0.0, analysis_message="สวัสดีครับ", matched_patterns=[],
+            is_educational_context=False, urls_found=[],
+        )
+        self.line.reply_message.side_effect = lambda *args, **kwargs: db.save_history.assert_called_once()
+        with patch.object(webhook, 'get_database_service', return_value=db), patch.object(
+            webhook, 'get_prescreen_service', return_value=prescreen), patch.object(
+            webhook, 'get_similarity_service', return_value=None), patch.object(
+            webhook, 'get_fraud_message_service', return_value=None):
+            await self.send('สวัสดีครับ')
+        self.assertEqual(db.save_history.call_args.kwargs['user_id'], 'TEST_ONLY')
+        self.assertEqual(db.save_history.call_args.kwargs['message_type'], 'text')
+        self.assertEqual(self.line.create_fraud_flex_message.call_args.kwargs['history_id'], 'stored-before-reply')
 
 
 class URLFlexTests(unittest.TestCase):

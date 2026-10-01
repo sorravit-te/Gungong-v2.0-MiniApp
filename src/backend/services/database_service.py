@@ -328,7 +328,7 @@ class DatabaseService:
                 "timestamp": now_utc() # Redundant but useful for some queries
             }
             
-            doc_ref.set(data, timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT)
+            doc_ref.set(data, timeout=3, retry=None)
             return doc_ref.id
 
         except Exception as e:

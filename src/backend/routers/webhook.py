@@ -180,7 +180,7 @@ async def webhook(
                     result = await _check_link_request(FraudCheckRequest(
                         message=message_text.strip(), user_id=source_id,
                         message_type="link",
-                    ), background_tasks)
+                    ), background_tasks, persist_history_before_return=True)
                     line_service = get_line_service()
                     flex_message = line_service.create_url_verification_flex_message(result)
                     line_service.reply_message(
@@ -325,6 +325,7 @@ async def webhook(
                 # Step 2.1: Check database cache first
                 cached_result = None
                 url_check = None
+                has_malicious_urls = False
                 similarity_data = None
 
                 if db_service:
@@ -335,6 +336,7 @@ async def webhook(
                         # Use cached_result directly
                         result = cached_result
                         url_check = cached_result.get("url_check")
+                        has_malicious_urls = bool((url_check or {}).get("malicious_urls"))
 
                 # Step 2.2: If cache miss, use AI for detailed analysis
                 if not cached_result:
@@ -702,7 +704,7 @@ async def webhook(
                             url_check_result=url_check,
                             has_malicious_urls=has_malicious_urls,
                             model_used=result.get("model"),
-                            message_type="link" if (has_malicious_urls or url_check) else "message"
+                            message_type="link" if (has_malicious_urls or (url_check or {}).get("has_urls")) else "text"
                         )
                         source_label = "GROUP/ROOM" if is_group else "USER"
                         print(f"📜 Saved {source_label} message to history for {save_user_id} (ID: {history_id})")

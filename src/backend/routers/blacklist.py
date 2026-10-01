@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 
 from ..services.blacklist_service import get_blacklist_service
 from ..services.database_service import get_database_service
+from ..services.user_identity_service import require_user
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -30,6 +31,9 @@ class PhoneCheckRequest(BaseModel):
 @limiter.limit("20/minute")
 async def check_bank(request: Request, bank_request: BankCheckRequest):
     """Check if a bank account is blacklisted."""
+    if bank_request.user_id or request.headers.get("Authorization"):
+        user = await require_user(request.headers.get("Authorization", ""), request.headers.get("X-Auth-Provider", ""))
+        bank_request.user_id = user.user_id
     service = get_blacklist_service()
     if not service:
         raise HTTPException(status_code=503, detail="Blacklist service unavailable")
@@ -69,6 +73,9 @@ async def check_bank(request: Request, bank_request: BankCheckRequest):
 @limiter.limit("20/minute")
 async def check_phone(request: Request, phone_request: PhoneCheckRequest):
     """Check if a phone number is blacklisted."""
+    if phone_request.user_id or request.headers.get("Authorization"):
+        user = await require_user(request.headers.get("Authorization", ""), request.headers.get("X-Auth-Provider", ""))
+        phone_request.user_id = user.user_id
     service = get_blacklist_service()
     if not service:
         raise HTTPException(status_code=503, detail="Blacklist service unavailable")

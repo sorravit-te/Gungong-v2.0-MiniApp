@@ -391,6 +391,9 @@ html.dark-mode .history-controls {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);}
 
 /* ======================== HISTORY CARD (Verify Menu Style) ======================= */
+.history-load-message { color: #6d6d6d; }
+html.dark-mode .history-load-message { color: #E2E8F0; }
+
 .history-list {
   display: flex;
   flex-direction: column;

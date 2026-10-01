@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # LINE Bot
     line_channel_access_token: Optional[str] = None
     line_channel_secret: Optional[str] = None
+    # LINE Login channel owning the existing LIFF app (not Messaging API).
+    line_login_channel_id: str = "2008548759"
 
     # Application
     app_name: str = "GunGong (กันโกง)"
@@ -66,7 +68,7 @@ class Settings(BaseSettings):
     # Database (Google Cloud Firestore)
     google_application_credentials: Optional[str] = None
     # Optional server-only credential transport for hosts without secret files.
-    # Existing ADC/file-based Render and local configurations remain supported.
+    # ADC/file-based local configurations remain supported.
     google_service_account_json: Optional[SecretStr] = None
     firestore_project_id: Optional[str] = None
 

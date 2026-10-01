@@ -36,6 +36,7 @@ export const banks = [
 // ==================== API FUNCTIONS ==================== //
 
 import { getUserId } from './liff.js';
+import { getSessionHeaders } from './session.js';
 
 // Fraud Check API
 export async function callFraudCheckApi(message, type, options = {}) {
@@ -53,6 +54,7 @@ export async function callFraudCheckApi(message, type, options = {}) {
             headers: {
                 "Content-Type": "application/json",
                 "ngrok-skip-browser-warning": "true",
+                ...await getSessionHeaders({ required: false }),
             },
             body: JSON.stringify({
                 message: message,
@@ -113,6 +115,7 @@ export async function callBlacklistApi(endpoint, payload) {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            ...await getSessionHeaders({ required: false }),
         },
         body: JSON.stringify(payloadWithUser),
     });
@@ -168,29 +171,44 @@ export async function checkPhone(phoneNo) {
 
 // Load History
 export async function loadHistory(limit = 50) {
-    const userId = await getUserId();
-    let apiUrl = `${API_BASE_URL}/cache-entries?limit=${limit}`;
-    if (userId) {
-        apiUrl += `&user_id=${userId}`;
-    }
-
-    const response = await fetch(apiUrl, {
-        headers: { "ngrok-skip-browser-warning": "true" },
+    // The backend derives the owner from the verified session, not a query ID.
+    // The UI uses entries only: do not wait for a separate full-history count.
+    const apiUrl = `${API_BASE_URL}/cache-entries?limit=${limit}&include_total=false`;
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => { controller.abort(); reject(new Error('REQUEST_TIMEOUT')); }, 15000);
     });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server Error (${response.status}): ${errorText || response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.entries || [];
+    try {
+        return await Promise.race([deadline, (async () => {
+            const headers = { "ngrok-skip-browser-warning": "true", ...await getSessionHeaders() };
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                if (controller.signal.aborted) throw new Error('REQUEST_TIMEOUT');
+                let response;
+                try {
+                    response = await fetch(apiUrl, { headers, cache: 'no-store', signal: controller.signal });
+                } catch (error) {
+                    if (attempt === 0 && !controller.signal.aborted) continue;
+                    throw error;
+                }
+                if (response.status === 401) throw new Error('LOGIN_REQUIRED');
+                if (!response.ok) {
+                    if (attempt === 0 && [502, 503, 504].includes(response.status)) continue;
+                    throw new Error('HISTORY_UNAVAILABLE');
+                }
+                const data = await response.json();
+                if (!Array.isArray(data?.entries)) throw new Error('HISTORY_UNAVAILABLE');
+                return data.entries;
+            }
+        })()]);
+    } finally { clearTimeout(timer); }
 }
 
 // Get History by ID
 export async function getHistoryById(id, { signal } = {}) {
     const response = await fetch(`${API_BASE_URL}/history/${encodeURIComponent(id)}`, {
-        headers: { "ngrok-skip-browser-warning": "true" },
+        headers: { "ngrok-skip-browser-warning": "true", ...await getSessionHeaders() },
+        cache: 'no-store',
         signal,
     });
 
@@ -211,7 +229,8 @@ export async function submitFeedback(historyId, feedbackType, comment = null) {
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...await getSessionHeaders(),
         },
         body: JSON.stringify({
             history_id: historyId,

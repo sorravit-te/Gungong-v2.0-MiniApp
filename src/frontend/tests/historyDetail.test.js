@@ -3,7 +3,10 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createHistoryDetailController } from '../src/utils/historyDetail.js';
 
-globalThis.window = { location: { hostname: 'localhost', protocol: 'http:', origin: 'http://localhost:5173' } };
+globalThis.window = {
+  location: { hostname: 'localhost', protocol: 'http:', origin: 'http://localhost:5173' },
+  liff: { isLoggedIn: () => true, getAccessToken: () => 'test-only-token' },
+};
 const { getHistoryById } = await import('../src/utils/script.js');
 
 const aiReason = 'เป็นหน้าข้อมูลทั่วไป ไม่พบสัญญาณการหลอกลวงจากเนื้อหาที่ตรวจสอบ';

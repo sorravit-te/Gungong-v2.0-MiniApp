@@ -29,7 +29,7 @@ def rendered(url='https://spa.test/', html=BENIGN_PAGE, text=TEXT, **changes):
 
 class SPARoutingTests(unittest.IsolatedAsyncioTestCase):
     async def test_generic_unknown_spa_uses_actual_rendered_evidence_then_ai_no_vt(self):
-        for url in ['https://spa.test/', 'https://gungong.onrender.com/', 'https://unfamiliar.test/catalogue']:
+        for url in ['https://spa.test/', 'https://gungong-vercel-preview.vercel.app/', 'https://unfamiliar.test/catalogue']:
             verifier, gemini, vt, _, _ = candidate(page=SHELL, trusted_origins=[])
             verifier.render_check = AsyncMock(return_value=rendered(url))
             result = await verifier.verify(url)

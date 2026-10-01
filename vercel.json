@@ -18,6 +18,7 @@
     }
   },
   "rewrites": [
+    { "source": "/community/:path*", "destination": { "service": "api" } },
     { "source": "/health/:path*", "destination": { "service": "api" } },
     { "source": "/check-fraud/:path*", "destination": { "service": "api" } },
     { "source": "/analyze-message/:path*", "destination": { "service": "api" } },

@@ -1,13 +1,18 @@
 """History and cache management router."""
 
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from ..services.database_service import get_database_service
 from ..core.models import COLLECTION_HISTORY
+from ..services.user_identity_service import UserIdentity, require_user
 
-router = APIRouter()
+def private_response(response: Response):
+    response.headers["Cache-Control"] = "private, no-store"
+
+
+router = APIRouter(dependencies=[Depends(private_response)])
 
 
 class FeedbackRequest(BaseModel):
@@ -19,7 +24,7 @@ class FeedbackRequest(BaseModel):
 
 
 @router.get("/history/{entry_id}")
-async def get_history_entry(entry_id: str):
+def get_history_entry(entry_id: str, user: UserIdentity = Depends(require_user)):
     """Get a single history entry by ID."""
     try:
         db_service = get_database_service()
@@ -27,12 +32,14 @@ async def get_history_entry(entry_id: str):
             raise HTTPException(status_code=503, detail="Database not configured")
 
         doc_ref = db_service.db.collection(COLLECTION_HISTORY).document(entry_id)
-        doc = doc_ref.get()
+        doc = doc_ref.get(timeout=3, retry=None)
         
         if not doc.exists:
             raise HTTPException(status_code=404, detail="History entry not found")
             
         data = doc.to_dict()
+        if data.get("user_id") != user.user_id:
+            raise HTTPException(status_code=404, detail="History entry not found")
         
         # Safe date conversion
         created_at = data.get("created_at")
@@ -75,7 +82,9 @@ async def get_history_entry(entry_id: str):
 
 
 @router.get("/cache-entries")
-async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[str] = None):
+def get_cache_entries(limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0, le=1000),
+                            user_id: Optional[str] = None, include_total: bool = True,
+                            user: UserIdentity = Depends(require_user)):
     """Get paginated cache entries (history)."""
     db_service = get_database_service()
 
@@ -93,13 +102,16 @@ async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[
         
         # Base query
         query = collection
-        if user_id:
-             query = query.where(filter=firestore.FieldFilter("user_id", "==", user_id))
+        if user_id and user_id != user.user_id:
+            raise HTTPException(403, "History belongs to another user")
+        query = query.where(filter=firestore.FieldFilter("user_id", "==", user.user_id))
 
         # Get total count
-        total_query = query.count()
-        total_snapshot = total_query.get()
-        total = total_snapshot[0][0].value
+        total = None
+        if include_total:
+            total_query = query.count()
+            total_snapshot = total_query.get(timeout=3, retry=None)
+            total = total_snapshot[0][0].value
         
         # Get entries with pagination
         query = query.order_by("created_at", direction=firestore.Query.DESCENDING).limit(limit).offset(offset)
@@ -116,7 +128,7 @@ async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[
             "url_check_result.verification_complete",
         ])
 
-        docs = query.stream()
+        docs = query.stream(timeout=3, retry=None)
         
         entries_list = []
         for doc in docs:
@@ -161,6 +173,7 @@ async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[
 
         result = {
             "total": total,
+            "total_exact": include_total,
             "limit": limit,
             "offset": offset,
             "entries": entries_list
@@ -168,6 +181,8 @@ async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Error fetching cache entries: {error_msg}")
@@ -210,15 +225,19 @@ async def cache_stats():
 
 
 @router.post("/feedback")
-async def submit_feedback(request: FeedbackRequest):
+def submit_feedback(request: FeedbackRequest, user: UserIdentity = Depends(require_user)):
     """Submit user feedback for a history entry."""
     db_service = get_database_service()
     if not db_service:
         raise HTTPException(status_code=503, detail="Database not configured")
 
+    doc = db_service.db.collection(COLLECTION_HISTORY).document(request.history_id).get(timeout=3, retry=None)
+    if not doc.exists or doc.to_dict().get("user_id") != user.user_id:
+        raise HTTPException(404, "History entry not found")
+
     success = db_service.save_feedback(
         history_id=request.history_id,
-        user_id=request.user_id,
+        user_id=user.user_id,
         feedback_type=request.feedback_type,
         comment=request.comment
     )

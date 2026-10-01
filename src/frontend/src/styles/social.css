@@ -241,3 +241,60 @@ html.dark-mode .social-action-btn:hover {
 html.dark-mode .s-card-bottom {
   border-top-color: #3D4A5C;
 }
+/* Real public posts: keep long URLs and multiline text inside the card. */
+#social-page .post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+#social-page .scanner-header h2 { margin-left: 0; }
+#social-page .community-compose-trigger {
+  display: block; width: 100%; text-align: left; padding: 12px 18px;
+  border: 1.5px solid #E5E7EB; border-radius: 24px; background: #fff;
+  color: #9CA3AF; font: inherit; cursor: pointer; margin-bottom: 20px;
+}
+#social-page .community-compose-trigger:focus-visible,
+.community-composer button:focus-visible { outline: 2px solid #3ACE00; outline-offset: 3px; }
+.community-composer {
+  width: min(560px, calc(100% - 32px)); max-height: calc(100dvh - 32px);
+  border: 1px solid #E5E7EB; border-radius: 20px; padding: 0;
+  background: #fff; color: #374151; font: inherit; overflow-y: auto;
+  box-shadow: 0 12px 50px #0003;
+}
+.community-composer::backdrop { background: #0006; }
+.community-composer-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid #E5E7EB;
+}
+.community-composer-header h3 { margin: 0; font-size: 18px; }
+.community-close { border: 0; background: transparent; color: inherit; font-size: 28px; cursor: pointer; }
+.community-submit {
+  border: 0; border-radius: 20px; background: #3ACE00; color: #fff;
+  padding: 8px 18px; font: inherit; cursor: pointer;
+}
+.community-submit:disabled { opacity: .45; cursor: default; }
+.community-composer textarea {
+  display: block; width: 100%; min-height: 170px; resize: vertical;
+  padding: 20px; border: 0; background: transparent; color: inherit; font: inherit;
+}
+.community-composer textarea:focus-visible { outline: 2px solid #3ACE00; outline-offset: -3px; }
+.community-composer-tools {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 16px 20px; border-top: 1px solid #E5E7EB;
+}
+.community-composer-tools span { font-size: 12px; color: #9CA3AF; }
+.community-attach {
+  display: flex; align-items: center; gap: 8px; border: 0; background: transparent;
+  color: #239600; font: inherit; cursor: pointer;
+}
+.community-attach svg { width: 24px; height: 24px; }
+.community-image-preview { position: relative; margin: 0 20px 16px; }
+.community-image-preview img { display: block; width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; }
+.community-image-preview button {
+  position: absolute; right: 8px; top: 8px; border: 0; border-radius: 50%;
+  width: 32px; height: 32px; background: #fff; color: #374151; font-size: 22px; cursor: pointer;
+}
+.community-composer-error { margin: 0; padding: 0 20px 20px; color: #b45309; }
+html.dark-mode .community-composer,
+html.dark-mode #social-page .community-compose-trigger { background: #2D3748; border-color: #4A5568; color: #E2E8F0; }
+html.dark-mode .community-composer-header,
+html.dark-mode .community-composer-tools { border-color: #4A5568; }
+@media (max-width: 600px) {
+  .community-composer { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+}

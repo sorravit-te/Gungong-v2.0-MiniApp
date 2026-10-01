@@ -17,7 +17,7 @@ from .core.config import settings
 from .services.blacklist_service import get_blacklist_service
 
 # Import routers (v1.0)
-from .routers import health, blacklist, history, fraud, webhook
+from .routers import health, blacklist, history, fraud, webhook, community
 
 # Import v2.0 routers
 from .routers import conversation, fraud_v2, verification
@@ -73,13 +73,14 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS if not settings.debug else ["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-Line-Signature", "ngrok-skip-browser-warning"],
+    allow_headers=["Content-Type", "X-Line-Signature", "ngrok-skip-browser-warning", "Authorization", "X-Auth-Provider"],
 )
 
 # Register v1.0 routers
 app.include_router(health.router, tags=["health"])
 app.include_router(blacklist.router, tags=["blacklist"])
 app.include_router(history.router, tags=["history"])
+app.include_router(community.router, tags=["community"])
 app.include_router(fraud.router, tags=["fraud"])
 app.include_router(webhook.router, tags=["webhook"])
 

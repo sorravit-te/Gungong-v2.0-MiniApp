@@ -58,8 +58,13 @@ export async function getUserId() {
             }
         }
     }
-    // Fallback for testing
-    return localStorage.getItem("mock_user_id") || "U_MOCK_USER_ID";
+    // Anonymous browsers must not share a mock personal History identity.
+    if (typeof navigator !== 'undefined' && typeof document !== 'undefined') {
+        const { auth } = await import('./firebase.js');
+        await auth.authStateReady();
+        return auth.currentUser?.uid || null;
+    }
+    return null;
 }
 
 // Scan QR Code

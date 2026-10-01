@@ -22,8 +22,11 @@ const History = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let fetching = false;
 
     const fetchHistory = async () => {
+      if (fetching || document.hidden) return;
+      fetching = true;
       setLoading(true);
       setLoadError('');
 
@@ -36,9 +39,12 @@ const History = () => {
         console.error('Failed to load history:', error);
         if (isMounted) {
           setHistoryData([]);
-          setLoadError('ไม่สามารถโหลดประวัติการตรวจสอบได้ กรุณาลองใหม่อีกครั้ง');
+          setLoadError(error.message === 'LOGIN_REQUIRED'
+            ? 'กรุณาเข้าสู่ระบบ LINE หรือ Google เพื่อดูประวัติของคุณ'
+            : 'ไม่สามารถโหลดประวัติการตรวจสอบได้ กรุณาลองใหม่อีกครั้ง');
         }
       } finally {
+        fetching = false;
         if (isMounted) {
           setLoading(false);
         }
@@ -46,9 +52,15 @@ const History = () => {
     };
 
     fetchHistory();
+    const refreshTimer = setInterval(fetchHistory, 30000);
+    window.addEventListener('focus', fetchHistory);
+    document.addEventListener('visibilitychange', fetchHistory);
 
     return () => {
       isMounted = false;
+      clearInterval(refreshTimer);
+      window.removeEventListener('focus', fetchHistory);
+      document.removeEventListener('visibilitychange', fetchHistory);
       detailController.current?.dispose();
       detailController.current = null;
     };
@@ -244,7 +256,7 @@ const History = () => {
               กำลังโหลดข้อมูล...
             </div>
           ) : loadError ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#FF5C5C' }}>
+            <div className="history-load-message" style={{ textAlign: 'center', padding: '20px' }}>
               {loadError}
             </div>
           ) : displayedItems.length === 0 ? (
