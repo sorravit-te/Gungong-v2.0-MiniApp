@@ -1,7 +1,8 @@
 """Configuration settings for the backend application."""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from pydantic import SecretStr
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -34,6 +35,27 @@ class Settings(BaseSettings):
     virustotal_api_key: Optional[str] = None
     virustotal_submit_unknown_urls: bool = False
 
+    # Explicit opt-in: never reuse the Gemini key or enable paid services.
+    url_reputation_provider: Literal["disabled", "safe_browsing", "web_risk"] = "disabled"
+    url_reputation_api_key: Optional[str] = None
+
+    # Honest automated-client identification, never browser impersonation.
+    url_fetch_user_agent: str = (
+        "GunGong-URLVerifierBot/1.0 "
+        "(+https://github.com/sorravit-te/gungong-v2.0-MiniApp)"
+    )
+
+    # Anonymous passive SPA fallback, never CAPTCHA/anti-bot bypass. Docker
+    # installs Chromium; local testing can explicitly select installed Chrome.
+    # Opt in only after the deployment supports the mandatory browser sandbox
+    # and isolated resource limits. Never silently disable Chromium's sandbox.
+    url_render_enabled: bool = False
+    url_render_browser_channel: Optional[str] = None
+    # Local prototype only: numeric loopback endpoint, separate credential-free
+    # container. Never use a user URL or send any provider keys to this worker.
+    url_render_worker_url: Optional[str] = None
+    url_render_worker_token: Optional[SecretStr] = None
+
     # Exact HTTPS origins; no wildcard/subdomain inheritance. Each request
     # still requires resolved public DNS and sufficient clean page evidence.
     url_trusted_origins: str = (
@@ -43,6 +65,9 @@ class Settings(BaseSettings):
 
     # Database (Google Cloud Firestore)
     google_application_credentials: Optional[str] = None
+    # Optional server-only credential transport for hosts without secret files.
+    # Existing ADC/file-based Render and local configurations remain supported.
+    google_service_account_json: Optional[SecretStr] = None
     firestore_project_id: Optional[str] = None
 
 

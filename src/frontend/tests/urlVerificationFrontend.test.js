@@ -14,7 +14,7 @@ const {
   checkSMS,
   getErrorMessage,
 } = await import('../src/utils/script.js');
-const { getFraudResultPresentation } = await import('../src/utils/fraudResultPresentation.js');
+const { getFraudResultPresentation, getHistoryResultPresentation } = await import('../src/utils/fraudResultPresentation.js');
 
 test('link verification aborts with a stable timeout error', async () => {
   const originalFetch = globalThis.fetch;
@@ -140,7 +140,7 @@ test('URL timeout and incomplete verdict use distinct honest wording', () => {
   });
   assert.equal(incomplete.status, 'ตรวจสอบได้ไม่ครบ');
   assert.equal(incomplete.isSafe, false);
-  assert.equal(incomplete.icon, 'warning');
+  assert.equal(incomplete.icon, 'info');
 });
 
 test('no-threat wording does not claim that a URL is absolutely safe', () => {
@@ -290,6 +290,39 @@ test('incomplete explanations identify only unfinished required stages and never
   assert.equal(result.explanation.includes(amtsoReason), false);
   assert.doesNotMatch(result.explanation, /VirusTotal/u);
   assert.equal(result.isSafe, false);
+  assert.equal(result.isRisk, false);
+  assert.match(result.explanation, /ไม่ได้หมายความว่าพบอันตราย/u);
+});
+
+test('single-engine and inherited warnings disclose their evidence limits', () => {
+  for (const checks of [
+    { virustotal: { status: 'suspicious', reason: 'single_engine_detection' } },
+    { risk_history: { status: 'suspicious', reason: 'recent_detection_requires_confirmation' } },
+  ]) {
+    const result = getFraudResultPresentation({ verification_verdict: 'SUSPICIOUS', checks });
+    assert.equal(result.isRisk, true);
+    assert.equal(result.isSafe, false);
+    assert.match(result.explanation, /ไม่ใช่การยืนยันว่าเว็บไซต์อันตรายแน่นอน/u);
+  }
+});
+
+test('history incomplete URL is neither dangerous nor safe and hides AI safety percentage', () => {
+  const result = getHistoryResultPresentation({ type: 'link', classification: 'VERIFICATION_INCOMPLETE',
+    is_safe: null, is_fraud: null, confidence_score: 90 });
+  assert.equal(result.isIncomplete, true);
+  assert.equal(result.isRisk, false);
+  assert.equal(result.isSafe, false);
+  assert.equal(result.showConfidence, false);
+  assert.equal(result.icon, 'info');
+});
+
+test('history uses URL verdict metadata and preserves legacy text confidence behavior', () => {
+  const result = getHistoryResultPresentation({ type: 'link', is_safe: true,
+    url_check_result: { verification_verdict: 'SUSPICIOUS' } });
+  assert.equal(result.isRisk, true);
+  assert.equal(result.isSafe, false);
+  const text = getHistoryResultPresentation({ type: 'text', classification: 'SCAM_MALICIOUS', is_fraud: true });
+  assert.equal(text.showConfidence, true);
 });
 
 test('nested URL metadata supplies a Thai explanation without altering text-only results', () => {

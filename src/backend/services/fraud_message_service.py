@@ -9,9 +9,6 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 from google.cloud import firestore
 
 from ..core.models import COLLECTION_FRAUD_MESSAGES
@@ -171,6 +168,12 @@ class FraudMessageService:
                 existing_tokenized = messages
 
             # TF-IDF similarity
+            # URL checks do not use TF-IDF. Load its heavy dependencies only
+            # when deduplication actually has messages to compare.
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            import numpy as np
+
             vectorizer = TfidfVectorizer(
                 analyzer='char',
                 ngram_range=(2, 4),

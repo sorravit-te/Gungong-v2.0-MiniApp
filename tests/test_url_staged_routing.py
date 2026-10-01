@@ -44,6 +44,8 @@ def candidate(*, page=BENIGN_PAGE, redirects=None, gemini_result=None, vt_status
     verifier = URLVerificationService(
         redirect_resolver=SafeRedirectResolver(resolver=public_dns, requester=requester),
         gemini_check=gemini, vt_check=vt, local_check=local, trusted_origins=trusted_origins,
+        risk_check=AsyncMock(return_value={"status": "not_listed", "complete": True}),
+        render_check=AsyncMock(return_value={"status": "unavailable", "complete": False}),
     )
     verifier.config = PerformanceConfig()
     return verifier, gemini, vt, local, requester
@@ -281,7 +283,7 @@ class StagedRoutingTests(unittest.IsolatedAsyncioTestCase):
                 vt.assert_awaited_once()
 
     async def test_global_deadline_preserves_suspicious_and_cancels_vt(self):
-        verifier, _, vt, _, _ = candidate(page="<form><input type=password></form>")
+        verifier, _, vt, _, _ = candidate(page="<form><input type=password><input name=otp></form>")
         cancelled = asyncio.Event()
 
         async def slow(_url):

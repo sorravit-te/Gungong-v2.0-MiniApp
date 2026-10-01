@@ -3,6 +3,8 @@
 import asyncio
 import hashlib
 import re
+from time import monotonic
+from datetime import datetime, timezone
 from typing import Literal, Optional
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException
 from pydantic import BaseModel
@@ -15,8 +17,10 @@ from ..services.virustotal_service import get_virustotal_service
 from ..services.fraud_message_service import get_fraud_message_service
 from ..services.similarity_service import get_similarity_service
 from ..services.prescreen_service import get_prescreen_service
-from ..services.url_safety_service import URLSafetyError, normalize_public_url
+from ..services.url_safety_service import URLSafetyError, normalize_user_url
 from ..services.url_verification_service import POLICY_VERSION, get_url_verification_service
+from ..services.url_risk_evidence_service import lookup_recent_risk, save_recent_risk
+from ..core.performance_config import get_performance_config
 from ..core.config import settings
 from ..core.logger import get_logger
 
@@ -52,7 +56,9 @@ def _resolve_history_message_type(
 
 
 def _link_cache_key(normalized_url: str) -> str:
-    policy_digest = hashlib.sha256(settings.url_trusted_origins.encode("utf-8")).hexdigest()[:12]
+    policy = (f"{settings.url_trusted_origins}:{settings.url_reputation_provider}:"
+              f"{settings.url_render_enabled}:{settings.url_render_worker_url or ''}")
+    policy_digest = hashlib.sha256(policy.encode("utf-8")).hexdigest()[:12]
     return f"{POLICY_VERSION}:{policy_digest}:{normalized_url}"
 
 
@@ -88,6 +94,16 @@ def _save_link_history(db_service, fraud_request: FraudCheckRequest, response: d
 
 def _save_complete_link_cache(db_service, fraud_request: FraudCheckRequest, response: dict, cache_key: str) -> None:
     url_check = response.get("url_check", {})
+    ttl_seconds = (get_performance_config().URL_WEAK_RISK_TTL_SECONDS
+                   if response.get("verification_verdict") in {"SUSPICIOUS", "MALICIOUS"} else 86400)
+    for details in response.get("checks", {}).values():
+        if expires := details.get("evidence_expires_at"):
+            try:
+                ttl_seconds = min(ttl_seconds, (datetime.fromisoformat(expires) - datetime.now(timezone.utc)).total_seconds())
+            except (TypeError, ValueError):
+                return
+    if ttl_seconds <= 0:
+        return
     db_service.save_result(
         message=fraud_request.message,
         classification=response["category"],
@@ -98,7 +114,7 @@ def _save_complete_link_cache(db_service, fraud_request: FraudCheckRequest, resp
         url_check_result=url_check,
         has_malicious_urls=bool(url_check.get("malicious_urls")),
         model_used=response.get("model"),
-        cache_ttl_days=1,
+        cache_ttl_days=ttl_seconds / 86400,
         user_id=fraud_request.user_id,
         cache_key=cache_key,
         verification_verdict=response.get("verification_verdict"),
@@ -116,20 +132,43 @@ async def _check_link_request(
 ) -> dict:
     """Run the versioned URL-only pipeline and preserve history/cache contracts."""
     db_service = get_database_service()
+    started = monotonic()
+    config = get_performance_config()
     try:
-        normalized = normalize_public_url(fraud_request.message)
+        normalized = normalize_user_url(fraud_request.message)
     except URLSafetyError:
         normalized = fraud_request.message.strip()
     cache_key = _link_cache_key(normalized)
-
+    cached = None
     if db_service:
-        cached = db_service.get_cached_result(fraud_request.message, cache_key=cache_key)
+        try:
+            cached = await asyncio.wait_for(asyncio.to_thread(
+                db_service.get_cached_result, fraud_request.message, cache_key=cache_key,
+            ), timeout=config.DATABASE_OPERATION_TIMEOUT + 0.1)
+        except Exception:
+            cached = None
+    risk_urls = [normalized]
+    if cached and cached.get("final_url"):
+        risk_urls.append(cached["final_url"])
+    prior_risk = await lookup_recent_risk(db_service, risk_urls)
+    if db_service:
         if (
             cached and cached.get("verification_complete") is True
             and cached.get("verification_verdict") in {"NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS"}
             and (cached.get("url_check") or {}).get("policy_version") == POLICY_VERSION
+            and (cached.get("verification_verdict") != "NO_THREAT_FOUND"
+                 or prior_risk.get("status") == "not_listed")
         ):
             cached = _cached_link_response(cached)
+            if background_tasks:
+                background_tasks.add_task(db_service.record_url_cache_access, cache_key)
+            else:
+                remaining = config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)
+                if remaining > 0:
+                    try:
+                        await asyncio.wait_for(asyncio.to_thread(db_service.record_url_cache_access, cache_key), timeout=remaining)
+                    except Exception:
+                        logger.warning("url_cache_stats outcome=unavailable")
             if fraud_request.user_id:
                 if background_tasks:
                     background_tasks.add_task(_save_link_history, db_service, fraud_request, cached)
@@ -137,14 +176,29 @@ async def _check_link_request(
                     _save_link_history(db_service, fraud_request, cached)
             return cached
 
-    response = await get_url_verification_service().verify(fraud_request.message)
+    response = await get_url_verification_service().verify(
+        fraud_request.message, initial_risk=prior_risk,
+        timeout=max(0.0, config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)),
+    )
+    # Save positive evidence even when core is incomplete. Clean results never
+    # write this store; do not depend on a background benign cache replacement.
+    remaining = config.MAX_TOTAL_PROCESSING_TIME - (monotonic() - started)
+    if remaining > 0:
+        try:
+            await asyncio.wait_for(save_recent_risk(db_service, response), timeout=remaining)
+        except asyncio.TimeoutError:
+            logger.warning("url_risk_save outcome=deadline")
+            await save_recent_risk(db_service, response, persist=False)
+    else:
+        await save_recent_risk(db_service, response, persist=False)
     if db_service and fraud_request.user_id:
         if background_tasks:
             background_tasks.add_task(_save_link_history, db_service, fraud_request, response)
         else:
             _save_link_history(db_service, fraud_request, response)
 
-    if db_service and response.get("verification_complete") and response.get("verification_verdict") != "INVALID":
+    if (db_service and response.get("verification_complete") and response.get("verification_verdict") != "INVALID"
+            and response.get("checks", {}).get("risk_history", {}).get("status") != "suspicious"):
         if background_tasks:
             background_tasks.add_task(_save_complete_link_cache, db_service, fraud_request, response, cache_key)
         else:

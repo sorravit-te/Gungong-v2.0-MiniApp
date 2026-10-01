@@ -6,6 +6,7 @@ import asyncio
 import ipaddress
 import re
 import socket
+import codecs
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Awaitable, Callable, Iterable, Mapping, Optional
@@ -14,6 +15,7 @@ from urllib.parse import SplitResult, urljoin, urlsplit, urlunsplit
 import httpx
 
 from ..core.performance_config import get_performance_config
+from ..core.config import settings
 
 
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
@@ -22,6 +24,21 @@ META_REFRESH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 MAX_META_REFRESH_DELAY_SECONDS = 5.0
+HTML_PREFIX_PATTERN = re.compile(br"^\s*(?:\xef\xbb\xbf)?\s*(?:<!doctype\s+html\b|<html\b|<head\b|<body\b)", re.IGNORECASE)
+
+
+def _looks_like_html(body: bytes) -> bool:
+    return bool(HTML_PREFIX_PATTERN.search(body[:1024]))
+
+
+def _decode_preview(body: bytes, content_type: str) -> str:
+    match = re.search(r"charset\s*=\s*[\"']?([\w-]+)", content_type, re.IGNORECASE)
+    encoding = match.group(1) if match else "utf-8"
+    try:
+        codecs.lookup(encoding)
+        return body.decode(encoding, errors="replace")
+    except (LookupError, ValueError):
+        return body.decode("utf-8", errors="replace")
 
 
 class URLSafetyError(ValueError):
@@ -48,6 +65,7 @@ class RedirectHTTPResponse:
     body_preview: bytes = b""
     body_truncated: bool = False
     body_read_status: str = "complete"
+    body_elapsed: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -65,6 +83,7 @@ class RedirectResolutionResult:
     client_redirect_checked: bool = False
     client_redirect_status: str = "not_checked"
     content_fetch_status: str = "complete"
+    content_security_policy: str = ""
 
 
 Resolver = Callable[[str, int], Awaitable[Iterable[str]]]
@@ -118,6 +137,24 @@ def _extract_meta_refresh_target(html_preview: str) -> tuple[Optional[str], str]
     if len(set(targets)) != 1:
         return None, "ambiguous"
     return targets[0], "found"
+
+
+def normalize_user_url(raw_url: str) -> str:
+    """Default a bare user-entered hostname to HTTPS, then apply strict parsing.
+
+    This convenience belongs only at the verification entry point, not at
+    redirect targets or trusted-origin policy parsing. Explicit schemes are
+    never replaced, and DNS/public-address checks still happen before fetch.
+    """
+    candidate = raw_url.strip() if isinstance(raw_url, str) else raw_url
+    if isinstance(candidate, str) and re.match(
+        r"^(?:[^\s/:?#@\\]+\.[^\s/:?#@\\]+|localhost|\[[0-9a-fA-F:.]+\])"
+        r"(?::[0-9]+)?(?:[/?#]|$)",
+        candidate,
+        re.IGNORECASE,
+    ):
+        candidate = f"https://{candidate}"
+    return normalize_public_url(candidate)
 
 
 def normalize_public_url(raw_url: str) -> str:
@@ -215,6 +252,13 @@ async def validate_public_url(url: str, resolver: Resolver = resolve_hostname) -
     parsed = urlsplit(normalized)
     hostname = parsed.hostname or ""
     port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        literal = ipaddress.ip_address(hostname.split("%", 1)[0])
+    except ValueError:
+        pass
+    else:
+        if not is_public_address(str(literal)):
+            raise URLSafetyError("non_public_target", "URL targets a non-public address")
     addresses = list(await resolver(hostname, port))
     if not addresses:
         raise URLSafetyError("dns_failed", "Hostname did not resolve")
@@ -253,23 +297,32 @@ class SafeRedirectResolver:
             timeout=None,
             limits=limits,
             trust_env=False,
-            headers={"User-Agent": "GunGong-URLVerifier/1.0", "Accept": "text/html,text/plain;q=0.9"},
+            headers={"User-Agent": settings.url_fetch_user_agent, "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1"},
         )
 
-    async def _request(self, client: httpx.AsyncClient, url: str, timeout: float) -> RedirectHTTPResponse:
+    async def _request(self, client: httpx.AsyncClient, url: str, timeout: float, *, content_timeout: Optional[float] = None) -> RedirectHTTPResponse:
         # Headers/connect stay inside the redirect budget. Body reads get the
         # existing content budget; the enclosing resolver/global deadline wins.
-        request = client.build_request("GET", url, timeout=httpx.Timeout(max(timeout, self.content_timeout)))
+        body_budget = self.content_timeout if content_timeout is None else max(0.0, content_timeout)
+        request = client.build_request("GET", url, timeout=httpx.Timeout(max(timeout, body_budget)))
         response = await asyncio.wait_for(client.send(request, stream=True), timeout=timeout)
         preview = bytearray()
         truncated = False
         read_status = "complete"
+        textual = False
+        body_elapsed = 0.0
 
         async def read_preview() -> None:
             nonlocal truncated, read_status
             async for chunk in response.aiter_bytes():
                 remaining = self.max_content_bytes - len(preview)
                 preview.extend(chunk[:remaining])
+                # A mislabeled HTML page can still be inspected. Non-HTML
+                # binary responses stop after a small sniff, never execute.
+                if not textual and len(preview) >= 1024 and not _looks_like_html(preview):
+                    del preview[1024:]
+                    read_status = "unsupported_content_type"
+                    break
                 if len(preview) >= self.max_content_bytes:
                     truncated = True
                     read_status = "byte_limit"
@@ -277,16 +330,18 @@ class SafeRedirectResolver:
 
         try:
             content_type = response.headers.get("content-type", "").lower()
-            if response.status_code not in REDIRECT_STATUSES and (
-                not content_type or "text" in content_type or "html" in content_type
-            ):
+            textual = not content_type or "text" in content_type or "html" in content_type
+            if response.status_code not in REDIRECT_STATUSES and response.status_code < 400:
+                body_started = asyncio.get_running_loop().time()
                 try:
-                    await asyncio.wait_for(read_preview(), timeout=self.content_timeout)
+                    await asyncio.wait_for(read_preview(), timeout=body_budget)
                 except (asyncio.TimeoutError, httpx.TimeoutException):
                     truncated = True
                     read_status = "timeout"
+                finally:
+                    body_elapsed = asyncio.get_running_loop().time() - body_started
             return RedirectHTTPResponse(
-                response.status_code, dict(response.headers), bytes(preview), truncated, read_status,
+                response.status_code, dict(response.headers), bytes(preview), truncated, read_status, body_elapsed,
             )
         finally:
             await response.aclose()
@@ -299,14 +354,22 @@ class SafeRedirectResolver:
                     self._resolve(raw_url, self.requester, chain), timeout=self.total_timeout,
                 )
             async with self.client_factory() as client:
+                body_remaining = self.content_timeout
+
+                async def request(url, budget):
+                    nonlocal body_remaining
+                    response = await self._request(client, url, budget, content_timeout=body_remaining)
+                    body_remaining = max(0.0, body_remaining-response.body_elapsed)
+                    return response
+
                 return await asyncio.wait_for(
-                    self._resolve(raw_url, lambda url, budget: self._request(client, url, budget), chain),
+                    self._resolve(raw_url, request, chain, separate_body_budget=True),
                     timeout=self.total_timeout + self.content_timeout,
                 )
         except (asyncio.TimeoutError, httpx.TimeoutException) as exc:
             raise RedirectResolutionError("timeout", "Redirect resolution timed out", list(chain)) from exc
 
-    async def _resolve(self, raw_url: str, requester: Requester, chain: list[str]) -> RedirectResolutionResult:
+    async def _resolve(self, raw_url: str, requester: Requester, chain: list[str], *, separate_body_budget: bool = False) -> RedirectResolutionResult:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + self.total_timeout
         original_url = await asyncio.wait_for(validate_public_url(raw_url, self.resolver), timeout=self.total_timeout)
@@ -320,17 +383,24 @@ class SafeRedirectResolver:
             if remaining <= 0:
                 raise RedirectResolutionError("timeout", "Redirect resolution timed out", chain)
             response = await requester(current_url, remaining)
+            if separate_body_budget:
+                # Native body reads share ONE content budget across meta hops.
+                # Do not charge that same time again to DNS/connect/header time.
+                # The enclosing combined/global deadline still bounds everything.
+                deadline += response.body_elapsed
             if response.status_code not in REDIRECT_STATUSES:
                 content_type = response.headers.get("content-type", "")
                 preview = ""
                 content_readable = (
-                    response.status_code < 400
-                    and ("text" in content_type.lower() or "html" in content_type.lower() or not content_type)
+                    200 <= response.status_code < 300
+                    and ("text" in content_type.lower() or "html" in content_type.lower() or not content_type
+                         or _looks_like_html(response.body_preview))
                 )
                 if content_readable:
-                    preview = response.body_preview.decode("utf-8", errors="replace")
+                    preview = _decode_preview(response.body_preview, content_type)
                 client_redirect_checked = bool(content_readable and (
                     "html" in content_type.lower()
+                    or _looks_like_html(response.body_preview)
                     or (not content_type and "<" in preview)
                 ))
                 client_redirect_status = "not_html"
@@ -368,6 +438,7 @@ class SafeRedirectResolver:
                     client_redirect_checked,
                     client_redirect_status,
                     response.body_read_status,
+                    response.headers.get("content-security-policy", ""),
                 )
 
             location = response.headers.get("location") or response.headers.get("Location")

@@ -244,6 +244,77 @@ class URLSafetyTests(unittest.IsolatedAsyncioTestCase):
 
 
 class BoundedHTTPFetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_client_identifies_bot_without_impersonating_browser(self):
+        from src.backend.core.config import settings
+        async with SafeRedirectResolver._client() as client:
+            self.assertEqual(client.headers['User-Agent'], settings.url_fetch_user_agent)
+            self.assertIn('Bot', client.headers['User-Agent'])
+            self.assertIn('https://github.com/', client.headers['User-Agent'])
+            self.assertNotIn('Mozilla', client.headers['User-Agent'])
+            self.assertFalse(client.follow_redirects)
+
+    async def test_meta_body_time_does_not_consume_header_budget_twice(self):
+        first = self.Stream([b'<meta http-equiv="refresh" content="0;url=/final">'], delay=0.08)
+        final = self.Stream([b'<html><body>Readable destination</body></html>'], delay=0.01)
+        resolver, _ = self.resolver(lambda request: httpx.Response(200,
+            headers={'content-type': 'text/html'}, stream=first if request.url.path == '/start' else final),
+            total_timeout=0.05, content_timeout=0.2)
+        result = await resolver.resolve('https://ordinary.test/start')
+        self.assertEqual(result.final_url, 'https://ordinary.test/final')
+        self.assertEqual(result.redirect_kinds, ('meta_refresh',))
+        self.assertIn('Readable destination', result.content_preview)
+        self.assertEqual(result.content_fetch_status, 'complete')
+        self.assertTrue(first.closed and final.closed)
+
+    async def test_meta_hops_share_one_content_budget_not_one_per_page(self):
+        # Each body fits a fresh 0.1-second budget; together they do not.
+        # Leave headroom on the first hop so scheduler jitter cannot make this
+        # test finish before opening the destination whose cleanup it asserts.
+        first = self.Stream([b'<meta http-equiv="refresh" content="0;url=/final">'], delay=0.025)
+        final = self.Stream([b'<html><body>Delayed destination</body></html>'], delay=0.09)
+        resolver, _ = self.resolver(lambda request: httpx.Response(200,
+            headers={'content-type': 'text/html'}, stream=first if request.url.path == '/start' else final),
+            total_timeout=0.1, content_timeout=0.1)
+        started = time.monotonic()
+        result = await resolver.resolve('https://ordinary.test/start')
+        self.assertLess(time.monotonic()-started, 0.25)
+        self.assertEqual(result.content_fetch_status, 'timeout')
+        self.assertNotIn('Delayed destination', result.content_preview)
+        self.assertTrue(first.closed and final.closed)
+
+    async def test_header_deadline_does_not_reset_on_http_redirect(self):
+        async def handler(request):
+            await asyncio.sleep(0.035)
+            return httpx.Response(302, headers={'location': '/final'}) if request.url.path == '/start' else httpx.Response(200, text='destination')
+        resolver, _ = self.resolver(handler, total_timeout=0.05, content_timeout=0.2)
+        with self.assertRaises(RedirectResolutionError) as error:
+            await resolver.resolve('https://ordinary.test/start')
+        self.assertEqual(error.exception.code, 'timeout')
+
+    async def test_mislabeled_html_redirect_still_blocks_private_destination(self):
+        resolver, _ = self.resolver(lambda request: httpx.Response(200,
+            headers={'content-type': 'application/octet-stream'},
+            content=b'<!doctype html><html><meta http-equiv="refresh" content="0;url=http://127.0.0.1/"></html>'))
+        with self.assertRaises(URLSafetyError):
+            await resolver.resolve('https://ordinary.test/')
+
+    async def test_declared_thai_charset_is_decoded_without_replacement_noise(self):
+        body = '<html><body>ตารางรอบฉายภาพยนตร์และข้อมูลการจองตั๋ว</body></html>'.encode('tis-620')
+        resolver, _ = self.resolver(lambda request: httpx.Response(200,
+            headers={'content-type': 'text/html; charset=tis-620'}, content=body))
+        result = await resolver.resolve('https://ordinary.test/')
+        self.assertIn('รอบฉายภาพยนตร์', result.content_preview)
+        self.assertNotIn('\ufffd', result.content_preview)
+
+    async def test_binary_content_is_not_benign_page_and_is_bounded(self):
+        stream = self.Stream([b'\x00'*4096, b'\x00'*4096])
+        resolver, _ = self.resolver(lambda request: httpx.Response(200,
+            headers={'content-type': 'application/pdf'}, stream=stream))
+        result = await resolver.resolve('https://ordinary.test/')
+        self.assertFalse(result.content_readable)
+        self.assertEqual(result.content_fetch_status, 'unsupported_content_type')
+        self.assertTrue(stream.closed)
+
     class Stream(httpx.AsyncByteStream):
         def __init__(self, chunks, delay=0):
             self.chunks = chunks

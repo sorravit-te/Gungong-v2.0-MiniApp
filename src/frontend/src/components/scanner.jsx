@@ -58,7 +58,7 @@ const showFraudResult = (result, subjectLabel) => {
   const { isSafe, isRisk, status, statusColor } = presentation;
   const rows = [['สถานะ', status]];
 
-  if (result?.risk_level) rows.push(['ระดับความเสี่ยง', result.risk_level]);
+  if (result?.risk_level) rows.push(['ระดับความเสี่ยง', presentation.isIncomplete ? 'ยังประเมินไม่ได้' : result.risk_level]);
   if (result?.category) rows.push(['หมวดหมู่', result.category]);
   if (presentation.showConfidence && result?.confidence_score !== undefined && result?.confidence_score !== null) {
     rows.push(['ความมั่นใจ', `${result.confidence_score}%`]);

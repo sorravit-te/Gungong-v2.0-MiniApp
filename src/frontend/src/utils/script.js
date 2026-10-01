@@ -188,13 +188,16 @@ export async function loadHistory(limit = 50) {
 }
 
 // Get History by ID
-export async function getHistoryById(id) {
-    const response = await fetch(`${API_BASE_URL}/history/${id}`, {
+export async function getHistoryById(id, { signal } = {}) {
+    const response = await fetch(`${API_BASE_URL}/history/${encodeURIComponent(id)}`, {
         headers: { "ngrok-skip-browser-warning": "true" },
+        signal,
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to fetch history entry: ${response.statusText}`);
+        const error = new Error(`Failed to fetch history entry: ${response.status}`);
+        error.status = response.status;
+        throw error;
     }
 
     return await response.json();

@@ -8,6 +8,9 @@ from typing import Optional, Dict, Any, List
 from google.cloud import firestore
 from google.oauth2 import service_account
 import os
+import logging
+from time import monotonic
+from google.api_core.exceptions import DeadlineExceeded
 
 from ..core.config import settings
 from ..core.performance_config import get_performance_config
@@ -47,10 +50,11 @@ class DatabaseService:
             # or use the provided project_id if available
             
             project_id = settings.firestore_project_id
+            inline_credentials = settings.google_service_account_json
             
             # Explicitly set credentials env var if configured in settings
             # This is needed because pydantic loads it into settings object but not os.environ
-            if settings.google_application_credentials and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            if not inline_credentials and settings.google_application_credentials and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
                 cred_path = settings.google_application_credentials
                 # Resolve to absolute path if it's relative
                 if not os.path.isabs(cred_path):
@@ -75,11 +79,22 @@ class DatabaseService:
                 print(f"[EMULATOR] Firestore initialized with EMULATOR (Project: {self.db.project}, Database: {database_name}, HOST: {emulator_host})")
             else:
                 # Use production Firestore
-                self.db = firestore.Client(project=project_id, database=database_name)
+                client_options = {"project": project_id, "database": database_name}
+                if inline_credentials is not None:
+                    try:
+                        info = json.loads(inline_credentials.get_secret_value())
+                        if not isinstance(info, dict) or info.get("type") != "service_account":
+                            raise ValueError("Expected service account object")
+                        client_options["credentials"] = service_account.Credentials.from_service_account_info(info)
+                    except Exception:
+                        # A malformed private key/JSON can appear in provider
+                        # exception messages. Never log or fall back from it.
+                        raise ValueError("Invalid GOOGLE_SERVICE_ACCOUNT_JSON configuration") from None
+                self.db = firestore.Client(**client_options)
                 print(f"[OK] Firestore initialized successfully (Project: {self.db.project}, Database: {database_name})")
 
         except Exception as e:
-            print(f"[ERROR] Error initializing Firestore: {e}")
+            print(f"[ERROR] Error initializing Firestore ({type(e).__name__})")
             raise
 
     @staticmethod
@@ -102,6 +117,68 @@ class DatabaseService:
         """Hash a versioned cache key without changing case-sensitive URL parts."""
         return hashlib.sha256(cache_key.encode("utf-8")).hexdigest()
 
+    def get_url_risk_evidence(self, url: str) -> Dict[str, Any]:
+        """Read only recent positive observations, never infer benign from a miss."""
+        started = monotonic()
+        timeout = get_performance_config().URL_RISK_READ_TIMEOUT
+        try:
+            doc = self.db.collection("url_risk_evidence").document(self.hash_cache_key(url)).get(
+                timeout=timeout, retry=None,
+            )
+            data = doc.to_dict() if doc.exists else None
+            if not data:
+                return {"status": "not_listed", "complete": True}
+            expires = data.get("expires_at")
+            if not isinstance(expires, datetime) or expires.tzinfo is None:
+                return {"status": "error", "complete": False}
+            if expires <= now_utc():
+                return {"status": "not_listed", "complete": True}
+            return {
+                "status": "suspicious", "complete": True,
+                "reason": "recent_detection_requires_confirmation",
+                "observed_at": data["observed_at"].isoformat(),
+                "expires_at": expires.isoformat(),
+                "evidence": data.get("evidence", {}),
+            }
+        except Exception as exc:
+            outcome = "timeout" if isinstance(exc, (DeadlineExceeded, TimeoutError)) else "error"
+            diagnostic = {
+                "status": outcome, "complete": False, "reason": "risk_lookup_failed",
+                "error_type": type(exc).__name__, "timeout_seconds": timeout,
+                "elapsed_ms": round((monotonic()-started)*1000),
+            }
+            logging.getLogger(__name__).warning("url_risk_lookup %s", diagnostic)
+            return diagnostic
+
+    def save_url_risk_evidence(self, url: str, evidence: dict, ttl_seconds: int) -> bool:
+        """Positive-only store: clean/partial results cannot overwrite danger."""
+        if not evidence or any(item.get("status") not in {"malicious", "suspicious"} for item in evidence.values()):
+            return False
+        observed = now_utc()
+        try:
+            reference = self.db.collection("url_risk_evidence").document(self.hash_cache_key(url))
+            timeout = get_performance_config().DATABASE_OPERATION_TIMEOUT
+            data = {
+                "evidence": evidence, "observed_at": observed,
+                "expires_at": observed + timedelta(seconds=ttl_seconds),
+            }
+            existing = reference.get(timeout=timeout, retry=None)
+            if existing.exists:
+                prior = existing.to_dict() or {}
+                expiry = prior.get("expires_at")
+                if isinstance(expiry, datetime) and expiry.tzinfo is not None and expiry >= data["expires_at"]:
+                    return True
+                # Compare-and-set, no retry: a competing positive writer must
+                # not be overwritten using a stale read or shorten its expiry.
+                reference.update(data, option=self.db.write_option(last_update_time=existing.update_time),
+                                 timeout=timeout, retry=None)
+            else:
+                reference.create(data, timeout=timeout, retry=None)
+            return True
+        except Exception as exc:
+            logging.getLogger(__name__).warning("url_risk_save outcome=error error_type=%s", type(exc).__name__)
+            return False
+
     def get_cached_result(
         self, message: str, check_expiration: bool = True, cache_key: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
@@ -120,7 +197,7 @@ class DatabaseService:
         try:
             doc_ref = self.db.collection(COLLECTION_FRAUD_CHECK_CACHE).document(message_hash)
             timeout = get_performance_config().DATABASE_OPERATION_TIMEOUT
-            doc = doc_ref.get(timeout=timeout)
+            doc = doc_ref.get(timeout=timeout, retry=None) if cache_key else doc_ref.get(timeout=timeout)
 
             if not doc.exists:
                 return None
@@ -133,16 +210,18 @@ class DatabaseService:
                 # Firestore returns datetime with timezone
                 if expires_at and now_utc() > expires_at:
                     # Cache expired - delete it
-                    doc_ref.delete(timeout=timeout)
+                    if not cache_key:
+                        doc_ref.delete(timeout=timeout)
                     return None
 
             # Update hit count and last accessed time asynchronously (fire and forget)
             # In a real high-load system, we might skip this or batch it
             try:
-                doc_ref.update({
-                    "hit_count": firestore.Increment(1),
-                    "last_accessed_at": now_utc()
-                }, timeout=timeout)
+                if not cache_key:
+                    doc_ref.update({
+                        "hit_count": firestore.Increment(1),
+                        "last_accessed_at": now_utc()
+                    }, timeout=timeout)
             except Exception as e:
                 print(f"⚠️ Failed to update cache stats: {e}")
 
@@ -180,8 +259,20 @@ class DatabaseService:
             return result
 
         except Exception as e:
-            print(f"❌ Firestore error getting cached result: {e}")
+            if cache_key:
+                logging.getLogger(__name__).warning("url_cache_lookup outcome=error error_type=%s", type(e).__name__)
+            else:
+                print(f"❌ Firestore error getting cached result: {e}")
             return None
+
+    def record_url_cache_access(self, cache_key: str) -> None:
+        """Keep URL hit statistics without writes in the cache-read stage."""
+        try:
+            self.db.collection(COLLECTION_FRAUD_CHECK_CACHE).document(self.hash_cache_key(cache_key)).update({
+                "hit_count": firestore.Increment(1), "last_accessed_at": now_utc(),
+            }, timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT, retry=None)
+        except Exception as exc:
+            logging.getLogger(__name__).warning("url_cache_stats outcome=error error_type=%s", type(exc).__name__)
 
     def save_history(
         self,

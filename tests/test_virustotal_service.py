@@ -77,6 +77,18 @@ class VirusTotalTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.is_complete)
         self.assertEqual(client.post_calls, 0)
 
+    async def test_empty_or_failed_scanner_set_is_not_clean(self):
+        for stats in [{'harmless': 0, 'undetected': 0}, {'timeout': 92}, {'harmless': -1}, {'harmless': True}]:
+            result, _ = await self.check(completed(stats))
+            self.assertNotEqual(result.status, 'clean')
+            self.assertFalse(result.is_complete)
+
+    async def test_completed_report_preserves_analysis_timestamp(self):
+        response = completed({'harmless': 70})
+        response.payload['data']['attributes']['last_analysis_date'] = 1700000000
+        result, _ = await self.check(response)
+        self.assertEqual(result.analysis_timestamp, 1700000000)
+
     async def test_not_found_is_short_cached_without_becoming_complete(self):
         client = FakeClient([FakeResponse(404)])
         service = VirusTotalService(api_key="synthetic-key", client_factory=lambda: client)

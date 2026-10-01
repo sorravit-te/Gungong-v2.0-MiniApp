@@ -109,7 +109,11 @@ async def get_cache_entries(limit: int = 20, offset: int = 0, user_id: Optional[
             "message_text", "classification", "is_fraud", "is_safe", 
             "confidence_score", "reason", "reasoning_summary", 
             "keywords_found", "has_malicious_urls", "hit_count", 
-            "created_at", "expires_at", "type"
+            "created_at", "expires_at", "type",
+            # Only verdict metadata; do not expand list responses to include
+            # full URLs/query strings or all provider evidence.
+            "url_check_result.verification_verdict",
+            "url_check_result.verification_complete",
         ])
 
         docs = query.stream()

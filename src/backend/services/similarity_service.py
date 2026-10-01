@@ -1,9 +1,6 @@
 """Similarity service for comparing messages using TF-IDF with Firestore."""
 
 from typing import List, Dict, Any, Optional
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 from datetime import datetime, timezone, timedelta
 import time
 
@@ -68,6 +65,9 @@ class SimilarityService:
 
             # Create TF-IDF vectors
             if self.fraud_messages:
+                # Avoid loading the ML stack during unrelated URL/API startup.
+                from sklearn.feature_extraction.text import TfidfVectorizer
+
                 texts = [self.tokenize_thai(msg["text"]) for msg in self.fraud_messages]
                 self.vectorizer = TfidfVectorizer()
                 self.fraud_vectors = self.vectorizer.fit_transform(texts)
@@ -104,6 +104,9 @@ class SimilarityService:
 
             # Transform to TF-IDF vector
             if self.vectorizer:
+                from sklearn.metrics.pairwise import cosine_similarity
+                import numpy as np
+
                 message_vector = self.vectorizer.transform([tokenized])
 
                 # Calculate cosine similarity with all fraud messages

@@ -32,6 +32,7 @@ class VirusTotalResult:
     positives_details: tuple[str, ...] = ()
     cached: bool = False
     provider: str = "virustotal"
+    analysis_timestamp: Optional[int] = None
 
     @property
     def is_malicious(self) -> bool:
@@ -65,7 +66,7 @@ class VirusTotalService:
         self.api_key = api_key if api_key is not None else settings.virustotal_api_key
         self.submit_unknown = settings.virustotal_submit_unknown_urls if submit_unknown is None else submit_unknown
         self.timeout = config.VIRUSTOTAL_TIMEOUT
-        self.cache_ttl = config.URL_CACHE_TTL_DAYS * 86400
+        self.cache_ttl = config.VIRUSTOTAL_COMPLETED_CACHE_TTL_SECONDS
         self.not_found_cache_ttl = config.VIRUSTOTAL_NOT_FOUND_CACHE_TTL_SECONDS
         self.requests_per_minute = config.VIRUSTOTAL_REQUESTS_PER_MINUTE
         self.requests_per_day = config.VIRUSTOTAL_REQUESTS_PER_DAY
@@ -191,9 +192,17 @@ class VirusTotalService:
                     stats = attributes["last_analysis_stats"]
                     if not isinstance(stats, dict) or not stats:
                         return VirusTotalResult(status="error", url=normalized)
+                    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in stats.values()):
+                        return VirusTotalResult(status="error", url=normalized)
                     malicious = int(stats.get("malicious", 0))
                     suspicious = int(stats.get("suspicious", 0))
                     total = sum(int(value) for value in stats.values())
+                    completed = sum(stats.get(name, 0) for name in ("harmless", "undetected", "malicious", "suspicious"))
+                    if completed == 0:
+                        return VirusTotalResult(status="pending", url=normalized)
+                    analysis_timestamp = attributes.get("last_analysis_date")
+                    if not isinstance(analysis_timestamp, int) or isinstance(analysis_timestamp, bool):
+                        analysis_timestamp = None
                     positives = tuple(
                         name for name, details in attributes.get("last_analysis_results", {}).items()
                         if details.get("category") in {"malicious", "suspicious"}
@@ -201,7 +210,8 @@ class VirusTotalService:
                 except (KeyError, TypeError, ValueError):
                     return VirusTotalResult(status="error", url=normalized)
                 status = "malicious" if malicious > 0 else "suspicious" if suspicious > 0 else "clean"
-                return VirusTotalResult(status, normalized, malicious, suspicious, total, positives)
+                return VirusTotalResult(status, normalized, malicious, suspicious, total, positives,
+                                        analysis_timestamp=analysis_timestamp)
         except (httpx.TimeoutException, asyncio.TimeoutError):
             return VirusTotalResult(status="timeout", url=normalized)
         except httpx.HTTPError:

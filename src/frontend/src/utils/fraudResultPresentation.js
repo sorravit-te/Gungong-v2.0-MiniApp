@@ -1,20 +1,42 @@
 const GUNGONG_GREEN = '#3ACE00';
 
+export function getHistoryResultPresentation(item = {}) {
+    const urlCheck = item.url_check_result ?? {};
+    const isUrl = ['link', 'qr'].includes(item.type) || Boolean(urlCheck.verification_verdict);
+    const fallback = isUrl ? {
+        VERIFICATION_INCOMPLETE: 'INCOMPLETE', INVALID_URL: 'INVALID',
+        SUSPICIOUS_URL: 'SUSPICIOUS', SCAM_MALICIOUS: 'MALICIOUS',
+    }[item.classification] : undefined;
+    const presentation = getFraudResultPresentation({
+        ...item, category: item.classification, reason_th: item.reason,
+        url_check: urlCheck,
+        verification_verdict: urlCheck.verification_verdict ?? fallback,
+    });
+    return { ...presentation, showConfidence: !isUrl && presentation.showConfidence };
+}
+
 function getSystemExplanation(verdict, checks) {
     if (verdict === 'INCOMPLETE') {
         const stageNames = {
             redirect: 'URL และปลายทาง', content: 'เนื้อหาหน้าเว็บ',
             local_reputation: 'ข้อมูลเฝ้าระวังในระบบ', gemini: 'การวิเคราะห์จาก AI',
+            risk_history: 'หลักฐานเสี่ยงล่าสุด', external_reputation: 'ฐานข้อมูลภัยคุกคามภายนอก',
         };
         const missing = Object.entries(stageNames)
             .filter(([stage]) => checks[stage]?.required === true && checks[stage].complete !== true)
             .map(([, name]) => name);
-        return `ยังตรวจสอบลิงก์ได้ไม่ครบ${missing.length ? ` ส่วนที่ยังไม่ครบ: ${missing.join(', ')}` : ''} จึงยังไม่สามารถยืนยันความปลอดภัยของลิงก์นี้ได้`;
+        return `ยังตรวจสอบลิงก์ได้ไม่ครบ${missing.length ? ` ส่วนที่ยังไม่ครบ: ${missing.join(', ')}` : ''} จึงยังไม่สามารถยืนยันความปลอดภัยของลิงก์นี้ได้ ทั้งนี้การตรวจไม่ครบไม่ได้หมายความว่าพบอันตราย`;
     }
     if (verdict === 'INVALID') {
         return 'URL ไม่ถูกต้อง ไม่รองรับ หรือปลายทางไม่ผ่านเงื่อนไขความปลอดภัย จึงไม่สามารถตรวจสอบลิงก์นี้ต่อได้';
     }
     if (verdict === 'MALICIOUS' || verdict === 'SUSPICIOUS') {
+        if (verdict === 'SUSPICIOUS' && checks.risk_history?.status === 'suspicious') {
+            return 'มีหลักฐานแจ้งเตือนจากการตรวจครั้งก่อนที่ยังไม่หมดอายุ ผลปกติบางส่วนในครั้งนี้ยังไม่เพียงพอที่จะลบล้างคำเตือน ไม่ใช่การยืนยันว่าเว็บไซต์อันตรายแน่นอน';
+        }
+        if (verdict === 'SUSPICIOUS' && checks.virustotal?.reason === 'single_engine_detection') {
+            return 'VirusTotal มี 1 scanner รายงานว่าอันตราย ระบบจึงแจ้งให้ระวังและตรวจสอบเพิ่มเติม ไม่ใช่การยืนยันว่าเว็บไซต์อันตรายแน่นอน';
+        }
         return verdict === 'MALICIOUS'
             ? 'ผลตรวจพบหลักฐานอันตรายของลิงก์นี้ ควรหลีกเลี่ยงการเปิดลิงก์และการกรอกข้อมูลส่วนตัว'
             : 'ผลตรวจพบสัญญาณน่าสงสัยของลิงก์นี้ ควรระวังและตรวจสอบแหล่งที่มาก่อนเปิดหรือกรอกข้อมูล';
@@ -73,7 +95,7 @@ export function getFraudResultPresentation(result = {}) {
         isInvalid,
         status,
         statusColor: isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#D97706',
-        icon: isSafe ? 'success' : isRisk || isIncomplete ? 'warning' : 'info',
+        icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
         showConfidence: !verdict,
         analysisReason: analysisReason !== result.reason_th?.trim?.() ? analysisReason : '',
         explanation: verdict ? analysisReason || getSystemExplanation(verdict, checks) : '',

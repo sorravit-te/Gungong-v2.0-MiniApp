@@ -438,6 +438,10 @@ html.dark-mode .history-card {
   background: #6EE7B7;
 }
 
+.history-card.unknown .card-left-line {
+  background: #FBBF24;
+}
+
 /* Dark Mode Left Line - same as light mode */
 html.dark-mode .history-card.dangerous .card-left-line {
   background: #FF8A8A;
@@ -613,6 +617,15 @@ html.dark-mode .h-icon.icon-unknown {
 
 .badge-dangerous svg {
   stroke: #FF5C5C;
+}
+
+.badge-unknown {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.badge-unknown svg {
+  stroke: currentColor;
 }
 
 .badge-safe {

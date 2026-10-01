@@ -20,12 +20,19 @@ class PerformanceConfig:
     VIRUSTOTAL_TIMEOUT: float = 2.8
 
     # Total redirect-resolution timeout
-    URL_EXPANSION_TIMEOUT: float = 2.0
+    URL_EXPANSION_TIMEOUT: float = 3.0
 
     # Final page body has its own budget, still inside the global deadline.
     CONTENT_FETCH_TIMEOUT: float = 2.0
 
-    # Local/content analysis timeout (interactive path never launches headless)
+    # Browser startup, passive resources and DOM readiness share one budget.
+    URL_RENDER_TIMEOUT: float = 4.0
+    URL_RENDER_CLEANUP_ALLOWANCE: float = 1.8
+    URL_RENDER_MAX_REQUESTS: int = 40
+    URL_RENDER_RESOURCE_BYTES: int = 3 * 1024 * 1024
+    URL_RENDER_TOTAL_BYTES: int = 8 * 1024 * 1024
+
+    # Local/content analysis (the separate SPA fallback has its own budget)
     GAMBLING_DETECTION_TIMEOUT: float = 2.0
 
     # Maximum time for the URL evidence pipeline (seconds)
@@ -47,6 +54,15 @@ class PerformanceConfig:
 
     # Dedicated URL core reputation RPC budget; other database operations stay unchanged.
     LOCAL_REPUTATION_LOOKUP_TIMEOUT: float = 1.0
+
+    # Recent danger evidence is not a benign-result cache. Weak provider
+    # detections expire sooner, and must never become a permanent blocklist.
+    URL_RISK_READ_TIMEOUT: float = 1.0
+    # Native RPC plus bounded scheduling/initialization allowance, never retries.
+    URL_RISK_LOOKUP_TIMEOUT: float = 1.2
+    URL_WEAK_RISK_TTL_SECONDS: int = 900
+    URL_RISK_TTL_SECONDS: int = 3600
+    URL_REPUTATION_TIMEOUT: float = 1.0
 
     # ============ Feature Flags ============
     # Enable/disable features for performance
@@ -86,6 +102,7 @@ class PerformanceConfig:
     # Provider 404s remain incomplete and are cached briefly only to protect
     # the very small public VirusTotal request budget.
     VIRUSTOTAL_NOT_FOUND_CACHE_TTL_SECONDS: float = 1800.0
+    VIRUSTOTAL_COMPLETED_CACHE_TTL_SECONDS: float = 300.0
 
     # Free public VirusTotal API budget. The in-process guard is conservative;
     # provider-side limits remain authoritative across multiple app instances.

@@ -67,6 +67,8 @@ def config(**overrides):
         "GAMBLING_DETECTION_TIMEOUT": 0.05,
         "URL_EXPANSION_TIMEOUT": 0.05,
         "CONTENT_FETCH_TIMEOUT": 0.05,
+        "URL_RENDER_TIMEOUT": 0.05,
+        "MAX_REDIRECTS": 5,
         "MIN_PAGE_VISIBLE_TEXT_CHARS": 80,
         "GEMINI_BENIGN_CONFIDENCE_THRESHOLD": 80,
     }
@@ -83,6 +85,8 @@ def service(vt_result=None, *, gemini=gemini_clean, local=local_clean, resolver=
         gemini_check=gemini,
         vt_check=vt_check,
         local_check=local,
+        risk_check=AsyncMock(return_value={"status": "not_listed", "complete": True}),
+        render_check=AsyncMock(return_value={"status": "unavailable", "complete": False}),
     )
     instance.config = config()
     return instance
@@ -194,7 +198,7 @@ class URLVerificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "clean")
 
     async def test_gemini_uncertain_and_vt_malicious_is_malicious(self):
-        result = await service(VirusTotalResult("malicious", "https://destination.test/final", malicious_count=1), gemini=gemini_uncertain).verify("https://short.test/start")
+        result = await service(VirusTotalResult("malicious", "https://destination.test/final", malicious_count=2), gemini=gemini_uncertain).verify("https://short.test/start")
         self.assertEqual(result["verification_verdict"], "MALICIOUS")
         self.assertTrue(result["is_fraud"])
         self.assertFalse(result["is_safe"])
@@ -290,6 +294,7 @@ class URLVerificationTests(unittest.IsolatedAsyncioTestCase):
             gemini_check=slow,
             vt_check=slow_vt,
             local_check=slow,
+            risk_check=AsyncMock(return_value={"status": "not_listed", "complete": True}),
         )
         instance.config = config(
             MAX_TOTAL_PROCESSING_TIME=0.04,
@@ -310,9 +315,21 @@ class FakeDatabase:
         self.cached = cached
         self.saved_results = []
         self.saved_history = []
+        self.risk = {"status": "not_listed", "complete": True}
+        self.saved_risk = []
+
+    def get_url_risk_evidence(self, _url):
+        return self.risk
+
+    def save_url_risk_evidence(self, url, evidence, ttl_seconds):
+        self.saved_risk.append((url, evidence, ttl_seconds))
+        return True
 
     def get_cached_result(self, *_args, **_kwargs):
         return self.cached
+
+    def record_url_cache_access(self, _cache_key):
+        pass
 
     def save_result(self, **kwargs):
         self.saved_results.append(kwargs)
@@ -328,7 +345,7 @@ class FakeVerifier:
         self.response = response
         self.calls = 0
 
-    async def verify(self, _url):
+    async def verify(self, _url, **_kwargs):
         self.calls += 1
         return self.response
 
@@ -362,13 +379,14 @@ class LinkCachePolicyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_malicious_evidence_with_incomplete_core_is_not_cached(self):
         response = await service(
-            VirusTotalResult("malicious", "https://destination.test/final", malicious_count=1), gemini=gemini_uncertain,
+            VirusTotalResult("malicious", "https://destination.test/final", malicious_count=2), gemini=gemini_uncertain,
         ).verify("https://short.test/start")
         db = FakeDatabase()
         await self.run_request(db, FakeVerifier(response))
         self.assertEqual(response["verification_verdict"], "MALICIOUS")
         self.assertFalse(response["verification_complete"])
         self.assertEqual(len(db.saved_results), 0)
+        self.assertTrue(db.saved_risk)
 
     async def test_complete_local_malicious_result_can_be_cached_without_vt(self):
         async def local_malicious(_url):

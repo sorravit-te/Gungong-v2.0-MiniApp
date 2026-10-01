@@ -1,13 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { loadHistory, formatTime, getTypeName } from '../utils/script';
+import React, { useState, useEffect, useRef } from 'react';
+import { loadHistory, getHistoryById, formatTime, getTypeName } from '../utils/script';
 import HistoryCalendar from './shared/HistoryCalendar';
-
-const escapeHtml = (value) => String(value)
-  .replaceAll('&', '&amp;')
-  .replaceAll('<', '&lt;')
-  .replaceAll('>', '&gt;')
-  .replaceAll('"', '&quot;')
-  .replaceAll("'", '&#039;');
+import { getHistoryResultPresentation } from '../utils/fraudResultPresentation';
+import { createHistoryDetailController } from '../utils/historyDetail';
 
 const parseHistoryDate = (dateString) => {
   if (!dateString) return null;
@@ -23,6 +18,7 @@ const History = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
+  const detailController = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,6 +49,8 @@ const History = () => {
 
     return () => {
       isMounted = false;
+      detailController.current?.dispose();
+      detailController.current = null;
     };
   }, []);
 
@@ -107,25 +105,11 @@ const History = () => {
   };
 
   const handleCardClick = (item) => {
-    const isSafe = item.is_safe;
-    const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
-    const hasConfidence = item.confidence_score !== undefined && item.confidence_score !== null;
-    window.Swal?.fire({
-      title: isSafe ? 'ปลอดภัย ✅' : 'อันตราย! ⚠️',
-      html: `
-        <div style="text-align: left; font-size: 14px;">
-          <p><b>ข้อความ:</b> ${escapeHtml(displayText)}</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-          <p><b>ประเภท:</b> ${escapeHtml(getTypeName(item.type))}</p>
-          ${hasConfidence ? `<p><b>ความมั่นใจ:</b> ${escapeHtml(item.confidence_score)}%</p>` : ''}
-          ${item.reason ? `<p><b>เหตุผล:</b> ${escapeHtml(item.reason)}</p>` : ''}
-        </div>
-      `,
-      icon: isSafe ? 'success' : 'warning',
-      confirmButtonColor: isSafe ? '#3ACE00' : '#FF5C5C',
-      confirmButtonText: 'ปิด',
-      showCloseButton: true,
+    if (!window.Swal) return;
+    detailController.current ??= createHistoryDetailController({
+      getDetail: getHistoryById, swal: window.Swal, typeName: getTypeName,
     });
+    void detailController.current.open(item);
   };
 
   const handleReport = (e) => {
@@ -269,9 +253,11 @@ const History = () => {
             </div>
           ) : (
             displayedItems.map((item, index) => {
-              const isSafe = item.is_safe;
-              const isFraud = item.is_fraud;
-              const statusClass = isSafe ? 'safe' : 'dangerous';
+              const presentation = getHistoryResultPresentation(item);
+              const isSafe = presentation.isSafe;
+              const isFraud = presentation.isRisk;
+              const isUrl = item.type === 'link' || item.type === 'qr';
+              const statusClass = isSafe ? 'safe' : isFraud || !isUrl ? 'dangerous' : 'unknown';
               const iconClass = isFraud ? 'icon-dangerous' : (isSafe ? 'icon-safe' : 'icon-unknown');
               const itemDate = parseHistoryDate(item.created_at);
               const timeStr = getTimeString(item.created_at);
@@ -307,16 +293,16 @@ const History = () => {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <polyline points="20 6 9 17 4 12"></polyline>
                           </svg>
-                          SAFE
+                          {item.type === 'link' || item.type === 'qr' ? 'ไม่พบสัญญาณอันตราย' : 'SAFE'}
                         </div>
                       ) : (
-                        <div className="status-badge badge-dangerous">
+                        <div className={`status-badge ${isFraud ? 'badge-dangerous' : 'badge-unknown'}`}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
                             <line x1="12" y1="9" x2="12" y2="13"></line>
                             <line x1="12" y1="17" x2="12.01" y2="17"></line>
                           </svg>
-                          DANGEROUS
+                          {isUrl ? (isFraud ? 'มีความเสี่ยง' : 'ยังสรุปไม่ได้') : 'DANGEROUS'}
                         </div>
                       )}
                       <button className="feedback-btn" onClick={handleReport}>
