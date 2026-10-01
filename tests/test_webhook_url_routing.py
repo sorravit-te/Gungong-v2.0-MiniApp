@@ -236,6 +236,62 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class URLFlexTests(unittest.TestCase):
+    def test_incomplete_uses_yellow_gradient_card_without_risk_percentage(self):
+        source = {
+            "verification_verdict": "INCOMPLETE", "reason_th": "อ่านหน้าเว็บได้ไม่ครบ",
+            "confidence_score": 100, "is_fraud": True,
+            "checks": {"gemini": {"reason_th": "คำอธิบายภาษาไทยจาก AI"}},
+        }
+        original = json.dumps(source, ensure_ascii=False)
+        result = LineService.create_url_verification_flex_message(None, source)
+        body = result["contents"]["body"]
+        self.assertEqual(result["contents"]["size"], "mega")
+        self.assertEqual(body["background"], {
+            "type": "linearGradient", "angle": "135deg",
+            "startColor": "#FFD060", "endColor": "#FF9500",
+        })
+        self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa")
+        self.assertEqual(body["contents"][1], {
+            "type": "image", "url": "https://img.icons8.com/ios-filled/100/ffffff/high-priority.png",
+            "size": "xs", "aspectRatio": "1:1", "margin": "md",
+        })
+        self.assertEqual(body["contents"][4]["width"], "60%")
+        self.assertEqual(body["contents"][-1]["text"], "see more >")
+        self.assertEqual(result["contents"]["styles"]["body"]["backgroundColor"], "#FF9500")
+        serialized = json.dumps(result, ensure_ascii=False)
+        for text in ["ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ", "อ่านหน้าเว็บได้ไม่ครบ", "คำอธิบายภาษาไทยจาก AI"]:
+            self.assertIn(text, serialized)
+        texts = []
+
+        def collect_texts(item):
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    texts.append(item["text"])
+                for value in item.values():
+                    collect_texts(value)
+            elif isinstance(item, list):
+                for value in item:
+                    collect_texts(value)
+
+        collect_texts(result)
+        # Percent-based layout width is allowed; a made-up risk percentage is not.
+        self.assertFalse(any("%" in text for text in texts))
+        self.assertNotIn("เสี่ยงอันตราย", serialized)
+        self.assertNotIn("อันตราย!", serialized)
+        self.assertEqual(json.dumps(source, ensure_ascii=False), original)
+        self.assertIsNotNone(FlexContainer.from_dict(result["contents"]))
+
+    def test_other_url_verdicts_retain_existing_card_layout(self):
+        for verdict in ["NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS", "INVALID"]:
+            with self.subTest(verdict=verdict):
+                result = LineService.create_url_verification_flex_message(None, {
+                    "verification_verdict": verdict, "reason_th": "เหตุผลภาษาไทย",
+                })
+                self.assertNotIn("background", result["contents"]["body"])
+                self.assertIn("footer", result["contents"])
+                self.assertEqual(result["contents"]["body"]["contents"][0]["text"],
+                                 "GunGong · ผลการตรวจสอบลิงก์")
+
     def test_gemini_explanation_does_not_override_incomplete_verdict(self):
         result = LineService.create_url_verification_flex_message(None, {
             "verification_verdict": "INCOMPLETE", "reason_th": "เนื้อหาอ่านได้ไม่ครบ",

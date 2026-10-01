@@ -132,6 +132,47 @@ class LineService:
         if isinstance(ai_reason, str) and ai_reason.strip() and ai_reason != reason:
             texts.append({"type": "text", "text": f"คำอธิบายจาก AI: {ai_reason}"[:1500],
                           "size": "sm", "wrap": True})
+        if result.get("verification_verdict") == "INCOMPLETE":
+            # Restore the medium-card visuals from correleotion/gungong cab3f74.
+            # Reuse only presentation, never its legacy risk score or verdict.
+            return {
+                "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
+                "contents": {
+                    "type": "bubble", "size": "mega",
+                    "body": {
+                        "type": "box", "layout": "vertical", "paddingAll": "lg",
+                        "contents": [
+                            {"type": "text", "text": "GunGong", "size": "xs",
+                             "weight": "bold", "color": "#ffffff", "align": "start"},
+                            {"type": "image",
+                             "url": "https://img.icons8.com/ios-filled/100/ffffff/high-priority.png",
+                             "size": "xs", "aspectRatio": "1:1", "margin": "md"},
+                            {"type": "text", "text": "ลิงก์ดังกล่าว", "size": "sm",
+                             "color": "#ffffff", "align": "center", "margin": "sm"},
+                            {"type": "text", "text": "ยังสรุปไม่ได้", "size": "xl",
+                             "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                            {"type": "box", "layout": "vertical", "contents": [
+                                {"type": "text", "text": "ตรวจสอบได้ไม่ครบ", "size": "md",
+                                 "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                            ], "backgroundColor": "#ffffff44", "cornerRadius": "15px",
+                             "paddingAll": "sm", "width": "60%", "margin": "sm"},
+                            {"type": "box", "layout": "vertical", "spacing": "sm",
+                             "contents": [{**item, "size": "sm", "color": "#5C3D00"}
+                                          for item in texts[2:]],
+                             "backgroundColor": "#ffffffcc", "cornerRadius": "md",
+                             "paddingAll": "sm", "margin": "md"},
+                            {"type": "text", "text": "see more >", "size": "xxs",
+                             "color": "#ffffffcc", "align": "end", "margin": "sm"},
+                        ],
+                        "background": {"type": "linearGradient", "angle": "135deg",
+                                       "startColor": "#FFD060", "endColor": "#FF9500"},
+                        "alignItems": "center",
+                        "action": {"type": "uri", "label": "เปิด Mini App",
+                                   "uri": "https://miniapp.line.me/2008548759-KkM4Noxa"},
+                    },
+                    "styles": {"body": {"backgroundColor": "#FF9500"}},
+                },
+            }
         return {
             "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
             "contents": {
