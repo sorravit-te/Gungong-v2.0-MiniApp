@@ -252,15 +252,23 @@ class URLFlexTests(unittest.TestCase):
         })
         self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa")
         self.assertEqual(body["contents"][1], {
-            "type": "image", "url": "https://img.icons8.com/ios-filled/100/ffffff/high-priority.png",
+            "type": "image", "url": "https://img.icons8.com/ios-filled/100/ffffff/question-mark.png",
             "size": "xs", "aspectRatio": "1:1", "margin": "md",
         })
         self.assertEqual(body["contents"][4]["width"], "60%")
         self.assertEqual(body["contents"][-1]["text"], "see more >")
         self.assertEqual(result["contents"]["styles"]["body"]["backgroundColor"], "#FF9500")
         serialized = json.dumps(result, ensure_ascii=False)
-        for text in ["ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ", "อ่านหน้าเว็บได้ไม่ครบ", "คำอธิบายภาษาไทยจาก AI"]:
+        for text in ["ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ", "ข้อมูลยังไม่เพียงพอ"]:
             self.assertIn(text, serialized)
+        summary = body["contents"][5]
+        self.assertEqual(summary["backgroundColor"], body["contents"][4]["backgroundColor"])
+        self.assertEqual(summary["contents"], [{
+            "type": "text", "text": "ข้อมูลยังไม่เพียงพอ", "size": "sm",
+            "color": "#ffffff", "align": "center", "wrap": False,
+        }])
+        self.assertNotIn("อ่านหน้าเว็บได้ไม่ครบ", serialized)
+        self.assertNotIn("คำอธิบายภาษาไทยจาก AI", serialized)
         texts = []
 
         def collect_texts(item):
@@ -292,13 +300,16 @@ class URLFlexTests(unittest.TestCase):
                 self.assertEqual(result["contents"]["body"]["contents"][0]["text"],
                                  "GunGong · ผลการตรวจสอบลิงก์")
 
-    def test_gemini_explanation_does_not_override_incomplete_verdict(self):
-        result = LineService.create_url_verification_flex_message(None, {
+    def test_incomplete_keeps_full_explanation_in_source_not_compact_card(self):
+        source = {
             "verification_verdict": "INCOMPLETE", "reason_th": "เนื้อหาอ่านได้ไม่ครบ",
             "checks": {"gemini": {"reason_th": "AI ไม่พบหลักฐานหลอกลวง"}},
-        })
+        }
+        result = LineService.create_url_verification_flex_message(None, source)
         self.assertIn("ยังสรุปไม่ได้", result["alt_text"])
-        self.assertIn("AI ไม่พบหลักฐานหลอกลวง", json.dumps(result, ensure_ascii=False))
+        self.assertNotIn("AI ไม่พบหลักฐานหลอกลวง", json.dumps(result, ensure_ascii=False))
+        self.assertEqual(source["reason_th"], "เนื้อหาอ่านได้ไม่ครบ")
+        self.assertEqual(source["checks"]["gemini"]["reason_th"], "AI ไม่พบหลักฐานหลอกลวง")
 
     def test_all_verdicts_are_sdk_valid_and_never_claim_absolute_safety(self):
         for verdict in ["NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS", "INCOMPLETE", "INVALID", None]:
@@ -311,7 +322,11 @@ class URLFlexTests(unittest.TestCase):
                 serialized = json.dumps(result, ensure_ascii=False)
                 self.assertNotIn("ปลอดภัย", serialized)
                 self.assertNotIn("100%", serialized)
-                self.assertIn("เหตุผลภาษาไทย", serialized)
+                if verdict == "INCOMPLETE":
+                    self.assertIn("ข้อมูลยังไม่เพียงพอ", serialized)
+                    self.assertNotIn("เหตุผลภาษาไทย", serialized)
+                else:
+                    self.assertIn("เหตุผลภาษาไทย", serialized)
                 if verdict in {"INCOMPLETE", None}:
                     self.assertIn("ยังสรุปไม่ได้", result["alt_text"])
 
