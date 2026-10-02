@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { getSessionHeaders } from '../src/utils/session.js';
+import { getSessionHeaders } from '../src/features/auth/session.js';
 import { getCommunityImageUrl, loadCommunity, postCommunity, postExcerpt, likeCommunityPost,
-  commentCommunityPost, editCommunityPost, deleteCommunityPost, reportCommunityPost } from '../src/utils/community.js';
-import { validateImageFile } from '../src/utils/communityImage.js';
+  commentCommunityPost, editCommunityPost, deleteCommunityPost, reportCommunityPost } from '../src/features/community/utils/community.js';
+import { validateImageFile } from '../src/features/community/utils/communityImage.js';
 
 test('public feed is real bounded API data, with encoded cursor and no author identity', async () => {
   globalThis.window = { location: { origin: 'https://app.test', hostname: 'app.test' } };
@@ -49,9 +49,9 @@ test('anonymous session cannot post and failed reads do not become mock success'
 });
 
 test('community/history refresh on return and only render user text, no mock interactions', () => {
-  const social = readFileSync(new URL('../src/components/social.jsx', import.meta.url), 'utf8');
-  const history = readFileSync(new URL('../src/components/history.jsx', import.meta.url), 'utf8');
-  const historyLoader = readFileSync(new URL('../src/hooks/useHistoryEntries.js', import.meta.url), 'utf8');
+  const social = readFileSync(new URL('../src/features/community/social.jsx', import.meta.url), 'utf8');
+  const history = readFileSync(new URL('../src/features/history/history.jsx', import.meta.url), 'utf8');
+  const historyLoader = readFileSync(new URL('../src/features/history/hooks/useHistoryEntries.js', import.meta.url), 'utf8');
   assert.match(history, /useHistoryEntries\(\)/u);
   for (const source of [social, historyLoader]) {
     assert.match(source, /visibilitychange/u);
@@ -60,14 +60,14 @@ test('community/history refresh on return and only render user text, no mock int
     assert.match(source, /30000/u);
   }
   assert.doesNotMatch(social, /dangerouslySetInnerHTML|Somsak|post\.likes|post\.comments/u);
-  const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
+  const cards = readFileSync(new URL('../src/features/community/components/CommunityPost.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(cards, /dangerouslySetInnerHTML/u);
   assert.match(cards, /full \? post\.content : excerpt\.text/u);
 });
 
 test('composer is a dialog with attachment preview; old inline submit and copy are gone', () => {
-  const social = readFileSync(new URL('../src/components/social.jsx', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const social = readFileSync(new URL('../src/features/community/social.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
   assert.match(social, /aria-haspopup="dialog"/u);
   assert.match(social, /element\.showModal\(\)/u);
   assert.match(social, /aria-labelledby="community-composer-title"/u);
@@ -88,7 +88,7 @@ test('post image URLs are same-origin, ID-bound and never user-controlled extern
 });
 
 test('community feed spans the main content area while the composer stays centered and narrow', () => {
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
   assert.match(css, /#social-page \.section-content\s*\{\s*max-width: none;/u);
   assert.match(css, /#social-page \.scanner-header,\s*#social-page \.community-compose-trigger\s*\{\s*max-width: 480px;\s*margin-inline: auto;/u);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/u);
@@ -149,8 +149,8 @@ test('real social mutations carry verified identity, bounded IDs and expected re
 });
 
 test('post detail keeps post left and comments right on desktop and stacks on mobile', () => {
-  const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const cards = readFileSync(new URL('../src/features/community/components/CommunityPost.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
   assert.match(cards, /className="community-detail-layout"/u);
   assert.match(cards, /className="community-detail-post"/u);
   assert.ok(cards.indexOf('className="community-detail-post"') < cards.indexOf('className="community-comments"'));
@@ -160,9 +160,9 @@ test('post detail keeps post left and comments right on desktop and stacks on mo
 
 test('opening each post replays the same entrance animation as the Community page', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  const social = read('../src/components/social.jsx');
-  const css = read('../src/styles/social.css');
-  const sharedCss = read('../src/styles/main.css');
+  const social = read('../src/features/community/social.jsx');
+  const css = read('../src/features/community/social.css');
+  const sharedCss = read('../src/shared/styles/main.css');
   assert.match(social, /CommunityPostDetail key=\{selected\.id\}/u);
   assert.match(css, /\.community-post-detail \{[^}]*animation: pageSlideIn 0\.4s ease-out forwards;/u);
   assert.match(sharedCss, /\.section-content \{\s*animation: pageSlideIn 0\.4s ease-out forwards;/u);
@@ -171,8 +171,8 @@ test('opening each post replays the same entrance animation as the Community pag
 
 test('cards open separately from image/actions and menus are exclusive and dismissible', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  const cards = read('../src/components/shared/CommunityPost.jsx');
-  const social = read('../src/components/social.jsx');
+  const cards = read('../src/features/community/components/CommunityPost.jsx');
+  const social = read('../src/features/community/social.jsx');
   assert.match(social, /<h2>Community<\/h2>/u);
   assert.match(cards, /event\.target\.closest\('button, details, a, input, textarea, select'\)/u);
   assert.match(cards, /event\.target === event\.currentTarget/u);
@@ -183,14 +183,14 @@ test('cards open separately from image/actions and menus are exclusive and dismi
 });
 
 test('post cards stay stationary and full images have rounded corners without a dark frame', () => {
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /translateY|scale\(0\.98\)/u);
   assert.match(css, /\.community-full-image \{[^}]*padding: 0;[^}]*background: transparent/u);
   assert.match(css, /\.community-full-image > img \{[^}]*border-radius: 16px/u);
 });
 
 test('whole feed cards are inset and the sidebar starts collapsed until toggled', () => {
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(css, /\.community-feed-item \{ width: 94%; min-width: 0; justify-self: center;/u);
   assert.match(css, /\.social-feed \.social-card \{ width: 100%;/u);
@@ -202,16 +202,16 @@ test('whole feed cards are inset and the sidebar starts collapsed until toggled'
 
 test('LINE login keeps the original width with a reduced height and card hover changes only the faint border', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  assert.match(read('../src/styles/auth.css'), /\.sidebar-login-btn\.line-login-btn \{ width: 100%; height: 44px;/u);
-  assert.match(read('../src/styles/social.css'), /\.social-feed \.social-card:hover \{ border-color: #d1d5db; \}/u);
-  assert.match(read('../src/components/shared/CommunityPost.jsx'), /readCommunityComments\(post\.id\)/u);
-  assert.match(read('../src/components/social.jsx'), /communityCommentCache\.invalidate\(post\.id\)/u);
+  assert.match(read('../src/features/auth/auth.css'), /\.sidebar-login-btn\.line-login-btn \{ width: 100%; height: 44px;/u);
+  assert.match(read('../src/features/community/social.css'), /\.social-feed \.social-card:hover \{ border-color: #d1d5db; \}/u);
+  assert.match(read('../src/features/community/components/CommunityPost.jsx'), /readCommunityComments\(post\.id\)/u);
+  assert.match(read('../src/features/community/social.jsx'), /communityCommentCache\.invalidate\(post\.id\)/u);
 });
 
 test('post details hide the feed heading and show avatars alongside unchanged names and comment timestamps', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  const cards = read('../src/components/shared/CommunityPost.jsx');
-  const social = read('../src/components/social.jsx');
+  const cards = read('../src/features/community/components/CommunityPost.jsx');
+  const social = read('../src/features/community/social.jsx');
   assert.match(social, /!selected && <div className="scanner-header"/u);
   assert.match(social, /if \(selectedId\) window\.scrollTo\(0, 0\)/u);
   assert.match(cards, /url=\{post\.author_picture_url\}/u);
@@ -222,19 +222,19 @@ test('post details hide the feed heading and show avatars alongside unchanged na
 });
 
 test('back to Community uses the same green heading size in light and dark mode', () => {
-  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
-  const scanner = readFileSync(new URL('../src/styles/scanner.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/community/social.css', import.meta.url), 'utf8');
+  const scanner = readFileSync(new URL('../src/features/scanner/scanner.css', import.meta.url), 'utf8');
   assert.match(scanner, /\.scanner-header h2 \{\s*font-size: 20px;\s*color: #3ACE00;/u);
   assert.match(css, /\.community-back \{ margin-bottom: 12px; color: #3ACE00; font-size: 20px; font-weight: 700;/u);
   assert.doesNotMatch(css, /html\.dark-mode \.community-back/u);
 });
 
 test('empty comments are shown only after a successful load, not during loading or errors', () => {
-  const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
+  const cards = readFileSync(new URL('../src/features/community/components/CommunityPost.jsx', import.meta.url), 'utf8');
   assert.match(cards, /!loading && !error && comments\.length === 0 && <p className="page-loading">ยังไม่มีคอมเมนต์<\/p>/u);
 });
 
 test('empty public feed has a message only after a successful empty load', () => {
-  const social = readFileSync(new URL('../src/components/social.jsx', import.meta.url), 'utf8');
+  const social = readFileSync(new URL('../src/features/community/social.jsx', import.meta.url), 'utf8');
   assert.match(social, /!loading && !error && posts\.length === 0 && !cursor && <p className="page-loading">ยังไม่มีโพสต์<\/p>/u);
 });

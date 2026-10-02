@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { communityCommentCache, readCommunityComments, mergeCommunityComments } from '../src/utils/communityCommentCache.js';
+import { communityCommentCache, readCommunityComments, mergeCommunityComments } from '../src/features/community/utils/communityCommentCache.js';
 
 const id = 'a'.repeat(64);
 test('opening the same post shares one comments request and caches successful results', async () => {

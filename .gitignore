@@ -1,4 +1,4 @@
-# โฟลเดอร์สำหรับ Dependency
+# node_modules, virtual environments, other temporary
 node_modules/
 venv/
 .venv/
@@ -6,12 +6,12 @@ venv/
 __pycache__/
 *.pyc
 
-# ไฟล์ล็อกและไฟล์ชั่วคราว
+# Temporary
 *.tmp
 logs/
 *.log
 
-# ไฟล์การตั้งค่าส่วนตัว (เช่น รหัสผ่าน, API Key)
+# Environment
 .env
 .env.*
 !.env.*.example
@@ -21,39 +21,39 @@ config.local.js
 secrets/
 service-account.json
 
-# Firebase Emulator
+# Firebase
 emulator-data/
 *-debug.log
 firestore-debug.log
 ui-debug.log
 
-# Backup files
+# Backup
 *.backup
 *.bak
 
-# ไฟล์เฉพาะของระบบปฏิบัติการ/Editor
+# OS generated
 .DS_Store
 Thumbs.db
 *.swp
 .vscode/
 .idea/
 
-# ไฟล์ที่สร้างจากการคอมไพล์/บิลด์
+# Build artifacts
 /dist
 /build
 
-# Docker volumes (ถ้าไม่ต้องการ backup)
+# Database
 postgres_data/
 pgadmin_data/
 
-# Browser Extension build artifacts
+# Browser extension
 browser-extension/*.crx
 browser-extension/*.pem
 browser-extension/*.zip
 browser-extension/dist/
 browser-extension/build/
 
-# Frontend
+# SSR
 dist-ssr/
 *.local
 npm-debug.log*
@@ -67,7 +67,7 @@ lerna-debug.log*
 *.sln
 src/frontend/dist/
 
-# Test files and temporary files
+# Test
 test_*.html
 test_*.jpg
 test_*.png

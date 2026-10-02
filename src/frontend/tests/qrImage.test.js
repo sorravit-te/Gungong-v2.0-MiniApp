@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { decodeQrPixels } from '../src/utils/qrImagePixels.js';
-import { MAX_QR_IMAGE_BYTES, readQrImageUrl, validateQrImage } from '../src/utils/qrImage.js';
-import { getQrScanError, normalizeScannedUrl, readQrUrl } from '../src/utils/qrScan.js';
+import { decodeQrPixels } from '../src/shared/qr/qrImagePixels.js';
+import { MAX_QR_IMAGE_BYTES, readQrImageUrl, validateQrImage } from '../src/shared/qr/qrImage.js';
+import { getQrScanError, normalizeScannedUrl, readQrUrl } from '../src/shared/qr/qrScan.js';
 import { qrPixels, qrUrl } from './fixtures/qrMatrix.js';
 
 const file = { type: 'image/png', size: 100 };
@@ -114,8 +114,8 @@ test('camera cancellation/deadline stop waiting, without requesting the scanned 
 });
 
 test('Scanner and link reports share QR controls, reset same-file input and cancel stale reads', () => {
-  const scanner = read('../src/components/scanner.jsx'), report = read('../src/components/report.jsx');
-  const actions = read('../src/components/shared/QrInputActions.jsx');
+  const scanner = read('../src/features/scanner/scanner.jsx'), report = read('../src/features/report/report.jsx');
+  const actions = read('../src/shared/qr/QrInputActions.jsx');
   assert.match(scanner, /<QrInputActions/u); assert.match(report, /draft.kind === 'link' && <QrInputActions/u);
   assert.match(scanner, /onRead=\{url => handleInputChange\('link', url\)\}/u);
   assert.match(report, /onRead=\{url => change\('content', url\)\}/u);
@@ -126,13 +126,13 @@ test('Scanner and link reports share QR controls, reset same-file input and canc
 });
 
 test('Community centers its heading and has a plus inside its single composer button', () => {
-  const social = read('../src/components/social.jsx'), css = read('../src/styles/social.css');
+  const social = read('../src/features/community/social.jsx'), css = read('../src/features/community/social.css');
   assert.match(social, /<button className="community-compose-trigger"[\s\S]*?<span className="community-compose-plus" aria-hidden="true">\+<\/span>[\s\S]*?<\/button>/u);
   assert.match(css, /#social-page \.scanner-header \{[^}]*justify-content: center;/u);
 });
 
 test('all Sidebar items use one uniform group, including Scanner', () => {
-  const sidebar = read('../src/components/shared/Sidebar.jsx'), css = read('../src/styles/sidebar.css');
+  const sidebar = read('../src/shared/layout/Sidebar.jsx'), css = read('../src/shared/layout/sidebar.css');
   assert.match(sidebar, /title: 'Primary', items: PRIMARY_NAV_ITEMS/u);
   assert.doesNotMatch(sidebar, /title: 'Main'|title: 'Tools'|title: 'Management'|PRIMARY_NAV_ITEMS\.slice/u);
   assert.match(css, /\.menu-group-items \{[^}]*gap: 2px;/u);

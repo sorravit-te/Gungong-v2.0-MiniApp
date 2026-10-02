@@ -2,21 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
-import { SCANNER_FEATURE_ITEMS, SCANNER_ROUTE_IDS, resolveScannerSubPage } from '../src/utils/scannerNavigation.js';
+import { SCANNER_FEATURE_ITEMS, SCANNER_ROUTE_IDS, resolveScannerSubPage } from '../src/features/scanner/scannerNavigation.js';
 import {
   getQrScanError,
   isQrScanCancelled,
   normalizeScannedUrl,
   readQrUrl,
-} from '../src/utils/qrScan.js';
+} from '../src/shared/qr/qrScan.js';
 
 test('Scanner uses the emerald card and mascots 01, 02 and 03 in the requested positions', () => {
-  const source = readFileSync(new URL('../src/components/scanner.jsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/features/scanner/scanner.jsx', import.meta.url), 'utf8');
   assert.match(source, /className="scanner-intro-mascot" src="\/img\/mascot_01\.png"/u);
   assert.match(source, /openFeature\('check-link'\)[\s\S]*?src="\/img\/mascot_02\.png"/u);
   assert.match(source, /openFeature\('check-sms'\)[\s\S]*?src="\/img\/mascot_03\.png"/u);
   assert.match(source, /src=\{contentTab === 'link' \? '\/img\/mascot_02\.png' : '\/img\/mascot_03\.png'\}/u);
-  const css = readFileSync(new URL('../src/styles/scanner.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/scanner/scanner.css', import.meta.url), 'utf8');
   assert.match(css, /url\('\/img\/emerald_card\.png'\)/u);
   assert.doesNotMatch(css, /silver_card\.png/u);
   assert.doesNotMatch(source, /scanner-intro-shield|scanner-intro-logo|scanner-feature-icon/u);
@@ -43,15 +43,15 @@ test('Scanner routes open the requested form and safely handle legacy entries', 
 });
 
 test('Scanner remounts each visible page so entrance animations replay on return', () => {
-  const source = readFileSync(new URL('../src/components/scanner.jsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/features/scanner/scanner.jsx', import.meta.url), 'utf8');
   assert.match(source, /<section id="check-content-page" key=\{currentSubPage\}>/u);
   assert.match(source, /<section id="scanner-page" key="scanner">/u);
 });
 
 test('Scanner landing inherits the same entrance animations as other main pages', () => {
-  const source = readFileSync(new URL('../src/components/scanner.jsx', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../src/styles/scanner.css', import.meta.url), 'utf8');
-  const sharedCss = readFileSync(new URL('../src/styles/main.css', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/features/scanner/scanner.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/features/scanner/scanner.css', import.meta.url), 'utf8');
+  const sharedCss = readFileSync(new URL('../src/shared/styles/main.css', import.meta.url), 'utf8');
   assert.match(source, /className="section-content scanner-landing"/u);
   assert.match(sharedCss, /\.section-content \{\s*animation: pageSlideIn 0\.4s ease-out forwards;/u);
   assert.match(sharedCss, /\.animate-card \{[^}]*animation: cardSlideIn 0\.4s ease-out forwards;/u);

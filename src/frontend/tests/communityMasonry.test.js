@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { communityMasonryLayout } from '../src/utils/communityMasonry.js';
+import { communityMasonryLayout } from '../src/features/community/utils/communityMasonry.js';
 
 test('short text-only posts leave room for the next posts without waiting for a tall image post', () => {
     const positions = communityMasonryLayout([200, 200, 600, 400, 400], 3);
@@ -15,7 +15,7 @@ test('short text-only posts leave room for the next posts without waiting for a 
 });
 
 test('responsive measurement clears old explicit grid positions before reading the column count', () => {
-    const source = readFileSync(new URL('../src/components/shared/CommunityFeed.jsx', import.meta.url), 'utf8');
+    const source = readFileSync(new URL('../src/features/community/components/CommunityFeed.jsx', import.meta.url), 'utf8');
     assert.ok(source.indexOf("item.style.gridArea = ''") < source.indexOf('getComputedStyle(element)'));
     assert.match(source, /observer\.observe\(item\.firstElementChild\)/u);
     assert.match(source, /observer\.disconnect\(\); cancelAnimationFrame\(frame\)/u);

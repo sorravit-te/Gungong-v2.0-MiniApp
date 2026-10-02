@@ -1,29 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
-import './styles/main.css';
-import './styles/pdpa.css';
-import './styles/home.css';
-import './styles/verify.css';
-import './styles/scanner.css';
-import './styles/social.css';
-import './styles/history.css';
-import './styles/sidebar.css';
-import './styles/auth.css';
+import './shared/styles/main.css';
+import './features/privacy/pdpa.css';
+import './features/home/home.css';
+import './legacy/verify/verify.css';
+import './features/scanner/scanner.css';
+import './features/community/social.css';
+import './features/history/history.css';
+import './shared/layout/sidebar.css';
+import './features/auth/auth.css';
 
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import TopBanner from './components/shared/TopBanner';
-import BottomNav from './components/shared/BottomNav';
-import Sidebar from './components/shared/Sidebar';
-import MobileLineEntry from './components/shared/MobileLineEntry';
-import PDPAModal from './components/shared/PDPAModal';
-import Home from './components/home';
+import { AuthProvider, useAuth } from './features/auth/AuthContext';
+import TopBanner from './shared/layout/TopBanner';
+import BottomNav from './shared/layout/BottomNav';
+import Sidebar from './shared/layout/Sidebar';
+import MobileLineEntry from './features/auth/components/MobileLineEntry';
+import PDPAModal from './features/privacy/PDPAModal';
+import Home from './features/home/home';
 // Verify components remain in source, but are not registered as active pages.
-import Report from './components/report';
-import './styles/report.css';
-import Scanner from './components/scanner';
-import Social from './components/social';
-import History from './components/history';
-import ScanImage from './components/ScanImage';
-import { APP_SECTIONS } from './utils/lineAuth';
+import Report from './features/report/report';
+import './features/report/report.css';
+import Scanner from './features/scanner/scanner';
+import Social from './features/community/social';
+import History from './features/history/history';
+import ScanImage from './features/scanner/ScanImage';
+import { APP_SECTIONS } from './features/auth/lineAuth';
 
 function App() {
   const [activeSection, setActiveSection] = useState(() => {

@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { HISTORY_TYPES, SUMMARY_OUTCOMES, selectHistoryItems, summarizeHistory, summarizeScannerHistory, parseHistoryDate } from '../src/utils/historyView.js';
+import { HISTORY_TYPES, SUMMARY_OUTCOMES, selectHistoryItems, summarizeHistory, summarizeScannerHistory, parseHistoryDate } from '../src/features/history/utils/historyView.js';
 
 test('History and Summary status messages match the empty Community message color', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    const color = read('../src/styles/auth.css').match(/\.page-loading \{[^}]*color: (#[a-f0-9]+);/u)[1];
-    const history = read('../src/styles/history.css');
-    const summary = read('../src/styles/dataVisualization.css');
+    const color = read('../src/features/auth/auth.css').match(/\.page-loading \{[^}]*color: (#[a-f0-9]+);/u)[1];
+    const history = read('../src/features/history/history.css');
+    const summary = read('../src/features/home/dataVisualization.css');
     assert.ok(history.includes(`.history-load-message { color: ${color}; }`));
     assert.ok(summary.includes(`.summary-load-message { text-align: center; color: ${color};`));
     assert.doesNotMatch(history, /html\.dark-mode \.history-load-message/u);
@@ -37,9 +37,9 @@ test('filters compose search, multiple types, outcome and calendar day using ful
 
 test('Summary is wider and History controls float without moving the list', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.match(read('../src/styles/home.css'), /#home-page \.summary-viz-card \{ width: 100%; max-width: 800px;/u);
-    const history = read('../src/components/history.jsx');
-    const css = read('../src/styles/history.css');
+    assert.match(read('../src/features/home/home.css'), /#home-page \.summary-viz-card \{ width: 100%; max-width: 800px;/u);
+    const history = read('../src/features/history/history.jsx');
+    const css = read('../src/features/history/history.css');
     assert.match(history, /className="history-toolbar" ref=\{toolbar\}/u);
     assert.match(css, /\.history-options-panel \{\s*position: absolute;/u);
     assert.match(css, /width: min\(360px, 100%\)/u);
@@ -105,8 +105,8 @@ test('Scanner Summary only counts active link/QR and text scans, preserving old 
 
 test('Summary always renders its graph without sample counts and retains mobile label styling', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    const summary = read('../src/components/DataVisualization.jsx');
-    const css = read('../src/styles/dataVisualization.css');
+    const summary = read('../src/features/home/components/DataVisualization.jsx');
+    const css = read('../src/features/home/dataVisualization.css');
     assert.doesNotMatch(summary, /summary-total|summary-outcomes|stat-value|ตรวจแล้ว/u);
     assert.doesNotMatch(summary, /summary-stats-inline/u);
     assert.ok(summary.indexOf('className="chart-container"') < summary.indexOf('{loading ?'));
@@ -142,7 +142,7 @@ test('stacked Summary outcomes reconcile with feature and global totals without 
 });
 
 test('mobile History calendar, list and search use a shared full-width column', () => {
-    const css = readFileSync(new URL('../src/styles/history.css', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../src/features/history/history.css', import.meta.url), 'utf8');
     assert.match(css, /flex-direction: column;\s*align-items: stretch;/u);
     assert.match(css, /#history-page \.history-calendar,\s*\.history-main-content \{\s*width: 100%;\s*margin-inline: auto;/u);
     assert.match(css, /\.history-controls \.search-box \{ flex: 1; min-width: 0;/u);
@@ -150,10 +150,10 @@ test('mobile History calendar, list and search use a shared full-width column', 
 
 test('Home uses private cached history, real summary and three-slot wraparound banner', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    const home = read('../src/components/home.jsx');
-    const summary = read('../src/components/DataVisualization.jsx');
-    const history = read('../src/components/history.jsx');
-    const loader = read('../src/hooks/useHistoryEntries.js');
+    const home = read('../src/features/home/home.jsx');
+    const summary = read('../src/features/home/components/DataVisualization.jsx');
+    const history = read('../src/features/history/history.jsx');
+    const loader = read('../src/features/history/hooks/useHistoryEntries.js');
     assert.doesNotMatch(home, /className="status-bar/u);
     assert.match(home, /loop=\{true\}/u);
     assert.match(home, /slidesPerView=\{1\.2\}/u);
@@ -171,7 +171,7 @@ test('Home uses private cached history, real summary and three-slot wraparound b
     assert.match(history, /selectHistoryItems\(historyData/u);
     assert.doesNotMatch(history, /ฟังก์ชันกำลังพัฒนา/u);
     assert.match(history, /setSortOrder\(event\.target\.value\)/u);
-    const css = read('../src/styles/home.css');
+    const css = read('../src/features/home/home.css');
     assert.match(css, /#home-page \.section-content \{ max-width: none;/u);
     assert.match(css, /overflow: visible !important/u);
     assert.match(css, /:not\(\.swiper-slide-active\):not\(\.swiper-slide-prev\):not\(\.swiper-slide-next\)/u);

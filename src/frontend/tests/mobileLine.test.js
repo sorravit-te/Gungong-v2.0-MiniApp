@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { initializeLineSession, getMobileLineTarget, LINE_ENDPOINT_URL } from '../src/utils/lineAuth.js';
+import { initializeLineSession, getMobileLineTarget, LINE_ENDPOINT_URL } from '../src/features/auth/lineAuth.js';
 
 const origin = new URL(LINE_ENDPOINT_URL).origin;
 function mobile({ os = 'android', inClient = false, search = '', callback = false, host = origin } = {}) {
@@ -120,7 +120,7 @@ test('missing SDK still hands an external mobile browser off without inventing a
 });
 
 test('fallback uses a real user-tappable HTTPS link and captures the pre-init callback state', () => {
-  const component = readFileSync(new URL('../src/components/shared/MobileLineEntry.jsx', import.meta.url), 'utf8');
+  const component = readFileSync(new URL('../src/features/auth/components/MobileLineEntry.jsx', import.meta.url), 'utf8');
   assert.match(component, /useState\(\(\) => getMobileLineTarget/u);
   assert.match(component, /<a href=\{target\}>เปิดใน LINE<\/a>/u);
   assert.doesNotMatch(component, /window\.open|line:\/\/|access_token=/u);

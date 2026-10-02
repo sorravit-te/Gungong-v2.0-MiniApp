@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { createHistoryDetailController } from '../src/utils/historyDetail.js';
+import { createHistoryDetailController } from '../src/features/history/utils/historyDetail.js';
 
 globalThis.window = {
   location: { hostname: 'localhost', protocol: 'http:', origin: 'http://localhost:5173' },
   liff: { isLoggedIn: () => true, getAccessToken: () => 'test-only-token' },
 };
-const { getHistoryById } = await import('../src/utils/script.js');
+const { getHistoryById } = await import('../src/shared/api/script.js');
 
 const aiReason = 'เป็นหน้าข้อมูลทั่วไป ไม่พบสัญญาณการหลอกลวงจากเนื้อหาที่ตรวจสอบ';
 function record(overrides = {}) {
@@ -52,7 +52,7 @@ function deferred() {
 }
 
 test('History component wires the selected-record reader and disposes it on unmount', () => {
-  const source = readFileSync(new URL('../src/components/history.jsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/features/history/history.jsx', import.meta.url), 'utf8');
   assert.match(source, /getDetail: getHistoryById/u);
   assert.match(source, /detailController\.current\.open\(item\)/u);
   assert.match(source, /detailController\.current\?\.dispose\(\)/u);

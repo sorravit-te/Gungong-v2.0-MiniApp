@@ -3,8 +3,8 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { setImmediate } from 'node:timers/promises';
 import { initializeLineSession, loginWithLine, logoutFromLine, getLineLoginRedirect,
-  getDisplayUser, getLineAuthError, LINE_ENDPOINT_URL } from '../src/utils/lineAuth.js';
-import { getSessionHeaders } from '../src/utils/session.js';
+  getDisplayUser, getLineAuthError, LINE_ENDPOINT_URL } from '../src/features/auth/lineAuth.js';
+import { getSessionHeaders } from '../src/features/auth/session.js';
 
 function fixture({ loggedIn = false, inClient = false } = {}) {
   const calls = { init: [], login: [], logout: 0, profile: 0 };
@@ -159,11 +159,11 @@ test('official SDK, LINE entry points, identity remount and delayed analytics ar
   assert.doesNotMatch(app, /window\.liff\.init/u);
   assert.match(app, /<History key=\{user\?\.uid/u);
   assert.match(app, /<Social key=\{user\?\.uid/u);
-  assert.match(read('../src/components/shared/Sidebar.jsx'), /<LineLoginButton/u);
-  assert.doesNotMatch(read('../src/components/shared/TopBanner.jsx'), /LineLoginButton|onShare/u);
-  assert.match(read('../src/utils/firebase.js'), /export let analytics = null/u);
-  assert.doesNotMatch(read('../src/contexts/AuthContext.jsx'), /signInWithGoogle|firebase\/auth/u);
-  assert.match(read('../src/contexts/AuthContext.jsx'), /historyCache\.invalidate\(\)/u);
-  assert.doesNotMatch(read('../src/utils/session.js'), /firebase/u);
-  assert.doesNotMatch(read('../src/utils/liff.js'), /import\('\.\/firebase/u);
+  assert.match(read('../src/shared/layout/Sidebar.jsx'), /<LineLoginButton/u);
+  assert.doesNotMatch(read('../src/shared/layout/TopBanner.jsx'), /LineLoginButton|onShare/u);
+  assert.match(read('../src/features/auth/firebase.js'), /export let analytics = null/u);
+  assert.doesNotMatch(read('../src/features/auth/AuthContext.jsx'), /signInWithGoogle|firebase\/auth/u);
+  assert.match(read('../src/features/auth/AuthContext.jsx'), /historyCache\.invalidate\(\)/u);
+  assert.doesNotMatch(read('../src/features/auth/session.js'), /firebase/u);
+  assert.doesNotMatch(read('../src/features/auth/liff.js'), /import\('\.\/firebase/u);
 });

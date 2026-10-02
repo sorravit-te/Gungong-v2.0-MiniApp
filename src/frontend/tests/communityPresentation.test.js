@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { communityAvatarUrl, communityTimestamp } from '../src/utils/communityPresentation.js';
+import { communityAvatarUrl, communityTimestamp } from '../src/features/community/utils/communityPresentation.js';
 
 test('community profile images accept only HTTPS LINE CDN URLs without credentials', () => {
     assert.equal(communityAvatarUrl('https://profile.line-scdn.net/picture'), 'https://profile.line-scdn.net/picture');

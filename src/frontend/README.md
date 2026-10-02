@@ -1,16 +1,44 @@
-# React + Vite
+# GunGong frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite Mini App. `src/App.jsx` controls existing routes; `src/main.jsx` is the
+entrypoint. Vercel's frontend root remains `src/frontend`.
 
-Currently, two official plugins are available:
+- `src/features/`: home, community, scanner, history, report, auth and privacy.
+  Keep a feature's UI, styles, hooks and helpers together.
+- `src/shared/`: layout, navigation, API transport, cache, result presentation,
+  QR camera/image utilities and global styles. Used by more than one feature.
+- `src/legacy/verify/`: inactive Verify / ID-card UI kept in source.
+- `public/img/`: stable image URLs; do not rename without updating callers.
+- `tests/`: regression tests, including relative-import and QR-worker checks.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Full [repository and backend feature map](../../docs/PROJECT_STRUCTURE.md).
 
-## React Compiler
+## Local development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+From this directory:
 
-## Expanding the ESLint configuration
+```powershell
+npm.cmd ci
+npm.cmd run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Vite prints the localhost URL (normally `http://localhost:5173`). Start the backend
+from the repository root in a second terminal:
+
+```powershell
+.venv/Scripts/python.exe -m uvicorn src.backend.main:app --reload --port 8000
+```
+
+The Vite environment directory still points to the repository root; no secrets
+were moved into frontend source. LINE camera scanning must be verified in LINE;
+local image decoding does not upload the image or automatically submit a request.
+
+## Checks
+
+```powershell
+npm.cmd test
+npm.cmd run build
+```
+
+Do not create sample history or write to production Firestore for a layout or
+folder check. Use test fixtures / mocked transport instead.

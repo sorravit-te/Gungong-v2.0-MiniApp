@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseApiResponse } from '../src/utils/parseApiResponse.js';
+import { parseApiResponse } from '../src/shared/api/parseApiResponse.js';
 
 const jsonResponse = (status, data) => new Response(JSON.stringify(data), {
   status,

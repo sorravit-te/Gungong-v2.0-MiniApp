@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 
 test('LINE OA confirmation uses GunGong logo instead of a question icon', () => {
-  const source = readFileSync(new URL('../src/components/shared/TopBanner.jsx', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/shared/layout/TopBanner.jsx', import.meta.url), 'utf8');
   assert.match(source, /imageUrl: '\/img\/logo.png'/u);
   assert.match(source, /imageAlt: 'GunGong'/u);
   assert.doesNotMatch(source, /icon: 'question'/u);
@@ -13,10 +13,10 @@ test('LINE OA confirmation uses GunGong logo instead of a question icon', () => 
 
 test('LINE OA popup enlarges the logo and matches Report text and Scanner button colors', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  const source = read('../src/components/shared/TopBanner.jsx');
-  const css = read('../src/styles/main.css');
-  const report = read('../src/styles/report.css');
-  const scanner = read('../src/styles/scanner.css');
+  const source = read('../src/shared/layout/TopBanner.jsx');
+  const css = read('../src/shared/styles/main.css');
+  const report = read('../src/features/report/report.css');
+  const scanner = read('../src/features/scanner/scanner.css');
   assert.match(source, /imageWidth: 120/u);
   assert.match(source, /imageHeight: 120/u);
   assert.match(source, /popup: 'line-oa-popup'/u);

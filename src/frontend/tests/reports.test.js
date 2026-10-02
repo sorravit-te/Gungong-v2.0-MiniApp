@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
-import { PRIMARY_NAV_ITEMS } from '../src/utils/appNavigation.js';
-import { APP_SECTIONS, getLineLoginRedirect } from '../src/utils/lineAuth.js';
-import { validateReport, submitContentReport, reportError } from '../src/utils/reports.js';
+import { PRIMARY_NAV_ITEMS } from '../src/shared/navigation/appNavigation.js';
+import { APP_SECTIONS, getLineLoginRedirect } from '../src/features/auth/lineAuth.js';
+import { validateReport, submitContentReport, reportError } from '../src/features/report/reports.js';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const draft = { kind: 'link', content: 'https://example.com/suspicious', reason: 'phishing', details: '' };
 const requestId = 'ad4b32bb-2fd1-4c3c-92d2-6a8b822bb15a';
 
 test('Report type choices reuse Scanner stacked cards, mascots and native keyboard selection', () => {
-    const source = read('../src/components/report.jsx');
-    const css = read('../src/styles/report.css');
+    const source = read('../src/features/report/report.jsx');
+    const css = read('../src/features/report/report.css');
     assert.match(source, /className="report-types scanner-feature-list"/u);
     assert.match(source, /scanner-feature-card report-type-card/u);
     for (const mascot of ['mascot_02.png', 'mascot_03.png']) assert.ok(source.includes(mascot));
@@ -28,8 +28,8 @@ test('Report type choices reuse Scanner stacked cards, mascots and native keyboa
 });
 
 test('Report type heading matches Scanner content heading typography in both themes', () => {
-    const css = read('../src/styles/report.css');
-    const scannerCss = read('../src/styles/scanner.css');
+    const css = read('../src/features/report/report.css');
+    const scannerCss = read('../src/features/scanner/scanner.css');
     const heading = scannerCss.match(/\.scanner-menu-heading h3 \{([^}]+)\}/u)[1];
     const legend = css.match(/\.report-form legend \{([^}]+)\}/u)[1];
     for (const property of ['color', 'font-size', 'font-weight']) {
@@ -40,9 +40,9 @@ test('Report type heading matches Scanner content heading typography in both the
 });
 
 test('Report heading uses mascot 04 on the same pale-green circle as Scanner', () => {
-    const source = read('../src/components/report.jsx');
-    const css = read('../src/styles/report.css');
-    const scannerCss = read('../src/styles/scanner.css');
+    const source = read('../src/features/report/report.jsx');
+    const css = read('../src/features/report/report.css');
+    const scannerCss = read('../src/features/scanner/scanner.css');
     assert.match(source, /src="\/img\/mascot_04.png" alt="" width="80" height="80"/u);
     assert.doesNotMatch(source, /NavigationIcon/u);
     assert.ok(existsSync(new URL('../public/img/mascot_04.png', import.meta.url)));
@@ -56,7 +56,7 @@ test('both navigations use Home, Community, Scanner, History, Report in that ord
     assert.deepEqual(PRIMARY_NAV_ITEMS.map(item => item.label), ['Home', 'Community', 'Scanner', 'History', 'Report']);
     assert.equal(PRIMARY_NAV_ITEMS[2].isMain, true);
     for (const component of ['Sidebar', 'BottomNav']) {
-        assert.match(read(`../src/components/shared/${component}.jsx`), /PRIMARY_NAV_ITEMS/u);
+        assert.match(read(`../src/shared/layout/${component}.jsx`), /PRIMARY_NAV_ITEMS/u);
     }
 });
 
@@ -69,8 +69,8 @@ test('Verify is dormant, including direct links, but its source is preserved', (
     const app = read('../src/App.jsx');
     assert.doesNotMatch(app, /import Verify|import IDCardScanner|case 'verify'/u);
     assert.match(app, /case 'report'/u);
-    assert.ok(existsSync(new URL('../src/components/verify.jsx', import.meta.url)));
-    assert.ok(existsSync(new URL('../src/components/IDCardScanner.jsx', import.meta.url)));
+    assert.ok(existsSync(new URL('../src/legacy/verify/verify.jsx', import.meta.url)));
+    assert.ok(existsSync(new URL('../src/legacy/verify/IDCardScanner.jsx', import.meta.url)));
 });
 
 test('link and text drafts reject invalid data without fetching reported URLs', () => {
@@ -138,7 +138,7 @@ test('failed or malformed receipts are not reported as success', async () => {
 });
 
 test('form prevents duplicate clicks, retains retry ID, and aborts on unmount', () => {
-    const source = read('../src/components/report.jsx');
+    const source = read('../src/features/report/report.jsx');
     assert.match(source, /if \(inFlight.current \|\| receipt \|\| isQrReading\) return/u);
     assert.match(source, /attempt.current \|\|= crypto.randomUUID\(\)/u);
     assert.match(source, /controller.current\?\.abort\(\)/u);

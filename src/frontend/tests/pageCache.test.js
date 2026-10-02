@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { createPageCache, historyCache, invalidateHistoryCache } from '../src/utils/pageCache.js';
-import { loadHistory, callFraudCheckApi } from '../src/utils/script.js';
-import { loadCommunity } from '../src/utils/community.js';
+import { createPageCache, historyCache, invalidateHistoryCache } from '../src/shared/cache/pageCache.js';
+import { loadHistory, callFraudCheckApi } from '../src/shared/api/script.js';
+import { loadCommunity } from '../src/features/community/utils/community.js';
 
 test('fresh page revisit returns the same real data with zero additional reads', async () => {
   const cache = createPageCache(); let calls = 0;
@@ -46,8 +46,8 @@ test('scheduled refresh preserves cached data and deduplicates a revisit during 
 
 test('periodic page refresh expires data without clearing the visible cache', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  assert.match(read('../src/hooks/useHistoryEntries.js'), /historyCache\.expire\(userId\)/u);
-  assert.match(read('../src/components/social.jsx'), /communityCache\.expire\('feed'\)/u);
+  assert.match(read('../src/features/history/hooks/useHistoryEntries.js'), /historyCache\.expire\(userId\)/u);
+  assert.match(read('../src/features/community/social.jsx'), /communityCache\.expire\('feed'\)/u);
 });
 
 test('different owners never receive each other\'s History cache', async () => {
@@ -115,11 +115,11 @@ test('successful scanner verification invalidates History so the next visit sees
 
 test('page cache contains no persistent browser storage; loader presentation is shared', () => {
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-  assert.doesNotMatch(read('../src/utils/pageCache.js'), /localStorage|sessionStorage/u);
-  assert.match(read('../src/components/social.jsx'), /role="status" className="page-loading"/u);
-  assert.match(read('../src/hooks/useHistoryEntries.js'), /if \(authLoading\) return/u);
-  assert.match(read('../src/components/history.jsx'), /useHistoryEntries\(\)/u);
-  assert.match(read('../src/components/social.jsx'), /let refreshing = false/u);
-  assert.match(read('../src/components/social.jsx'), /busy\.current = refreshOwner/u);
-  assert.match(read('../src/components/social.jsx'), /if \(busy\.current === refreshOwner\) busy\.current = false/u);
+  assert.doesNotMatch(read('../src/shared/cache/pageCache.js'), /localStorage|sessionStorage/u);
+  assert.match(read('../src/features/community/social.jsx'), /role="status" className="page-loading"/u);
+  assert.match(read('../src/features/history/hooks/useHistoryEntries.js'), /if \(authLoading\) return/u);
+  assert.match(read('../src/features/history/history.jsx'), /useHistoryEntries\(\)/u);
+  assert.match(read('../src/features/community/social.jsx'), /let refreshing = false/u);
+  assert.match(read('../src/features/community/social.jsx'), /busy\.current = refreshOwner/u);
+  assert.match(read('../src/features/community/social.jsx'), /if \(busy\.current === refreshOwner\) busy\.current = false/u);
 });

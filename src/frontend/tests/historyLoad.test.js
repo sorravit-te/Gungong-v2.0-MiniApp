@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setImmediate } from 'node:timers';
-import { loadHistory } from '../src/utils/script.js';
+import { loadHistory } from '../src/shared/api/script.js';
 
 globalThis.window = { liff: { isLoggedIn: () => true, getAccessToken: () => 'test-only-token' } };
 

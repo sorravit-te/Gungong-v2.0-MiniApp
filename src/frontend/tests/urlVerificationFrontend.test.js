@@ -13,8 +13,8 @@ const {
   checkLink,
   checkSMS,
   getErrorMessage,
-} = await import('../src/utils/script.js');
-const { getFraudResultPresentation, getHistoryResultPresentation } = await import('../src/utils/fraudResultPresentation.js');
+} = await import('../src/shared/api/script.js');
+const { getFraudResultPresentation, getHistoryResultPresentation } = await import('../src/shared/results/fraudResultPresentation.js');
 
 test('link verification aborts with a stable timeout error', async () => {
   const originalFetch = globalThis.fetch;
