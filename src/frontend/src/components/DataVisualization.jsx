@@ -81,22 +81,14 @@ const DataVisualization = ({ onNavigate }) => {
       {loading ? <div role="status" className="page-loading">กำลังโหลดข้อมูล...</div>
         : error ? <div role="alert" className="summary-load-message">{error}</div>
         : <>
-      <p className="summary-total">ตรวจแล้ว {summary.total} รายการ</p>
       {/* Stats Row - Compact inline style */}
       <div className="summary-stats-inline">
         {chartData.map((item, index) => (
           <div key={index} className="stat-item-inline">
             <span className="stat-dot" style={{ backgroundColor: item.color }} />
             <span className="stat-label">{item.shortName}</span>
-            <span className="stat-value" style={{ color: item.color }}>{item.value}</span>
           </div>
         ))}
-      </div>
-      <div className="summary-outcomes">
-        <span>ไม่พบสัญญาณอันตราย {summary.counts.safe}</span>
-        <span>พบความเสี่ยง {summary.counts.risk}</span>
-        <span>ยังสรุปไม่ได้ {summary.counts.unknown}</span>
-        <span>ข้อมูลไม่ถูกต้อง / ไม่อนุญาต {summary.counts.invalid}</span>
       </div>
       {summary.total === 0 && <p className="summary-load-message">ยังไม่มีประวัติการตรวจสอบ</p>}
 
@@ -113,7 +105,7 @@ const DataVisualization = ({ onNavigate }) => {
               axisLine={false}
               tickLine={false}
               tick={{ fontSize: 11, fontWeight: 600 }}
-              className="chart-axis-tick"
+              className="chart-axis-tick chart-category-axis"
             />
             <YAxis
               axisLine={false}

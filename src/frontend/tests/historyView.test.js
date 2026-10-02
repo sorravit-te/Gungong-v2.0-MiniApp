@@ -86,6 +86,19 @@ test('Summary and History filters combine links and QR codes without changing re
     assert.equal(summarizeHistory([]).types[0].count, 0);
 });
 
+test('Summary hides text counts and outcomes while retaining real chart data and mobile label styling', () => {
+    const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+    const summary = read('../src/components/DataVisualization.jsx');
+    const css = read('../src/styles/dataVisualization.css');
+    assert.doesNotMatch(summary, /summary-total|summary-outcomes|stat-value|ตรวจแล้ว|summary\.counts/u);
+    assert.match(summary, /className="stat-label">\{item\.shortName\}/u);
+    assert.match(summary, /value: type\.count/u);
+    assert.match(summary, /className="chart-axis-tick chart-category-axis"/u);
+    assert.match(summary, /ยังไม่มีประวัติการตรวจสอบ/u);
+    assert.match(css, /@media \(max-width: 767px\) \{\s*\.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*font-size: 12px;\s*font-weight: 400;\s*fill: #6d6d6d;/u);
+    assert.match(css, /html\.dark-mode \.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*fill: #E2E8F0 !important;/u);
+});
+
 test('mobile History calendar, list and search use a shared full-width column', () => {
     const css = readFileSync(new URL('../src/styles/history.css', import.meta.url), 'utf8');
     assert.match(css, /flex-direction: column;\s*align-items: stretch;/u);

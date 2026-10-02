@@ -145,85 +145,84 @@ class LineService:
             raise
 
     def create_url_verification_flex_message(self, result: dict) -> dict:
-        """Render URL verdicts without equating missing evidence with safe/fraud."""
-        labels = {
-            "NO_THREAT_FOUND": ("ไม่พบสัญญาณอันตรายจากการตรวจสอบ", "#248A3D"),
-            "SUSPICIOUS": ("พบสัญญาณความเสี่ยง", "#B86000"),
-            "MALICIOUS": ("พบหลักฐานอันตราย", "#D32F2F"),
-            "INCOMPLETE": ("ยังสรุปไม่ได้ — ตรวจสอบได้ไม่ครบ", "#B86000"),
-            "INVALID": ("ลิงก์ไม่ถูกต้องหรือปลายทางไม่อนุญาต", "#616161"),
+        """Use the three compact result designs; keep full evidence in History."""
+        # Choose presentation from the actual verdict, not AI confidence/is_fraud.
+        # Invalid, incomplete and unknown results must never become green cards.
+        presentations = {
+            "NO_THREAT_FOUND": ("green", "ไม่พบสัญญาณอันตราย", "จากการตรวจสอบ",
+                                "โปรดใช้ความระมัดระวัง", "ไม่พบสัญญาณอันตรายจากการตรวจสอบ"),
+            "SUSPICIOUS": ("yellow", "เสี่ยงอันตราย", "พบสัญญาณความเสี่ยง",
+                           "ควรตรวจสอบเพิ่มเติม", "พบสัญญาณความเสี่ยง"),
+            "MALICIOUS": ("red", "อันตราย!", "พบหลักฐานอันตราย",
+                          "หลีกเลี่ยงการเปิดลิงก์", "พบหลักฐานอันตราย"),
+            "INCOMPLETE": ("yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ",
+                           "ข้อมูลยังไม่เพียงพอ", "ยังสรุปไม่ได้ — ตรวจสอบได้ไม่ครบ"),
+            "INVALID": ("yellow", "ยังสรุปไม่ได้", "ลิงก์ไม่ถูกต้อง",
+                        "ตรวจสอบลิงก์อีกครั้ง", "ลิงก์ไม่ถูกต้องหรือปลายทางไม่อนุญาต"),
         }
-        label, color = labels.get(result.get("verification_verdict"), labels["INCOMPLETE"])
-        reason = result.get("reason_th") or "ยังไม่มีข้อมูลเพียงพอสำหรับสรุปผลการตรวจสอบ"
-        texts = [
-            {"type": "text", "text": "GunGong · ผลการตรวจสอบลิงก์",
-             "weight": "bold", "wrap": True},
-            {"type": "text", "text": label, "weight": "bold",
-             "color": color, "wrap": True},
-            {"type": "text", "text": str(reason)[:1500], "size": "sm", "wrap": True},
-        ]
-        ai_reason = ((result.get("checks") or {}).get("gemini") or {}).get("reason_th")
-        if isinstance(ai_reason, str) and ai_reason.strip() and ai_reason != reason:
-            texts.append({"type": "text", "text": f"คำอธิบายจาก AI: {ai_reason}"[:1500],
-                          "size": "sm", "wrap": True})
-        if result.get("verification_verdict") == "INCOMPLETE":
-            # Restore the medium-card visuals from correleotion/gungong cab3f74.
-            # Reuse only presentation, never its legacy risk score or verdict.
-            return {
-                "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
-                "contents": {
-                    "type": "bubble", "size": "mega",
-                    "body": {
-                        "type": "box", "layout": "vertical", "paddingAll": "lg",
-                        "contents": [
-                            {"type": "text", "text": "GunGong", "size": "xs",
-                             "weight": "bold", "color": "#ffffff", "align": "start"},
-                            {"type": "image",
-                             "url": "https://img.icons8.com/ios-filled/100/ffffff/question-mark.png",
-                             "size": "xs", "aspectRatio": "1:1", "margin": "md"},
-                            {"type": "text", "text": "ลิงก์ดังกล่าว", "size": "sm",
-                             "color": "#ffffff", "align": "center", "margin": "sm"},
-                            {"type": "text", "text": "ยังสรุปไม่ได้", "size": "xl",
-                             "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
-                            {"type": "box", "layout": "vertical", "contents": [
-                                {"type": "text", "text": "ตรวจสอบได้ไม่ครบ", "size": "md",
-                                 "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
-                            ], "backgroundColor": "#ffffff44", "cornerRadius": "15px",
-                             "paddingAll": "sm", "width": "60%", "margin": "sm"},
-                            # Full explanations remain in the result saved to History.
-                            {"type": "box", "layout": "vertical",
-                             "contents": [{"type": "text", "text": "ข้อมูลยังไม่เพียงพอ",
-                                           "size": "sm", "color": "#ffffff",
-                                           "align": "center", "wrap": False}],
-                             "backgroundColor": "#ffffff44", "cornerRadius": "md",
-                             "paddingAll": "sm", "margin": "md"},
-                            {"type": "text", "text": "see more >", "size": "xxs",
-                             "color": "#ffffffcc", "align": "end", "margin": "sm"},
-                        ],
-                        "background": {"type": "linearGradient", "angle": "135deg",
-                                       "startColor": "#FFD060", "endColor": "#FF9500"},
-                        "alignItems": "center",
-                        "action": {"type": "uri", "label": "เปิด Mini App",
-                                   "uri": "https://miniapp.line.me/2008548759-KkM4Noxa"},
-                    },
-                    "styles": {"body": {"backgroundColor": "#FF9500"}},
-                },
+        verdict = result.get("verification_verdict")
+        tone, title, badge, summary, label = presentations.get(verdict, presentations["INCOMPLETE"])
+        start_color, end_color = {
+            "green": ("#84FA50", "#4AB918"),
+            "yellow": ("#FFD060", "#FF9500"),
+            "red": ("#FF9500", "#FF3B30"),
+        }[tone]
+        if tone == "yellow":
+            icon = {
+                "type": "image",
+                "url": "https://img.icons8.com/ios-filled/100/ffffff/"
+                       + ("high-priority.png" if verdict == "SUSPICIOUS" else "question-mark.png"),
+                "size": "xs", "aspectRatio": "1:1", "margin": "md",
+            }
+        else:
+            # Preserve the existing green/red circle icons and gradient colours.
+            icon_url = ("https://img.icons8.com/ios-filled/100/4AB918/checkmark--v1.png"
+                        if tone == "green" else
+                        "https://img.icons8.com/ios-filled/100/FF3B30/high-priority.png")
+            icon = {
+                "type": "box", "layout": "vertical", "contents": [{
+                    "type": "box", "layout": "vertical", "contents": [{
+                        "type": "image", "url": icon_url, "size": "xxs", "aspectRatio": "1:1",
+                    }], "width": "60px", "height": "60px", "backgroundColor": "#ffffff",
+                    "cornerRadius": "30px", "justifyContent": "center", "alignItems": "center",
+                }], "alignItems": "center", "margin": "md",
             }
         return {
             "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
             "contents": {
-                "type": "bubble",
+                "type": "bubble", "size": "mega",
                 "body": {
-                    "type": "box", "layout": "vertical", "spacing": "md",
-                    "contents": texts,
+                    "type": "box", "layout": "vertical", "paddingAll": "lg",
+                    "contents": [
+                        {"type": "text", "text": "GunGong", "size": "xs",
+                         "weight": "bold", "color": "#ffffff", "align": "start"},
+                        icon,
+                        {"type": "text", "text": "ลิงก์ดังกล่าว", "size": "sm",
+                         "color": "#ffffff", "align": "center", "margin": "sm"},
+                        {"type": "text", "text": title, "size": "xl",
+                         "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                        {"type": "box", "layout": "vertical", "contents": [
+                            {"type": "text", "text": badge, "size": "md",
+                             "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                        ], "backgroundColor": "#ffffff44", "cornerRadius": "15px",
+                         "paddingAll": "sm", "width": "60%", "margin": "sm"},
+                        # Full explanations remain in the result saved to History.
+                        {"type": "box", "layout": "vertical",
+                         "contents": [{"type": "text", "text": summary,
+                                       "size": "sm", "color": "#ffffff",
+                                       "align": "center", "wrap": False}],
+                         "backgroundColor": "#ffffff44", "cornerRadius": "md",
+                         "paddingAll": "sm", "margin": "md"},
+                        {"type": "text", "text": "see more >", "size": "xxs",
+                         "color": "#ffffffcc", "align": "end", "margin": "sm"},
+                    ],
+                    "background": {"type": "linearGradient", "angle": "135deg",
+                                   "startColor": start_color, "endColor": end_color},
+                    "alignItems": "center",
+                    "action": {"type": "uri", "label": "เปิด Mini App",
+                               "uri": "https://miniapp.line.me/2008548759-KkM4Noxa"},
                 },
-                "footer": {
-                    "type": "box", "layout": "vertical",
-                    "contents": [{"type": "button", "action": {
-                        "type": "uri", "label": "เปิด Mini App",
-                        "uri": "https://miniapp.line.me/2008548759-KkM4Noxa",
-                    }}],
-                },
+                "styles": {"body": {"backgroundColor": end_color}},
             },
         }
 

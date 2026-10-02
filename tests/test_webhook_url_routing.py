@@ -108,6 +108,9 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entry["message_type"], "link")
         self.assertEqual(entry["message"], url)
         self.assertEqual(entry["url_check_result"]["verification_verdict"], "NO_THREAT_FOUND")
+        reply = self.line.reply_message.call_args.kwargs["flex_message"]
+        self.assertEqual(reply["contents"]["styles"]["body"]["backgroundColor"], "#4AB918")
+        self.assertNotIn("footer", reply["contents"])
         self.assertIn("policy_version", self.db.saved_results[0]["url_check_result"])
         self.line.show_loading_animation.assert_awaited_once_with("TEST_ONLY", loading_seconds=30)
 
@@ -165,6 +168,9 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         vt.assert_not_awaited()
         self.assertEqual(len(self.db.saved_history), 2)
         self.assertTrue(all(row["message_type"] == "link" for row in self.db.saved_history))
+        reply = self.line.reply_message.call_args.kwargs["flex_message"]
+        self.assertEqual(reply["contents"]["styles"]["body"]["backgroundColor"], "#4AB918")
+        self.assertNotIn("footer", reply["contents"])
 
     async def test_group_opt_in_preserved(self):
         with patch.object(webhook, "_check_link_request", new_callable=AsyncMock) as check:
@@ -316,16 +322,79 @@ class URLFlexTests(unittest.TestCase):
         self.assertEqual(json.dumps(source, ensure_ascii=False), original)
         self.assertIsNotNone(FlexContainer.from_dict(result["contents"]))
 
-    def test_other_url_verdicts_retain_existing_card_layout(self):
-        for verdict in ["NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS", "INVALID"]:
+    def test_all_url_verdicts_use_only_three_compact_gradient_designs(self):
+        palettes = {
+            "green": ("#84FA50", "#4AB918"),
+            "yellow": ("#FFD060", "#FF9500"),
+            "red": ("#FF9500", "#FF3B30"),
+        }
+        cases = [
+            ("NO_THREAT_FOUND", "green", "ไม่พบสัญญาณอันตราย", "จากการตรวจสอบ"),
+            ("SUSPICIOUS", "yellow", "เสี่ยงอันตราย", "พบสัญญาณความเสี่ยง"),
+            ("MALICIOUS", "red", "อันตราย!", "พบหลักฐานอันตราย"),
+            ("INCOMPLETE", "yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ"),
+            ("INVALID", "yellow", "ยังสรุปไม่ได้", "ลิงก์ไม่ถูกต้อง"),
+            (None, "yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ"),
+            ("UNKNOWN", "yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ"),
+        ]
+        for verdict, tone, title, badge in cases:
             with self.subTest(verdict=verdict):
                 result = LineService.create_url_verification_flex_message(None, {
                     "verification_verdict": verdict, "reason_th": "เหตุผลภาษาไทย",
                 })
-                self.assertNotIn("background", result["contents"]["body"])
-                self.assertIn("footer", result["contents"])
-                self.assertEqual(result["contents"]["body"]["contents"][0]["text"],
-                                 "GunGong · ผลการตรวจสอบลิงก์")
+                body = result["contents"]["body"]
+                start, end = palettes[tone]
+                self.assertEqual(body["background"], {
+                    "type": "linearGradient", "angle": "135deg",
+                    "startColor": start, "endColor": end,
+                })
+                self.assertEqual(result["contents"]["size"], "mega")
+                self.assertEqual(result["contents"]["styles"]["body"]["backgroundColor"], end)
+                self.assertNotIn("footer", result["contents"])
+                self.assertEqual(body["contents"][0]["text"], "GunGong")
+                self.assertEqual(body["contents"][3]["text"], title)
+                self.assertEqual(body["contents"][4]["contents"][0]["text"], badge)
+                self.assertEqual(body["contents"][5]["contents"][0]["wrap"], False)
+                self.assertEqual(len(body["contents"]), 7)
+                self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa")
+                self.assertIsNotNone(FlexContainer.from_dict(result["contents"]))
+
+    def test_full_explanations_and_ai_confidence_do_not_change_cards_or_history_data(self):
+        for verdict in ["NO_THREAT_FOUND", "SUSPICIOUS", "MALICIOUS", "INCOMPLETE", "INVALID", None]:
+            with self.subTest(verdict=verdict):
+                source = {
+                    "verification_verdict": verdict, "reason_th": "รายละเอียดจากแหล่งข้อมูล" * 100,
+                    "checks": {"gemini": {"reason_th": "รายละเอียดจาก AI" * 100}},
+                    "confidence_score": 100, "is_fraud": verdict != "MALICIOUS",
+                }
+                original = json.dumps(source, ensure_ascii=False)
+                result = LineService.create_url_verification_flex_message(None, source)
+                rendered = json.dumps(result, ensure_ascii=False)
+                self.assertNotIn("รายละเอียดจากแหล่งข้อมูล", rendered)
+                self.assertNotIn("รายละเอียดจาก AI", rendered)
+                self.assertNotIn("ความเสี่ยง:", rendered)
+                self.assertNotIn("คำอธิบายจาก AI", rendered)
+                self.assertEqual(json.dumps(source, ensure_ascii=False), original)
+
+    def test_green_and_red_icons_match_existing_message_cards(self):
+        for verdict, is_fraud in [("NO_THREAT_FOUND", False), ("MALICIOUS", True)]:
+            with self.subTest(verdict=verdict):
+                url_card = LineService.create_url_verification_flex_message(None, {
+                    "verification_verdict": verdict,
+                })["contents"]["body"]
+                text_card = LineService.create_fraud_flex_message(None, "TEST", is_fraud)["contents"]["body"]
+                self.assertEqual(url_card["background"], text_card["background"])
+                self.assertEqual(url_card["contents"][1]["contents"][0]["contents"],
+                                 text_card["contents"][1]["contents"][0]["contents"])
+
+    def test_yellow_icons_distinguish_risk_from_missing_evidence(self):
+        for verdict, icon in [("SUSPICIOUS", "high-priority.png"), ("INVALID", "question-mark.png"),
+                              ("INCOMPLETE", "question-mark.png"), (None, "question-mark.png")]:
+            with self.subTest(verdict=verdict):
+                result = LineService.create_url_verification_flex_message(None, {
+                    "verification_verdict": verdict,
+                })
+                self.assertTrue(result["contents"]["body"]["contents"][1]["url"].endswith(icon))
 
     def test_incomplete_keeps_full_explanation_in_source_not_compact_card(self):
         source = {
@@ -349,11 +418,9 @@ class URLFlexTests(unittest.TestCase):
                 serialized = json.dumps(result, ensure_ascii=False)
                 self.assertNotIn("ปลอดภัย", serialized)
                 self.assertNotIn("100%", serialized)
+                self.assertNotIn("เหตุผลภาษาไทย", serialized)
                 if verdict == "INCOMPLETE":
                     self.assertIn("ข้อมูลยังไม่เพียงพอ", serialized)
-                    self.assertNotIn("เหตุผลภาษาไทย", serialized)
-                else:
-                    self.assertIn("เหตุผลภาษาไทย", serialized)
                 if verdict in {"INCOMPLETE", None}:
                     self.assertIn("ยังสรุปไม่ได้", result["alt_text"])
 

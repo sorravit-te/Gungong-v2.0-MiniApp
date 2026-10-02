@@ -110,11 +110,7 @@
   margin-bottom: 10px;
 }
 
-.summary-total { margin: 0 0 8px; color: #6d6d6d; font-weight: 600; }
-.summary-outcomes { display: flex; flex-wrap: wrap; gap: 8px 16px; color: #6d6d6d; font-size: 12px; margin-bottom: 12px; }
 .summary-load-message { text-align: center; color: #aaa; padding: 16px 0; }
-html.dark-mode .summary-total,
-html.dark-mode .summary-outcomes { color: #E2E8F0; }
 
 .stat-item-inline {
   display: flex;
@@ -139,12 +135,6 @@ html.dark-mode .summary-outcomes { color: #E2E8F0; }
   font-weight: 500;
   color: #888;
   text-transform: lowercase;
-}
-
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
 }
 
 /* Chart Container */
@@ -287,6 +277,18 @@ html.dark-mode .tooltip-value {
 }
 
 /* ==================== RESPONSIVE DESIGN ==================== */
+@media (max-width: 767px) {
+  .summary-viz-card .chart-category-axis .recharts-cartesian-axis-tick-value {
+    font-size: 12px;
+    font-weight: 400;
+    fill: #6d6d6d;
+  }
+
+  html.dark-mode .summary-viz-card .chart-category-axis .recharts-cartesian-axis-tick-value {
+    fill: #E2E8F0 !important;
+  }
+}
+
 @media (max-width: 480px) {
   .summary-viz-card {
     padding: 16px;
@@ -305,10 +307,6 @@ html.dark-mode .tooltip-value {
 
   .stat-label {
     font-size: 10px;
-  }
-
-  .stat-value {
-    font-size: 16px;
   }
 
   .chart-container {
