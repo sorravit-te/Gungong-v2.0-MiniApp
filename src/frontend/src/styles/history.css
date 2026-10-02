@@ -394,6 +394,18 @@ html.dark-mode .history-controls {
 .history-load-message { color: #6d6d6d; }
 html.dark-mode .history-load-message { color: #E2E8F0; }
 
+.history-options-panel { padding: 16px; margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 16px; background: #fff; color: #6d6d6d; font-size: 14px; }
+.history-options-panel fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+.history-options-panel legend { margin-bottom: 10px; }
+.history-type-options { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+.history-type-options label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.history-type-options input { accent-color: #3ACE00; }
+.history-option-label { display: flex; flex-direction: column; gap: 6px; }
+.history-option-label select { border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px; background: #fff; color: inherit; font: inherit; }
+.history-result-count { font-size: 12px; color: #888; margin: 0 0 14px; }
+html.dark-mode .history-options-panel,
+html.dark-mode .history-option-label select { background: #2d3748; color: #E2E8F0; border-color: #4b5563; }
+
 .history-list {
   display: flex;
   flex-direction: column;

@@ -9,13 +9,8 @@ import {
   Cell,
 } from 'recharts';
 import '../styles/dataVisualization.css';
-
-// Data for the chart - Colors matching verify page icon palette
-const chartData = [
-  { name: 'Successful Checks', shortName: 'check', value: 43, color: '#86EFAC' },
-  { name: 'Prevented Threats', shortName: 'block', value: 36, color: '#93C5FD' },
-  { name: 'Confirmed Scams', shortName: 'scam', value: 12, color: '#FCA5A5' },
-];
+import { useHistoryEntries } from '../hooks/useHistoryEntries';
+import { summarizeHistory } from '../utils/historyView';
 
 // Custom Tooltip with glassmorphism effect
 const CustomTooltip = ({ active, payload }) => {
@@ -37,7 +32,7 @@ const CustomTooltip = ({ active, payload }) => {
 // Custom Bar shape with rounded top corners
 const RoundedBar = (props) => {
   const { x, y, width, height, fill } = props;
-  const radius = 10;
+  const radius = Math.min(10, height, width / 2);
 
   if (height <= 0) return null;
 
@@ -58,36 +53,35 @@ const RoundedBar = (props) => {
   );
 };
 
-const DataVisualization = () => {
+const DataVisualization = ({ onNavigate }) => {
+  const { entries, loading, error } = useHistoryEntries();
+  const summary = summarizeHistory(entries);
+  const chartData = summary.types.map(type => ({ ...type, name: type.label, shortName: type.label, value: type.count }));
   return (
     <div className="summary-viz-card animate-card">
       {/* Header Section - Same style as verify menu */}
       <div className="summary-viz-header">
         <div className="summary-viz-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
           </svg>
         </div>
         <div className="summary-viz-title">
           <h3>Summary</h3>
-          <span>of this week</span>
+          <span>ประวัติล่าสุดของคุณ · สูงสุด 50 รายการ</span>
         </div>
-        <div className="summary-viz-action">
+        <button type="button" className="summary-viz-action" onClick={() => onNavigate?.('history')}>
           <span>รายละเอียด</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
-        </div>
+        </button>
       </div>
 
+      {loading ? <div role="status" className="page-loading">กำลังโหลดข้อมูล...</div>
+        : error ? <div role="alert" className="summary-load-message">{error}</div>
+        : <>
+      <p className="summary-total">ตรวจแล้ว {summary.total} รายการ</p>
       {/* Stats Row - Compact inline style */}
       <div className="summary-stats-inline">
         {chartData.map((item, index) => (
@@ -98,6 +92,13 @@ const DataVisualization = () => {
           </div>
         ))}
       </div>
+      <div className="summary-outcomes">
+        <span>ไม่พบสัญญาณอันตราย {summary.counts.safe}</span>
+        <span>พบความเสี่ยง {summary.counts.risk}</span>
+        <span>ยังสรุปไม่ได้ {summary.counts.unknown}</span>
+        <span>ข้อมูลไม่ถูกต้อง / ไม่อนุญาต {summary.counts.invalid}</span>
+      </div>
+      {summary.total === 0 && <p className="summary-load-message">ยังไม่มีประวัติการตรวจสอบ</p>}
 
       {/* Chart Section */}
       <div className="chart-container">
@@ -121,6 +122,7 @@ const DataVisualization = () => {
               className="chart-axis-tick"
               domain={[0, 'dataMax + 10']}
               tickCount={4}
+              allowDecimals={false}
             />
             <Tooltip
               content={<CustomTooltip />}
@@ -139,6 +141,7 @@ const DataVisualization = () => {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      </>}
     </div>
   );
 };

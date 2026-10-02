@@ -8,7 +8,6 @@
   flex-direction: column;
   animation: slideInUp 0.5s ease-out forwards;
   transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
 }
 
 .summary-viz-card:hover {
@@ -39,7 +38,7 @@
 .summary-viz-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #f0f9eb 0%, #e8f5e1 100%);
+  background: #86EFAC;
   border-radius: 12px;
   display: flex;
   justify-content: center;
@@ -51,7 +50,7 @@
 .summary-viz-icon svg {
   width: 20px;
   height: 20px;
-  stroke: #3ACE00;
+  stroke: #fff;
 }
 
 .summary-viz-title {
@@ -74,6 +73,9 @@
 }
 
 .summary-viz-action {
+  border: 0;
+  background: transparent;
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -101,11 +103,19 @@
 /* Stats Row - Compact Inline Style */
 .summary-stats-inline {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-around;
   gap: 10px;
   padding: 12px 0;
   margin-bottom: 10px;
 }
+
+.summary-total { margin: 0 0 8px; color: #6d6d6d; font-weight: 600; }
+.summary-outcomes { display: flex; flex-wrap: wrap; gap: 8px 16px; color: #6d6d6d; font-size: 12px; margin-bottom: 12px; }
+.summary-load-message { text-align: center; color: #6d6d6d; padding: 16px 0; }
+html.dark-mode .summary-total,
+html.dark-mode .summary-outcomes,
+html.dark-mode .summary-load-message { color: #E2E8F0; }
 
 .stat-item-inline {
   display: flex;
@@ -114,7 +124,7 @@
   padding: 8px 12px;
   background: #f8f9fa;
   border-radius: 12px;
-  flex: 1;
+  flex: 1 1 100px;
   justify-content: center;
 }
 

@@ -1,15 +1,21 @@
 /* ==================== COVERFLOW 3D BANNER SLIDER ==================== */
+#home-page .section-content { max-width: none; }
+#home-page .summary-viz-card { max-width: 480px; margin-inline: auto; }
+
 .coverflow-banner-container {
   width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
   padding: 20px 0 10px 0;
   perspective: 1200px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .coverflow-swiper {
   width: 100%;
   padding-top: 10px;
-  padding-bottom: 50px;
+  padding-bottom: 20px;
   overflow: visible !important;
 }
 
@@ -18,8 +24,7 @@
 }
 
 .coverflow-swiper .swiper-slide {
-  width: 340px !important;
-  max-width: 100%;
+  min-width: 0;
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
@@ -44,6 +49,18 @@
 .coverflow-swiper .swiper-slide:not(.swiper-slide-active) {
   opacity: 0.7;
 }
+
+/* Keep exactly the current image and its neighbours visible, not the loop copies. */
+.coverflow-swiper .swiper-slide:not(.swiper-slide-active):not(.swiper-slide-prev):not(.swiper-slide-next) {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.banner-pagination { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; }
+.banner-pagination button { padding: 0; width: 8px; height: 8px; border: 0; border-radius: 50%; background: #d1d5db; cursor: pointer; }
+.banner-pagination button.active { width: 24px; border-radius: 10px; background: #3ACE00; }
+.banner-pagination button:focus-visible { outline: 2px solid #239600; outline-offset: 4px; }
 
 /* Custom Pagination Bullets */
 .coverflow-swiper .swiper-pagination-bullet {

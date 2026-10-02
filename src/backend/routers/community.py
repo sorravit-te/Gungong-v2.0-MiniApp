@@ -15,7 +15,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..services.database_service import get_database_service
-from ..services.user_identity_service import UserIdentity, require_user
+from ..services.user_identity_service import UserIdentity, require_user, safe_line_picture
 from ..services.community_image_service import MAX_IMAGE_BASE64, normalize_post_image
 
 
@@ -45,7 +45,7 @@ COLLECTION = "community_posts"
 RPC_TIMEOUT = 4
 POST_ID_PATTERN = r"^[a-f0-9]{64}$"
 PostId = Annotated[str, StringConstraints(pattern=POST_ID_PATTERN)]
-PUBLIC_FIELDS = ["author", "content", "created_at", "updated_at", "has_image", "image_hash",
+PUBLIC_FIELDS = ["author", "author_picture_url", "content", "created_at", "updated_at", "has_image", "image_hash",
                  "like_count", "comment_count", "revision", "deleted_at"]
 
 
@@ -83,6 +83,7 @@ def post_data(post_id, data):
     created = data.get("created_at")
     updated = data.get("updated_at")
     return {"id": post_id, "author": data.get("author", "สมาชิก"),
+            "author_picture_url": safe_line_picture(data.get("author_picture_url")),
             "content": data.get("content", ""),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else None,
             "updated_at": updated.isoformat() if hasattr(updated, "isoformat") else None,
@@ -177,6 +178,7 @@ async def create_post(request: Request, post: PostRequest, user: UserIdentity = 
         key = hashlib.sha256(f"{user.user_id}:{post.request_id}".encode()).hexdigest()
         ref = collection().document(key)
         data = {"author_id": user.user_id, "author": user.display_name,
+                "author_picture_url": safe_line_picture(user.picture_url),
                 "content": post.content, "created_at": datetime.now(timezone.utc),
                 "has_image": image is not None,
                 "image_hash": hashlib.sha256(image).hexdigest() if image else None,
@@ -292,6 +294,7 @@ def public_comment(doc):
     data = doc.to_dict()
     created = data.get("created_at")
     return {"id": doc.id, "author": data.get("author", "สมาชิก"), "content": data.get("content", ""),
+            "author_picture_url": safe_line_picture(data.get("author_picture_url")),
             "created_at": created.isoformat() if hasattr(created, "isoformat") else None}
 
 
@@ -303,7 +306,7 @@ async def list_comments(post_id: str = Path(pattern=POST_ID_PATTERN),
         ref = collection().document(post_id)
         require_post(ref.get(field_paths=["deleted_at"], timeout=RPC_TIMEOUT, retry=None))
         comments = ref.collection("comments")
-        query = comments.order_by("created_at").select(["author", "content", "created_at"])
+        query = comments.order_by("created_at").select(["author", "author_picture_url", "content", "created_at"])
         if after:
             doc = comments.document(after).get(timeout=RPC_TIMEOUT, retry=None)
             if not doc.exists:
@@ -328,9 +331,11 @@ async def comment_post(request: Request, body: CommentRequest, post_id: str = Pa
             return {}, {"comment": public_comment(existing), "comment_count": data.get("comment_count", 0)}
         created = datetime.now(timezone.utc)
         batch.create(comment, {"author_id": user.user_id, "author": user.display_name,
+                               "author_picture_url": safe_line_picture(user.picture_url),
                                "content": body.content, "created_at": created})
         count = data.get("comment_count", 0) + 1
         return {"comment_count": count}, {"comment": {"id": comment.id, "author": user.display_name,
+            "author_picture_url": safe_line_picture(user.picture_url),
             "content": body.content, "created_at": created.isoformat()}, "comment_count": count}
     return await database_call(lambda: mutate_post(post_id, change))
 
@@ -367,6 +372,7 @@ async def edit_post(request: Request, body: EditRequest, post_id: str = Path(pat
             if not body.content and not has_image:
                 raise HTTPException(422, "Empty post")
             updates = {"content": body.content, "has_image": has_image,
+                       "author_picture_url": safe_line_picture(user.picture_url),
                        "revision": body.expected_revision + 1, "updated_at": datetime.now(timezone.utc)}
             if image:
                 updates.update(image=image, image_hash=hashlib.sha256(image).hexdigest())

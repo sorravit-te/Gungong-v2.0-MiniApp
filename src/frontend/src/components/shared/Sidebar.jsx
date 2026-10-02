@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import LineLoginButton from './LineLoginButton';
-import { SCANNER_ROUTE_IDS, SCANNER_SUBMENU_ITEMS } from '../../utils/scannerNavigation';
+import { SCANNER_ROUTE_IDS } from '../../utils/scannerNavigation';
 import '../../styles/sidebar.css';
 
 const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
@@ -45,21 +45,8 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
     }
   };
 
-  // State for expanded menu items
-  const [expandedMenus, setExpandedMenus] = useState({ scanner: false });
-
-  const toggleSubmenu = (menuId) => {
-    setExpandedMenus(prev => ({ ...prev, [menuId]: !prev[menuId] }));
-  };
-
-  // Auto-expand scanner submenu when navigating to a scanner sub-page
-  useEffect(() => {
-    if (SCANNER_ROUTE_IDS.includes(currentPage)) {
-      // Keep the existing auto-expand behavior when a scanner route is selected.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setExpandedMenus(prev => ({ ...prev, scanner: true }));
-    }
-  }, [currentPage]);
+  const isActive = item => currentPage === item.id ||
+    (item.id === 'scanner' && SCANNER_ROUTE_IDS.includes(currentPage));
 
   // Menu groups following Modern SaaS pattern
   const menuGroups = [
@@ -110,29 +97,6 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           ),
-          hasSubItems: true,
-          subItems: [
-            {
-              id: SCANNER_SUBMENU_ITEMS[0].id,
-              label: SCANNER_SUBMENU_ITEMS[0].label,
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                </svg>
-              ),
-            },
-            {
-              id: SCANNER_SUBMENU_ITEMS[1].id,
-              label: SCANNER_SUBMENU_ITEMS[1].label,
-              icon: (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                  <line x1="1" y1="10" x2="23" y2="10"></line>
-                </svg>
-              ),
-            },
-          ],
         },
       ],
     },
@@ -164,10 +128,10 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
             className="sidebar-logo-icon"
           />
         </div>
-        {!isCollapsed && <span className="brand-text">GunGong</span>}
+        <span className="brand-text" aria-hidden={isCollapsed}>GunGong</span>
 
         {/* Toggle Button - inside brand for hover targeting */}
-        <button className="sidebar-toggle" onClick={onToggle} aria-label="Toggle sidebar">
+        <button className="sidebar-toggle" onClick={onToggle} aria-label="Toggle sidebar" aria-expanded={!isCollapsed}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             {isCollapsed ? (
               <polyline points="9 18 15 12 9 6"></polyline>
@@ -180,71 +144,21 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
 
       {/* Menu Groups */}
       <nav className="sidebar-nav">
-        {menuGroups.map((group, groupIndex) => (
+        {menuGroups.map(group => (
           <div key={group.title} className="menu-group">
-            {isCollapsed && groupIndex > 0 && <div className="menu-divider"></div>}
             <div className="menu-group-items">
               {group.items.map((item) => (
                 <div key={item.id} className="sidebar-item-wrapper">
-                  {item.hasSubItems ? (
-                    <>
-                      <button
-                        className={`sidebar-item has-submenu ${expandedMenus[item.id] ? 'expanded' : ''} ${
-                          currentPage === item.id || item.subItems?.some(sub => currentPage === sub.id) ? 'active' : ''
-                        }`}
-                        onClick={() => {
-                          if (isCollapsed) {
-                            onNavigate(item.id);
-                          } else {
-                            toggleSubmenu(item.id);
-                          }
-                        }}
-                        title={isCollapsed ? item.label : ''}
-                      >
-                        {(currentPage === item.id || item.subItems?.some(sub => currentPage === sub.id)) && (
-                          <div className="active-indicator"></div>
-                        )}
-                        <div className="item-icon">{item.icon}</div>
-                        {!isCollapsed && <span className="item-label">{item.label}</span>}
-                        {!isCollapsed && (
-                          <svg
-                            className={`submenu-chevron ${expandedMenus[item.id] ? 'rotated' : ''}`}
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        )}
-                      </button>
-                      {!isCollapsed && expandedMenus[item.id] && (
-                        <div className="submenu-items">
-                          {item.subItems.map((subItem) => (
-                            <button
-                              key={subItem.id}
-                              className={`sidebar-item submenu-item ${currentPage === subItem.id ? 'active' : ''}`}
-                              onClick={() => onNavigate(subItem.id)}
-                            >
-                              {currentPage === subItem.id && <div className="active-indicator"></div>}
-                              <div className="item-icon">{subItem.icon}</div>
-                              <span className="item-label">{subItem.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <button
-                      className={`sidebar-item ${currentPage === item.id ? 'active' : ''}`}
-                      onClick={() => onNavigate(item.id)}
-                      title={isCollapsed ? item.label : ''}
-                    >
-                      {currentPage === item.id && <div className="active-indicator"></div>}
-                      <div className="item-icon">{item.icon}</div>
-                      {!isCollapsed && <span className="item-label">{item.label}</span>}
-                    </button>
-                  )}
+                  <button
+                    className={`sidebar-item ${isActive(item) ? 'active' : ''}`}
+                    onClick={() => onNavigate(item.id)}
+                    title={isCollapsed ? item.label : ''}
+                    aria-label={item.label}
+                  >
+                    {isActive(item) && <div className="active-indicator"></div>}
+                    <div className="item-icon">{item.icon}</div>
+                    <span className="item-label" aria-hidden={isCollapsed}>{item.label}</span>
+                  </button>
                 </div>
               ))}
             </div>
@@ -263,23 +177,20 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
               className={`sidebar-user ${showUserMenu ? 'active' : ''}`}
               onClick={() => setShowUserMenu(!showUserMenu)}
               title={isCollapsed ? user.displayName : ''}
+              aria-label={user.displayName}
             >
               <img
                 src={user.photoURL || '/img/profile.png'}
                 alt={user.displayName}
                 className="sidebar-user-avatar"
               />
-              {!isCollapsed && (
-                <>
-                  <div className="sidebar-user-info">
-                    <span className="sidebar-user-name">{user.displayName}</span>
-                    <span className="sidebar-user-email">บัญชี LINE</span>
-                  </div>
-                  <svg className="sidebar-user-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </>
-              )}
+              <div className="sidebar-user-info" aria-hidden={isCollapsed}>
+                <span className="sidebar-user-name">{user.displayName}</span>
+                <span className="sidebar-user-email">บัญชี LINE</span>
+              </div>
+              <svg className="sidebar-user-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
             </button>
 
             {/* Dropdown Menu */}

@@ -3,8 +3,10 @@ import { communityError, deleteCommunityPost, editCommunityPost, getCommunityIma
   likeCommunityPost, loadCommunity, loadCommunityViewer, postCommunity } from '../utils/community';
 import { preparePostImage } from '../utils/communityImage';
 import { communityCache } from '../utils/pageCache';
+import { communityCommentCache } from '../utils/communityCommentCache';
 import { useAuth } from '../contexts/AuthContext';
 import { CommunityPostCard, CommunityPostDetail, CommunityImageViewer, CommunityReportDialog } from './shared/CommunityPost';
+import CommunityFeed from './shared/CommunityFeed';
 
 const Social = () => {
   const { user } = useAuth();
@@ -37,6 +39,25 @@ const Social = () => {
   const userId = user?.uid;
   const postIds = posts.map(post => post.id).join(',');
   const hasDraftImage = !!attachment || (editing?.has_image && !removeImage);
+  const selectedId = selected?.id;
+
+  useEffect(() => {
+    if (selectedId) window.scrollTo(0, 0);
+  }, [selectedId]);
+
+  useEffect(() => {
+    const closeMenus = event => {
+      document.querySelectorAll('.community-post-menu[open]').forEach(menu => {
+        if (event.type === 'keydown' ? event.key === 'Escape' : !menu.contains(event.target)) menu.open = false;
+      });
+    };
+    document.addEventListener('pointerdown', closeMenus);
+    document.addEventListener('keydown', closeMenus);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenus);
+      document.removeEventListener('keydown', closeMenus);
+    };
+  }, []);
 
   useEffect(() => {
     if (!userId || !postIds) return;
@@ -98,6 +119,7 @@ const Social = () => {
     actionBusy.current.add(post.id);
     try {
       await deleteCommunityPost(post.id);
+      communityCommentCache.invalidate(post.id);
       communityCache.invalidate('feed');
       if (alive.current) { setPosts(previous => previous.filter(item => item.id !== post.id)); setSelected(null); }
     } catch (failure) { if (alive.current) setError(communityError(failure)); }
@@ -136,7 +158,7 @@ const Social = () => {
     };
     void refresh();
     const timer = setInterval(() => {
-      if (!refreshing && !busy.current && !document.hidden) { communityCache.invalidate('feed'); void refresh(); }
+      if (!refreshing && !busy.current && !document.hidden) { communityCache.expire('feed'); void refresh(); }
     }, 30000);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
@@ -201,7 +223,7 @@ const Social = () => {
 
   return (
     <section id="social-page"><div className="section-content">
-      <div className="scanner-header"><h2>My Community</h2></div>
+      {!selected && <div className="scanner-header"><h2>Community</h2></div>}
       {!selected && <button className="community-compose-trigger" type="button" aria-haspopup="dialog"
         onClick={() => { setEditing(null); setRemoveImage(false); setContent(''); setAttachment(null); pending.current = null;
           setComposerError(''); setComposerOpen(true); }}>
@@ -248,9 +270,9 @@ const Social = () => {
         liking={liking[selected.id]} onLike={like} onBack={() => setSelected(null)} onUpdate={updatePost}
         onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} /> : <>
         {loading && <p role="status" className="page-loading">กำลังโหลดโพสต์...</p>}
-        <div className="social-feed">{posts.map(post => <CommunityPostCard key={post.id} post={post}
+        <CommunityFeed>{posts.map(post => <CommunityPostCard key={post.id} post={post}
           viewer={viewer[post.id]} liking={liking[post.id]} onLike={like} onOpen={setSelected}
-          onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} />)}</div>
+          onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} />)}</CommunityFeed>
         {cursor && <button onClick={more} disabled={loading}>ดูโพสต์เพิ่มเติม</button>}
       </>}
       {imageView && <CommunityImageViewer src={imageView} onClose={() => setImageView(null)} />}

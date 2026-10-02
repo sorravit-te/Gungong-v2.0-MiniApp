@@ -29,6 +29,27 @@ test('StrictMode and concurrent subscribers share one in-flight load', async () 
   assert.deepEqual(await Promise.all([first, second]), [['post'], ['post']]);
 });
 
+test('scheduled refresh preserves cached data and deduplicates a revisit during the refresh', async () => {
+  const cache = createPageCache();
+  cache.write('owner', ['previous']); cache.expire('owner');
+  assert.deepEqual(cache.peek('owner'), ['previous']);
+  let finish; let calls = 0;
+  const loader = () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+  const first = cache.read('owner', loader);
+  await Promise.resolve(); cache.expire('owner');
+  const revisit = cache.read('owner', loader);
+  assert.deepEqual(cache.peek('owner'), ['previous']);
+  finish(['latest']); await Promise.all([first, revisit]);
+  assert.equal(calls, 1); assert.deepEqual(cache.peek('owner'), ['latest']);
+  cache.invalidate(); assert.equal(cache.peek('owner'), undefined);
+});
+
+test('periodic page refresh expires data without clearing the visible cache', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  assert.match(read('../src/hooks/useHistoryEntries.js'), /historyCache\.expire\(userId\)/u);
+  assert.match(read('../src/components/social.jsx'), /communityCache\.expire\('feed'\)/u);
+});
+
 test('different owners never receive each other\'s History cache', async () => {
   const cache = createPageCache(); await cache.read('owner-a', async () => ['private-a']);
   assert.equal(cache.peek('owner-b'), undefined);
@@ -96,7 +117,8 @@ test('page cache contains no persistent browser storage; loader presentation is 
   const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
   assert.doesNotMatch(read('../src/utils/pageCache.js'), /localStorage|sessionStorage/u);
   assert.match(read('../src/components/social.jsx'), /role="status" className="page-loading"/u);
-  assert.match(read('../src/components/history.jsx'), /if \(authLoading\) return/u);
+  assert.match(read('../src/hooks/useHistoryEntries.js'), /if \(authLoading\) return/u);
+  assert.match(read('../src/components/history.jsx'), /useHistoryEntries\(\)/u);
   assert.match(read('../src/components/social.jsx'), /let refreshing = false/u);
   assert.match(read('../src/components/social.jsx'), /busy\.current = refreshOwner/u);
   assert.match(read('../src/components/social.jsx'), /if \(busy\.current === refreshOwner\) busy\.current = false/u);

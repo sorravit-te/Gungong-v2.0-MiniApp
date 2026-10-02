@@ -51,7 +51,9 @@ test('anonymous session cannot post and failed reads do not become mock success'
 test('community/history refresh on return and only render user text, no mock interactions', () => {
   const social = readFileSync(new URL('../src/components/social.jsx', import.meta.url), 'utf8');
   const history = readFileSync(new URL('../src/components/history.jsx', import.meta.url), 'utf8');
-  for (const source of [social, history]) {
+  const historyLoader = readFileSync(new URL('../src/hooks/useHistoryEntries.js', import.meta.url), 'utf8');
+  assert.match(history, /useHistoryEntries\(\)/u);
+  for (const source of [social, historyLoader]) {
     assert.match(source, /visibilitychange/u);
     assert.match(source, /addEventListener\('focus'/u);
     assert.match(source, /removeEventListener\('focus'/u);
@@ -144,4 +146,79 @@ test('real social mutations carry verified identity, bounded IDs and expected re
     assert.equal(getCommunityImageUrl({ id, has_image: true, image_version: 'b'.repeat(64) }),
       `https://app.test/community/posts/${id}/image?v=${'b'.repeat(64)}`);
   } finally { globalThis.fetch = original; delete globalThis.window.liff; }
+});
+
+test('post detail keeps post left and comments right on desktop and stacks on mobile', () => {
+  const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  assert.match(cards, /className="community-detail-layout"/u);
+  assert.match(cards, /className="community-detail-post"/u);
+  assert.ok(cards.indexOf('className="community-detail-post"') < cards.indexOf('className="community-comments"'));
+  assert.match(css, /\.community-detail-layout \{ display: grid; grid-template-columns: minmax\(0, \.9fr\) minmax\(0, 1\.1fr\)/u);
+  assert.match(css, /@media \(max-width: 900px\).*\.community-detail-layout \{ grid-template-columns: minmax\(0, 1fr\)/u);
+});
+
+test('cards open separately from image/actions and menus are exclusive and dismissible', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const cards = read('../src/components/shared/CommunityPost.jsx');
+  const social = read('../src/components/social.jsx');
+  assert.match(social, /<h2>Community<\/h2>/u);
+  assert.match(cards, /event\.target\.closest\('button, details, a, input, textarea, select'\)/u);
+  assert.match(cards, /event\.target === event\.currentTarget/u);
+  assert.match(cards, /if \(menu !== current\) menu\.open = false/u);
+  assert.match(social, /!menu\.contains\(event\.target\)/u);
+  assert.match(social, /removeEventListener\('pointerdown', closeMenus\)/u);
+  assert.doesNotMatch(cards, /Promise\.all\(\[getCommunityPost/u);
+});
+
+test('post cards stay stationary and full images have rounded corners without a dark frame', () => {
+  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /translateY|scale\(0\.98\)/u);
+  assert.match(css, /\.community-full-image \{[^}]*padding: 0;[^}]*background: transparent/u);
+  assert.match(css, /\.community-full-image > img \{[^}]*border-radius: 16px/u);
+});
+
+test('whole feed cards are inset and the sidebar starts collapsed until toggled', () => {
+  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.match(css, /\.community-feed-item \{ width: 94%; min-width: 0; justify-self: center;/u);
+  assert.match(css, /\.social-feed \.social-card \{ width: 100%;/u);
+  assert.match(css, /padding-inline: clamp\(8px, 1\.5vw, 24px\)/u);
+  assert.doesNotMatch(css, /\.social-feed \.post-image/u);
+  assert.match(app, /\[isSidebarCollapsed, setIsSidebarCollapsed\] = useState\(true\)/u);
+  assert.match(app, /setIsSidebarCollapsed\(prev => !prev\)/u);
+});
+
+test('LINE login keeps the original width with a reduced height and card hover changes only the faint border', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  assert.match(read('../src/styles/auth.css'), /\.sidebar-login-btn\.line-login-btn \{ width: 100%; height: 44px;/u);
+  assert.match(read('../src/styles/social.css'), /\.social-feed \.social-card:hover \{ border-color: #d1d5db; \}/u);
+  assert.match(read('../src/components/shared/CommunityPost.jsx'), /readCommunityComments\(post\.id\)/u);
+  assert.match(read('../src/components/social.jsx'), /communityCommentCache\.invalidate\(post\.id\)/u);
+});
+
+test('post details hide the feed heading and show avatars alongside unchanged names and comment timestamps', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const cards = read('../src/components/shared/CommunityPost.jsx');
+  const social = read('../src/components/social.jsx');
+  assert.match(social, /!selected && <div className="scanner-header"/u);
+  assert.match(social, /if \(selectedId\) window\.scrollTo\(0, 0\)/u);
+  assert.match(cards, /url=\{post\.author_picture_url\}/u);
+  assert.match(cards, /url=\{comment\.author_picture_url\}/u);
+  assert.match(cards, /<strong>\{comment\.author\}<\/strong>/u);
+  assert.match(cards, /dateTime=\{comment\.created_at\}/u);
+  assert.match(cards, /onError=\{\(\) => setFailed\(src\)\}/u);
+});
+
+test('back to Community uses the same green heading size in light and dark mode', () => {
+  const css = readFileSync(new URL('../src/styles/social.css', import.meta.url), 'utf8');
+  const scanner = readFileSync(new URL('../src/styles/scanner.css', import.meta.url), 'utf8');
+  assert.match(scanner, /\.scanner-header h2 \{\s*font-size: 20px;\s*color: #3ACE00;/u);
+  assert.match(css, /\.community-back \{ margin-bottom: 12px; color: #3ACE00; font-size: 20px; font-weight: 700;/u);
+  assert.doesNotMatch(css, /html\.dark-mode \.community-back/u);
+});
+
+test('empty comments are shown only after a successful load, not during loading or errors', () => {
+  const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
+  assert.match(cards, /!loading && !error && comments\.length === 0 && <p className="page-loading">ยังไม่มีคอมเมนต์<\/p>/u);
 });

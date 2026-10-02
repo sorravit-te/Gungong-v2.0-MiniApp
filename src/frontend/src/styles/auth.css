@@ -14,7 +14,8 @@
 .line-login-btn:disabled { opacity: .65; cursor: wait; }
 .line-login-mark { width: 32px; height: 32px; }
 .sidebar-login-options { display: flex; justify-content: flex-start; }
-.sidebar-login-btn.line-login-btn { width: 100%; height: 56px; background: #06C755; color: #fff; border-color: #06C755; }
+.sidebar-login-btn.line-login-btn { width: 100%; height: 44px; padding: 5px; flex-shrink: 0; background: #06C755; color: #fff; border-color: #06C755; }
+.sidebar.collapsed .sidebar-login-btn.line-login-btn { padding: 5px; }
 .sidebar-login-btn.line-login-btn:hover { background: #05ad49; color: #fff; }
 .page-loading { text-align: center; color: #aaa; padding: 20px; }
 .mobile-line-entry {

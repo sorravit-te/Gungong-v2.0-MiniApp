@@ -1,84 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadHistory, getHistoryById, formatTime, getTypeName } from '../utils/script';
+import { getHistoryById, formatTime, getTypeName } from '../utils/script';
 import HistoryCalendar from './shared/HistoryCalendar';
 import { getHistoryResultPresentation } from '../utils/fraudResultPresentation';
 import { createHistoryDetailController } from '../utils/historyDetail';
-import { useAuth } from '../contexts/AuthContext';
-import { historyCache } from '../utils/pageCache';
-
-const parseHistoryDate = (dateString) => {
-  if (!dateString) return null;
-
-  const date = new Date(dateString);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+import { useHistoryEntries } from '../hooks/useHistoryEntries';
+import { HISTORY_TYPES, parseHistoryDate, selectHistoryItems } from '../utils/historyView';
 
 const History = () => {
-  const { user, loading: authLoading } = useAuth();
-  const userId = user?.uid;
   const [searchQuery, setSearchQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
-  const [historyData, setHistoryData] = useState(() => userId ? historyCache.peek(userId) || [] : []);
-  const [loading, setLoading] = useState(() => !userId || historyCache.peek(userId) === undefined);
-  const [loadError, setLoadError] = useState('');
+  const { entries: historyData, loading, error: loadError } = useHistoryEntries();
   const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [selectedOutcome, setSelectedOutcome] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [controlPanel, setControlPanel] = useState(null);
   const detailController = useRef(null);
-  const loaded = useRef(!!userId && historyCache.peek(userId) !== undefined);
 
   useEffect(() => {
-    if (authLoading) return;
-    let isMounted = true;
-    let fetching = false;
-    let refreshAgain = false;
-
-    const fetchHistory = async () => {
-      if (fetching || document.hidden) return;
-      fetching = true;
-      if (!loaded.current) setLoading(true);
-      setLoadError('');
-
-      try {
-        if (!userId) throw new Error('LOGIN_REQUIRED');
-        const entries = await historyCache.read(userId, loadHistory);
-        if (isMounted) {
-          loaded.current = true;
-          setHistoryData(Array.isArray(entries) ? entries : []);
-        }
-      } catch (error) {
-        if (error.message === 'CACHE_INVALIDATED') { refreshAgain = true; return; }
-        console.error('Failed to load history:', error);
-        if (isMounted) {
-          if (error.message === 'LOGIN_REQUIRED') { loaded.current = false; setHistoryData([]); }
-          setLoadError(error.message === 'LOGIN_REQUIRED'
-            ? 'กรุณาเข้าสู่ระบบ LINE เพื่อดูประวัติของคุณ'
-            : 'ไม่สามารถโหลดประวัติการตรวจสอบได้ กรุณาลองใหม่อีกครั้ง');
-        }
-      } finally {
-        fetching = false;
-        if (isMounted) {
-          setLoading(false);
-          if (refreshAgain) { refreshAgain = false; void fetchHistory(); }
-        }
-      }
-    };
-
-    fetchHistory();
-    const changed = () => { if (fetching) refreshAgain = true; else void fetchHistory(); };
-    const refreshTimer = setInterval(() => { historyCache.invalidate(userId); changed(); }, 30000);
-    window.addEventListener('focus', fetchHistory);
-    window.addEventListener('gungong:history-changed', changed);
-    document.addEventListener('visibilitychange', fetchHistory);
-
     return () => {
-      isMounted = false;
-      clearInterval(refreshTimer);
-      window.removeEventListener('focus', fetchHistory);
-      window.removeEventListener('gungong:history-changed', changed);
-      document.removeEventListener('visibilitychange', fetchHistory);
       detailController.current?.dispose();
       detailController.current = null;
     };
-  }, [userId, authLoading]);
+  }, []);
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -176,39 +120,12 @@ const History = () => {
     });
   };
 
-  const openTypeFilterModal = () => {
-    window.Swal?.fire({
-      icon: 'info',
-      title: 'ตัวกรองประเภท',
-      text: 'ฟังก์ชันกำลังพัฒนา',
-      confirmButtonColor: '#3ACE00',
-    });
-  };
-
-  const openDateFilterModal = () => {
-    window.Swal?.fire({
-      icon: 'info',
-      title: 'เรียงตามวันที่',
-      text: 'ฟังก์ชันกำลังพัฒนา',
-      confirmButtonColor: '#3ACE00',
-    });
-  };
-
-  const filteredItems = historyData.filter(item => {
-    const text = item.message_text || item.account_number || item.phone_number || '';
-    const matchesSearch = String(text).toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Date filtering
-    if (selectedDate) {
-      const itemDate = parseHistoryDate(item.created_at);
-      const matchesDate = itemDate &&
-                         itemDate.getFullYear() === selectedDate.getFullYear() &&
-                         itemDate.getMonth() === selectedDate.getMonth() &&
-                         itemDate.getDate() === selectedDate.getDate();
-      return matchesSearch && matchesDate;
-    }
-    return matchesSearch;
+  const filteredItems = selectHistoryItems(historyData, {
+    search: searchQuery, types: selectedTypes, outcome: selectedOutcome,
+    date: selectedDate, sort: sortOrder,
   });
+  const hasFilters = selectedTypes.length > 0 || selectedOutcome !== 'all' || selectedDate !== null;
+  const selectDate = date => { setSelectedDate(date); setExpanded(false); };
 
   const displayedItems = expanded ? filteredItems : filteredItems.slice(0, 3);
   const calendarHistoryItems = historyData.filter(item => parseHistoryDate(item.created_at));
@@ -226,7 +143,7 @@ const History = () => {
             <HistoryCalendar
               historyItems={calendarHistoryItems}
               selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
+              onDateSelect={selectDate}
             />
           </div>
 
@@ -243,17 +160,19 @@ const History = () => {
               type="text"
               placeholder="Search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setExpanded(false); }}
             />
           </div>
-          <button className="filter-btn" onClick={openTypeFilterModal}>
-            <div id="filter-dot" className="active-dot"></div>
+          <button className="filter-btn" aria-label="กรองประวัติ" aria-expanded={controlPanel === 'filter'} aria-controls="history-filter-panel"
+            onClick={() => setControlPanel(controlPanel === 'filter' ? null : 'filter')}>
+            <div className="active-dot" style={{ display: hasFilters ? 'block' : 'none' }}></div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
             </svg>
           </button>
-          <button className="sort-btn" onClick={openDateFilterModal}>
-            <div id="sort-dot" className="active-dot"></div>
+          <button className="sort-btn" aria-label="เรียงตามวันที่" aria-expanded={controlPanel === 'sort'} aria-controls="history-sort-panel"
+            onClick={() => setControlPanel(controlPanel === 'sort' ? null : 'sort')}>
+            <div className="active-dot" style={{ display: sortOrder === 'oldest' ? 'block' : 'none' }}></div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="16 3 21 3 21 8"></polyline>
               <line x1="4" y1="20" x2="21" y2="3"></line>
@@ -263,6 +182,44 @@ const History = () => {
             </svg>
           </button>
         </div>
+
+        {controlPanel === 'filter' && <div id="history-filter-panel" className="history-options-panel">
+          <fieldset>
+            <legend>ประเภทการตรวจสอบ (ไม่เลือก = ทุกประเภท)</legend>
+            <div className="history-type-options">
+              {HISTORY_TYPES.map(type => <label key={type.value}>
+                <input type="checkbox" checked={selectedTypes.includes(type.value)} onChange={() => {
+                  setSelectedTypes(previous => previous.includes(type.value)
+                    ? previous.filter(value => value !== type.value) : [...previous, type.value]);
+                  setExpanded(false);
+                }} />{type.label}
+              </label>)}
+            </div>
+          </fieldset>
+          <label className="history-option-label">ผลการตรวจสอบ
+            <select value={selectedOutcome} onChange={event => { setSelectedOutcome(event.target.value); setExpanded(false); }}>
+              <option value="all">ทุกผลการตรวจสอบ</option>
+              <option value="safe">ไม่พบสัญญาณอันตราย</option>
+              <option value="risk">พบความเสี่ยง</option>
+              <option value="unknown">ยังสรุปไม่ได้</option>
+              <option value="invalid">ข้อมูลไม่ถูกต้อง / ไม่อนุญาต</option>
+            </select>
+          </label>
+          <button className="clear-date-btn" onClick={() => {
+            setSelectedTypes([]); setSelectedOutcome('all'); setSelectedDate(null); setSearchQuery(''); setExpanded(false);
+          }}>ล้างตัวกรองทั้งหมด</button>
+        </div>}
+        {controlPanel === 'sort' && <div id="history-sort-panel" className="history-options-panel">
+          <label className="history-option-label">เรียงตามวันที่
+            <select value={sortOrder} onChange={event => { setSortOrder(event.target.value); setExpanded(false); }}>
+              <option value="newest">ใหม่ที่สุดก่อน</option>
+              <option value="oldest">เก่าที่สุดก่อน</option>
+            </select>
+          </label>
+        </div>}
+        {!loading && !loadError && <p className="history-result-count">
+          {filteredItems.length} รายการ{hasFilters || searchQuery ? 'ที่ตรงกับตัวกรอง' : ''} · จากประวัติล่าสุดสูงสุด 50 รายการ · {sortOrder === 'newest' ? 'ใหม่ที่สุดก่อน' : 'เก่าที่สุดก่อน'}
+        </p>}
 
         <div className="history-list">
           {loadError && <div role="alert" className="history-load-message" style={{ textAlign: 'center', padding: '20px' }}>
@@ -281,8 +238,7 @@ const History = () => {
               const presentation = getHistoryResultPresentation(item);
               const isSafe = presentation.isSafe;
               const isFraud = presentation.isRisk;
-              const isUrl = item.type === 'link' || item.type === 'qr';
-              const statusClass = isSafe ? 'safe' : isFraud || !isUrl ? 'dangerous' : 'unknown';
+              const statusClass = isSafe ? 'safe' : isFraud ? 'dangerous' : 'unknown';
               const iconClass = isFraud ? 'icon-dangerous' : (isSafe ? 'icon-safe' : 'icon-unknown');
               const itemDate = parseHistoryDate(item.created_at);
               const timeStr = getTimeString(item.created_at);
@@ -327,7 +283,7 @@ const History = () => {
                             <line x1="12" y1="9" x2="12" y2="13"></line>
                             <line x1="12" y1="17" x2="12.01" y2="17"></line>
                           </svg>
-                          {isUrl ? (isFraud ? 'มีความเสี่ยง' : 'ยังสรุปไม่ได้') : 'DANGEROUS'}
+                          {presentation.isInvalid ? 'ข้อมูลไม่ถูกต้อง / ไม่อนุญาต' : isFraud ? 'มีความเสี่ยง' : 'ยังสรุปไม่ได้'}
                         </div>
                       )}
                       <button className="feedback-btn" onClick={handleReport}>

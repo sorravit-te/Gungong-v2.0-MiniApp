@@ -23,6 +23,8 @@ export function createPageCache({ ttl = PAGE_CACHE_TTL, now = Date.now } = {}) {
             return entry.pending;
         },
         write(key, data) { entries.set(key, { data, updated: now() }); },
+        // Refresh in the background without discarding the last successful read.
+        expire(key) { const entry = entries.get(key); if (entry) entry.updated = -Infinity; },
         invalidate(key) { if (key === undefined) entries.clear(); else entries.delete(key); },
     };
 }

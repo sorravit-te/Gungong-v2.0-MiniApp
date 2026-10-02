@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Header, HTTPException
@@ -20,6 +21,22 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 class UserIdentity:
     user_id: str
     display_name: str
+    picture_url: str | None = None
+
+
+def safe_line_picture(value):
+    """Only display HTTPS images on LINE's CDN; never fetch images server-side."""
+    if not isinstance(value, str) or len(value) > 2048:
+        return None
+    try:
+        url = urlsplit(value)
+        host = url.hostname or ""
+        if (url.scheme == "https" and (host == "line-scdn.net" or host.endswith(".line-scdn.net"))
+                and not url.username and not url.password and url.port in {None, 443}):
+            return value
+    except ValueError:
+        pass
+    return None
 
 
 async def verify_line_identity(token: str) -> UserIdentity:
@@ -41,7 +58,8 @@ async def verify_line_identity(token: str) -> UserIdentity:
         data = profile.json()
         if not isinstance(data.get("userId"), str) or not data["userId"]:
             raise HTTPException(401, "Invalid session")
-        return UserIdentity(data["userId"], str(data.get("displayName") or "สมาชิก")[:80])
+        return UserIdentity(data["userId"], str(data.get("displayName") or "สมาชิก")[:80],
+                            safe_line_picture(data.get("pictureUrl")))
 
 
 def verify_firebase_identity(token: str) -> UserIdentity:

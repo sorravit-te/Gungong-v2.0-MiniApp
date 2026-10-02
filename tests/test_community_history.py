@@ -199,9 +199,37 @@ class CommunityHistoryTests(unittest.TestCase):
 
     def test_post_requires_login_and_rejects_forged_author_empty_and_oversized_content(self):
         self.assertEqual(self.post(user='').status_code, 401)
-        for body in [{'author': 'Someone else'}, {'content': '  '}, {'content': 'x' * 2001}]:
+        for body in [{'author': 'Someone else'}, {'author_picture_url': 'https://profile.line-scdn.net/forged'},
+                     {'content': '  '}, {'content': 'x' * 2001}]:
             self.assertEqual(self.post(**body).status_code, 422)
         self.assertEqual(len(self.posts.records), 0)
+
+    def test_verified_profile_picture_is_stored_and_returned_for_posts_and_comments(self):
+        async def session(x_test_user: str = Header(default='')):
+            return identity.UserIdentity(x_test_user, 'Member ' + x_test_user,
+                                         'https://profile.line-scdn.net/test-' + x_test_user)
+        self.app.dependency_overrides[identity.require_user] = session
+        posted = self.post().json()
+        self.assertEqual(posted['author_picture_url'], 'https://profile.line-scdn.net/test-A')
+        feed = self.client.get('/community/posts').json()['posts'][0]
+        self.assertEqual(feed['author_picture_url'], posted['author_picture_url'])
+        self.assertIn('author_picture_url', community.PUBLIC_FIELDS)
+        comment = self.action('POST', posted['id'], '/comments', 'B',
+                              {'content': 'Comment', 'request_id': str(uuid4())}).json()['comment']
+        self.assertEqual(comment['author_picture_url'], 'https://profile.line-scdn.net/test-B')
+        self.assertIsNotNone(comment['created_at'])
+        listed = self.action('GET', posted['id'], '/comments').json()['comments'][0]
+        self.assertEqual(listed, comment)
+        self.assertNotIn('author_id', listed)
+        forged = self.action('POST', posted['id'], '/comments', 'B',
+                             {'content': 'Comment', 'request_id': str(uuid4()), 'author_picture_url': 'forged'})
+        self.assertEqual(forged.status_code, 422)
+
+    def test_legacy_posts_and_comments_have_no_invented_profile_picture(self):
+        posted = self.post().json()
+        self.assertIsNone(posted['author_picture_url'])
+        self.assertIsNone(community.public_comment(SimpleNamespace(id='old', to_dict=lambda: {
+            'author': 'Legacy', 'content': 'Before avatars', 'created_at': datetime.now(timezone.utc)}))['author_picture_url'])
 
     def test_lost_response_retry_does_not_duplicate_and_request_id_is_user_scoped(self):
         key = str(uuid4())
@@ -426,6 +454,21 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
             factory.return_value.__aenter__.return_value = client
             user = await identity.require_user('Bearer test-token', 'line')
         self.assertEqual(user, identity.UserIdentity('A', 'Verified A'))
+
+    async def test_line_picture_comes_from_the_verified_provider_not_request_fields(self):
+        client = AsyncMock()
+        client.get.side_effect = [httpx.Response(200, json={
+            'client_id': identity.settings.line_login_channel_id, 'expires_in': 30}),
+            httpx.Response(200, json={'userId': 'A', 'displayName': 'A',
+                                     'pictureUrl': 'https://profile.line-scdn.net/avatar'})]
+        with patch.object(identity.httpx, 'AsyncClient') as factory:
+            factory.return_value.__aenter__.return_value = client
+            user = await identity.require_user('Bearer test-token', 'line')
+        self.assertEqual(user.picture_url, 'https://profile.line-scdn.net/avatar')
+        self.assertEqual(client.get.await_count, 2)
+        for value in [None, 'javascript:alert(1)', 'http://profile.line-scdn.net/image',
+                      'https://profile.line-scdn.net.evil.test/a', 'https://user:pass@profile.line-scdn.net/a']:
+            self.assertIsNone(identity.safe_line_picture(value))
 
     async def test_provider_unavailable_does_not_accept_identity(self):
         with patch.object(identity, 'verify_line_identity', side_effect=httpx.ReadTimeout('test')):

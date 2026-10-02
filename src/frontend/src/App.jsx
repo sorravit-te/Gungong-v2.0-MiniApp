@@ -32,7 +32,7 @@ function App() {
   const { user, lineProfile: userProfile } = useAuth();
   const [showPDPA, setShowPDPA] = useState(() => localStorage.getItem('gungong_pdpa_accepted') !== 'true');
   // Sidebar State
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Load dark mode preference from localStorage
@@ -86,7 +86,7 @@ function App() {
 
     switch (mainSection) {
       case 'home':
-        return <Home />;
+        return <Home key={user?.uid || 'anonymous'} onNavigate={handleNavigate} />;
       case 'verify':
         return <Verify userProfile={userProfile} onNavigate={handleNavigate} currentSubPage={activeSection} />;
       case 'scanner':
@@ -96,7 +96,7 @@ function App() {
       case 'history':
         return <History key={user?.uid || 'anonymous'} />;
       default:
-        return <Home />;
+        return <Home key={user?.uid || 'anonymous'} onNavigate={handleNavigate} />;
     }
   };
 

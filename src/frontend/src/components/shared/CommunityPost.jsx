@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { commentCommunityPost, communityError, getCommunityImageUrl, getCommunityPost,
     loadPostComments, postExcerpt, reportCommunityPost } from '../../utils/community';
+import { communityCommentCache, mergeCommunityComments, readCommunityComments } from '../../utils/communityCommentCache';
+import { communityAvatarUrl, communityTimestamp } from '../../utils/communityPresentation';
+
+function CommunityAvatar({ url, name }) {
+    const [failed, setFailed] = useState(null);
+    const src = communityAvatarUrl(url);
+    return <span className="community-avatar">
+        {src && failed !== src ? <img src={src} alt={`รูปโปรไฟล์ของ ${name}`} loading="lazy" referrerPolicy="no-referrer"
+            onError={() => setFailed(src)} /> : <svg viewBox="0 0 24 24" role="img" aria-label={`รูปโปรไฟล์สำรองของ ${name}`}>
+            <circle cx="12" cy="8" r="4" fill="currentColor" />
+            <path d="M4 22v-3a8 8 0 0 1 16 0v3Z" fill="currentColor" />
+        </svg>}
+    </span>;
+}
 
 function Heart({ filled }) {
     return <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -11,13 +25,32 @@ function Heart({ filled }) {
 export function CommunityPostCard({ post, viewer = {}, full = false, liking, onLike, onOpen, onImage, onEdit, onDelete, onReport }) {
     const excerpt = postExcerpt(post.content);
     const image = getCommunityImageUrl(post);
-    return <article className="social-card">
+    const openCard = event => {
+        if (full || event.target.closest('button, details, a, input, textarea, select')) return;
+        onOpen(post);
+    };
+    const closeOtherMenus = event => {
+        if (!event.target.closest('summary')) return;
+        const current = event.currentTarget;
+        document.querySelectorAll('.community-post-menu[open]').forEach(menu => {
+            if (menu !== current) menu.open = false;
+        });
+    };
+    return <article className={`social-card${full ? '' : ' community-clickable-post'}`}
+        tabIndex={full ? undefined : 0} aria-label={full ? undefined : `ดูโพสต์ของ ${post.author}`}
+        onClick={openCard} onKeyDown={event => {
+            if (!full && event.target === event.currentTarget && ['Enter', ' '].includes(event.key)) {
+                event.preventDefault(); onOpen(post);
+            }
+        }}>
         <div className="s-card-content">
-            <div className="s-card-top"><div className="author-details">
+            <div className="s-card-top"><div className="author-info">
+                <CommunityAvatar url={post.author_picture_url} name={post.author} />
+                <div className="author-details">
                 <span className="author-name">{post.author}</span>
-                <span className="post-time">{post.created_at ? new Date(post.created_at).toLocaleString('th-TH') : ''}
+                <span className="post-time">{communityTimestamp(post.created_at)}
                     {post.updated_at && ' · แก้ไขแล้ว'}</span>
-            </div><details className="community-post-menu">
+            </div></div><details className="community-post-menu" name="community-post-menu" onClick={closeOtherMenus}>
                 <summary aria-label="ตัวเลือกโพสต์">···</summary>
                 <div>
                     {viewer.can_edit && <><button type="button" onClick={() => onEdit(post)}>แก้ไขโพสต์</button>
@@ -47,9 +80,10 @@ export function CommunityPostCard({ post, viewer = {}, full = false, liking, onL
 }
 
 export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
-    const [comments, setComments] = useState([]);
-    const [cursor, setCursor] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const cached = communityCommentCache.peek(post.id);
+    const [comments, setComments] = useState(cached?.comments || []);
+    const [cursor, setCursor] = useState(cached?.next_cursor || null);
+    const [loading, setLoading] = useState(!cached);
     const [sending, setSending] = useState(false);
     const [content, setContent] = useState('');
     const [error, setError] = useState('');
@@ -58,10 +92,30 @@ export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
     useEffect(() => {
         alive.current = true;
         let stopped = false;
-        Promise.all([getCommunityPost(post.id), loadPostComments(post.id)]).then(([fresh, result]) => {
+        let postMissing = false;
+        // Comments need not wait for the separate post refresh to finish.
+        getCommunityPost(post.id).then(fresh => { if (!stopped) onUpdate(fresh); })
+            .catch(failure => {
+                if (stopped) return;
+                if (failure.message === 'POST_NOT_FOUND') {
+                    postMissing = true; communityCommentCache.invalidate(post.id);
+                    setComments([]); setCursor(null);
+                }
+                setError(communityError(failure));
+            });
+        readCommunityComments(post.id).then(result => {
+            if (stopped || postMissing) return;
+            setComments(result.comments); setCursor(result.next_cursor);
+        }).catch(failure => {
             if (stopped) return;
-            onUpdate(fresh); setComments(result.comments); setCursor(result.next_cursor);
-        }).catch(failure => { if (!stopped) setError(communityError(failure)); })
+            if (failure.message === 'CACHE_INVALIDATED') {
+                const latest = communityCommentCache.peek(post.id);
+                if (latest) { setComments(latest.comments); setCursor(latest.next_cursor); }
+                return;
+            }
+            if (failure.message === 'POST_NOT_FOUND') { setComments([]); setCursor(null); }
+            setError(communityError(failure));
+        })
             .finally(() => { if (!stopped) setLoading(false); });
         return () => { stopped = true; alive.current = false; };
     }, [post.id, onUpdate]);
@@ -73,9 +127,10 @@ export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
         pending.current ??= { content: content.trim(), id: crypto.randomUUID() };
         try {
             const result = await commentCommunityPost(post.id, pending.current.content, pending.current.id);
+            const merged = mergeCommunityComments(post.id, [result.comment]);
             onUpdate({ id: post.id, comment_count: result.comment_count });
             if (!alive.current) return;
-            setComments(previous => [...previous.filter(item => item.id !== result.comment.id), result.comment]);
+            setComments(merged.comments); setCursor(merged.next_cursor);
             setContent(''); pending.current = null;
         } catch (failure) { if (alive.current) setError(communityError(failure)); }
         finally { if (alive.current) setSending(false); }
@@ -85,21 +140,33 @@ export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
         setLoading(true);
         try {
             const result = await loadPostComments(post.id, cursor);
+            const merged = mergeCommunityComments(post.id, result.comments, result.next_cursor);
             if (!alive.current) return;
-            setComments(previous => [...previous, ...result.comments.filter(item => !previous.some(old => old.id === item.id))]);
-            setCursor(result.next_cursor); setError('');
+            setComments(merged.comments); setCursor(merged.next_cursor); setError('');
         } catch (failure) { if (alive.current) setError(communityError(failure)); }
         finally { if (alive.current) setLoading(false); }
     };
     return <div className="community-post-detail">
         <button className="community-back" type="button" onClick={onBack}>← กลับ Community</button>
-        <CommunityPostCard post={post} {...actions} full onOpen={() => document.getElementById('community-comment-input')?.focus()} />
+        <div className="community-detail-layout">
+        <div className="community-detail-post">
+            <CommunityPostCard post={post} {...actions} full onOpen={() => document.getElementById('community-comment-input')?.focus()} />
+        </div>
         <section className="community-comments" aria-label="ความคิดเห็น">
             <h3>ความคิดเห็น</h3>
             {comments.map(comment => <div className="community-comment" key={comment.id}>
-                <strong>{comment.author}</strong><p>{comment.content}</p>
+                <div className="community-comment-author">
+                    <CommunityAvatar url={comment.author_picture_url} name={comment.author} />
+                    <div className="community-comment-meta"><strong>{comment.author}</strong>
+                        {communityTimestamp(comment.created_at) && <time className="post-time" dateTime={comment.created_at}>
+                            {communityTimestamp(comment.created_at)}
+                        </time>}
+                    </div>
+                </div>
+                <p>{comment.content}</p>
             </div>)}
             {loading && <p className="page-loading" role="status">กำลังโหลดความคิดเห็น...</p>}
+            {!loading && !error && comments.length === 0 && <p className="page-loading">ยังไม่มีคอมเมนต์</p>}
             {cursor && <button type="button" disabled={loading} onClick={more}>ดูความคิดเห็นเพิ่มเติม</button>}
             <form onSubmit={submit} className="community-comment-form">
                 <textarea id="community-comment-input" aria-label="ความคิดเห็น" placeholder="เพิ่มความคิดเห็น..." maxLength={1000}
@@ -108,6 +175,7 @@ export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
             </form>
             {error && <p role="alert">{error}</p>}
         </section>
+        </div>
     </div>;
 }
 
