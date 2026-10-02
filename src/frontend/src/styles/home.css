@@ -1,6 +1,6 @@
 /* ==================== COVERFLOW 3D BANNER SLIDER ==================== */
 #home-page .section-content { max-width: none; }
-#home-page .summary-viz-card { max-width: 480px; margin-inline: auto; }
+#home-page .summary-viz-card { width: 100%; max-width: 800px; margin-inline: auto; }
 
 .coverflow-banner-container {
   width: 100%;
@@ -61,6 +61,13 @@
 .banner-pagination button { padding: 0; width: 8px; height: 8px; border: 0; border-radius: 50%; background: #d1d5db; cursor: pointer; }
 .banner-pagination button.active { width: 24px; border-radius: 10px; background: #3ACE00; }
 .banner-pagination button:focus-visible { outline: 2px solid #239600; outline-offset: 4px; }
+
+/* On phones, retain the large centre banner with a glimpse of each neighbour. */
+@media (max-width: 767px) {
+  #home-page { padding-inline: 0; }
+  .coverflow-banner-container { overflow: hidden; }
+  #home-page .summary-viz-card { width: calc(100% - 40px); }
+}
 
 /* Custom Pagination Bullets */
 .coverflow-swiper .swiper-pagination-bullet {

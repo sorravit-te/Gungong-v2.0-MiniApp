@@ -270,6 +270,7 @@ const Social = () => {
         liking={liking[selected.id]} onLike={like} onBack={() => setSelected(null)} onUpdate={updatePost}
         onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} /> : <>
         {loading && <p role="status" className="page-loading">กำลังโหลดโพสต์...</p>}
+        {!loading && !error && posts.length === 0 && !cursor && <p className="page-loading">ยังไม่มีโพสต์</p>}
         <CommunityFeed>{posts.map(post => <CommunityPostCard key={post.id} post={post}
           viewer={viewer[post.id]} liking={liking[post.id]} onLike={like} onOpen={setSelected}
           onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} />)}</CommunityFeed>

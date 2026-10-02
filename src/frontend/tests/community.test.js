@@ -93,7 +93,7 @@ test('community feed spans the main content area while the composer stays center
   assert.match(css, /#social-page \.scanner-header,\s*#social-page \.community-compose-trigger\s*\{\s*max-width: 480px;\s*margin-inline: auto;/u);
   assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/u);
   assert.match(css, /@media \(max-width: 1100px\).*repeat\(2, minmax\(0, 1fr\)\)/u);
-  assert.match(css, /@media \(max-width: 700px\).*grid-template-columns: minmax\(0, 1fr\)/u);
+  assert.match(css, /@media \(max-width: 700px\)\s*\{\s*\.social-feed \{ grid-template-columns: minmax\(0, 1fr\); padding-inline: 0; max-width: 480px; margin-inline: auto; \}\s*\.community-feed-item \{ width: 100%; \}/u);
 });
 
 test('attachments reject unsupported files and oversized originals before decoding', () => {
@@ -221,4 +221,9 @@ test('back to Community uses the same green heading size in light and dark mode'
 test('empty comments are shown only after a successful load, not during loading or errors', () => {
   const cards = readFileSync(new URL('../src/components/shared/CommunityPost.jsx', import.meta.url), 'utf8');
   assert.match(cards, /!loading && !error && comments\.length === 0 && <p className="page-loading">ยังไม่มีคอมเมนต์<\/p>/u);
+});
+
+test('empty public feed has a message only after a successful empty load', () => {
+  const social = readFileSync(new URL('../src/components/social.jsx', import.meta.url), 'utf8');
+  assert.match(social, /!loading && !error && posts\.length === 0 && !cursor && <p className="page-loading">ยังไม่มีโพสต์<\/p>/u);
 });

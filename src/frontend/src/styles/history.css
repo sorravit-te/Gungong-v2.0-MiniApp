@@ -23,12 +23,26 @@
 @media (max-width: 768px) {
   .history-layout {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .history-calendar-sidebar {
     position: static;
     width: 100%;
   }
+
+  #history-page .history-calendar,
+  .history-main-content {
+    width: 100%;
+    margin-inline: auto;
+  }
+
+  .history-controls .search-box { flex: 1; min-width: 0; }
+  .history-controls .search-box svg { flex-shrink: 0; }
+  .history-controls .search-box input { min-width: 0; }
+  .history-card .h-card-content { min-width: 0; }
+  .history-card .main-text { flex: 1; min-width: 0; max-width: none; }
+  .history-card .h-card-bottom { flex-wrap: wrap; gap: 8px; }
 }
 
 /* ==================== CALENDAR WIDGET ==================== */
@@ -176,13 +190,17 @@
   background: #e5e7eb;
 }
 
+.history-toolbar {
+  position: relative;
+  z-index: 60;
+  display: flow-root;
+  margin-bottom: 16px;
+}
+
 .history-controls {
   display: flex;
   gap: 10px;
-  margin-bottom: 16px;
-  position: sticky;
-  top: 0;
-  z-index: 50;
+  margin-bottom: 0;
   background: transparent;
   padding: 10px 0;
   margin-top: -10px;
@@ -391,10 +409,20 @@ html.dark-mode .history-controls {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);}
 
 /* ======================== HISTORY CARD (Verify Menu Style) ======================= */
-.history-load-message { color: #6d6d6d; }
-html.dark-mode .history-load-message { color: #E2E8F0; }
+.history-load-message { color: #aaa; }
 
-.history-options-panel { padding: 16px; margin-bottom: 14px; border: 1px solid #E5E7EB; border-radius: 16px; background: #fff; color: #6d6d6d; font-size: 14px; }
+.history-options-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 61;
+  width: min(360px, 100%); max-height: min(400px, 60dvh); overflow-y: auto;
+  overscroll-behavior: contain; padding: 16px;
+  border: 1px solid #E5E7EB; border-radius: 16px; background: #fff;
+  color: #6d6d6d; font-size: 14px; box-shadow: 0 8px 30px #0002;
+  animation: dropdownFadeIn 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) { .history-options-panel { animation: none; } }
+.history-options-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.history-options-header button { border: 0; background: transparent; color: inherit; font: inherit; font-size: 24px; cursor: pointer; padding: 0 4px; }
+.history-options-panel :is(button, input, select):focus-visible { outline: 2px solid #3ACE00; outline-offset: 2px; }
 .history-options-panel fieldset { border: 0; padding: 0; margin: 0 0 14px; }
 .history-options-panel legend { margin-bottom: 10px; }
 .history-type-options { display: flex; flex-wrap: wrap; gap: 10px 18px; }

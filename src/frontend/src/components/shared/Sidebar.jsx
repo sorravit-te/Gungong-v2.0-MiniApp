@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import LineLoginButton from './LineLoginButton';
 import { SCANNER_ROUTE_IDS } from '../../utils/scannerNavigation';
@@ -8,16 +9,55 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
   const { user, isAuthenticated, signOut, canSignOut } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
+  const userPopupRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!showUserMenu) return;
+    const menu = userPopupRef.current;
+    const anchor = userMenuRef.current;
+    const position = () => {
+      const rect = anchor.getBoundingClientRect();
+      const width = Math.min(isCollapsed ? 220 : rect.width, window.innerWidth - 16);
+      menu.style.width = `${width}px`;
+      const height = menu.offsetHeight;
+      const left = isCollapsed ? rect.right + 8 : rect.left;
+      const top = isCollapsed ? rect.bottom - height : rect.top - height - 8;
+      menu.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
+      menu.style.top = `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`;
+    };
+    position();
+    (menu.querySelector('button') || menu).focus({ preventScroll: true });
+    const observer = new ResizeObserver(position);
+    observer.observe(anchor);
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
+    };
+  }, [showUserMenu, isCollapsed]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target) &&
+          !userPopupRef.current?.contains(event.target)) {
         setShowUserMenu(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handleEscape = event => {
+      if (event.key === 'Escape' && userPopupRef.current) {
+        setShowUserMenu(false);
+        userMenuRef.current?.querySelector('.sidebar-user')?.focus({ preventScroll: true });
+      }
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   // Handle logout with confirmation
@@ -178,6 +218,9 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
               onClick={() => setShowUserMenu(!showUserMenu)}
               title={isCollapsed ? user.displayName : ''}
               aria-label={user.displayName}
+              aria-haspopup="dialog"
+              aria-expanded={showUserMenu}
+              aria-controls="sidebar-profile-menu"
             >
               <img
                 src={user.photoURL || '/img/profile.png'}
@@ -194,8 +237,9 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
             </button>
 
             {/* Dropdown Menu */}
-            {showUserMenu && (
-              <div className={`user-dropdown-menu ${isCollapsed ? 'collapsed-position' : ''}`}>
+            {showUserMenu && createPortal(
+              <div className="user-dropdown-menu" ref={userPopupRef} id="sidebar-profile-menu"
+                role="dialog" aria-label="บัญชี LINE" tabIndex={-1}>
                 <div className="dropdown-header">
                   <img src={user.photoURL || '/img/profile.png'} alt="" />
                   <div>
@@ -212,7 +256,7 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
                   </svg>
                   <span>ออกจากระบบ</span>
                 </button>}
-              </div>
+              </div>, document.body
             )}
           </div>
         ) : (

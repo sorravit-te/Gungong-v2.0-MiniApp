@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { selectHistoryItems, summarizeHistory, parseHistoryDate } from '../src/utils/historyView.js';
+import { HISTORY_TYPES, selectHistoryItems, summarizeHistory, parseHistoryDate } from '../src/utils/historyView.js';
+
+test('History and Summary status messages match the empty Community message color', () => {
+    const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+    const color = read('../src/styles/auth.css').match(/\.page-loading \{[^}]*color: (#[a-f0-9]+);/u)[1];
+    const history = read('../src/styles/history.css');
+    const summary = read('../src/styles/dataVisualization.css');
+    assert.ok(history.includes(`.history-load-message { color: ${color}; }`));
+    assert.ok(summary.includes(`.summary-load-message { text-align: center; color: ${color};`));
+    assert.doesNotMatch(history, /html\.dark-mode \.history-load-message/u);
+    assert.doesNotMatch(summary, /html\.dark-mode \.summary-load-message/u);
+});
 
 const records = [
     { id: 'new', type: 'link', created_at: '2026-10-02T10:00:00Z', message_text: 'first...', full_message: 'Full EXAMPLE url', is_safe: true },
@@ -24,6 +35,21 @@ test('filters compose search, multiple types, outcome and calendar day using ful
     assert.deepEqual(selectHistoryItems(records, { search: 'not present' }), []);
 });
 
+test('Summary is wider and History controls float without moving the list', () => {
+    const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.match(read('../src/styles/home.css'), /#home-page \.summary-viz-card \{ width: 100%; max-width: 800px;/u);
+    const history = read('../src/components/history.jsx');
+    const css = read('../src/styles/history.css');
+    assert.match(history, /className="history-toolbar" ref=\{toolbar\}/u);
+    assert.match(css, /\.history-options-panel \{\s*position: absolute;/u);
+    assert.match(css, /width: min\(360px, 100%\)/u);
+    assert.match(history, /role="dialog" aria-label="กรองประวัติ"/u);
+    assert.match(history, /event\.key !== 'Escape'/u);
+    assert.match(history, /!toolbar\.current\?\.contains\(event\.target\)/u);
+    assert.match(history, /removeEventListener\('pointerdown', outside\)/u);
+    assert.match(history, /removeEventListener\('keydown', escape\)/u);
+});
+
 test('newest and oldest sort before slicing and keep invalid dates last without mutating cache', () => {
     const before = records.map(item => item.id);
     assert.deepEqual(selectHistoryItems(records).slice(0, 3).map(item => item.id), ['new', 'uncertain', 'old']);
@@ -37,12 +63,34 @@ test('summary counts actual entries and types, not hits; incomplete and invalid 
     const summary = summarizeHistory(records);
     assert.equal(summary.total, 7);
     assert.deepEqual(summary.counts, { safe: 2, risk: 1, unknown: 3, invalid: 1 });
-    assert.equal(summary.types.find(type => type.value === 'link').count, 3);
+    assert.equal(summary.types.find(type => type.value === 'link').count, 4);
     assert.equal(summary.types.find(type => type.value === 'text').count, 2);
     assert.equal(summary.types.find(type => type.value === 'other').count, 1);
     assert.equal(summary.types.reduce((total, type) => total + type.count, 0), summary.total);
     assert.equal(summarizeHistory([]).total, 0);
     assert.equal(summarizeHistory([{ type: 'phone', hit_count: 500, is_safe: true }]).total, 1);
+});
+
+test('Summary and History filters combine links and QR codes without changing records or totals', () => {
+    const entries = [{ type: 'qr', is_safe: true }, { type: 'link', is_fraud: true }];
+    const summary = summarizeHistory(entries);
+    assert.deepEqual(summary.types.map(type => type.value), ['link', 'text', 'bank', 'phone']);
+    assert.equal(summary.types[0].label, 'ลิงก์ / QR Code');
+    assert.equal(summary.types[0].count, 2);
+    assert.equal(summary.total, 2);
+    assert.deepEqual(summary.counts, { safe: 1, risk: 1, unknown: 0, invalid: 0 });
+    assert.equal(HISTORY_TYPES[0].label, 'ลิงก์ / QR Code');
+    assert.ok(!HISTORY_TYPES.some(type => type.value === 'qr'));
+    assert.deepEqual(selectHistoryItems(entries, { types: ['link'] }).map(item => item.type), ['qr', 'link']);
+    assert.deepEqual(entries.map(item => item.type), ['qr', 'link']);
+    assert.equal(summarizeHistory([]).types[0].count, 0);
+});
+
+test('mobile History calendar, list and search use a shared full-width column', () => {
+    const css = readFileSync(new URL('../src/styles/history.css', import.meta.url), 'utf8');
+    assert.match(css, /flex-direction: column;\s*align-items: stretch;/u);
+    assert.match(css, /#history-page \.history-calendar,\s*\.history-main-content \{\s*width: 100%;\s*margin-inline: auto;/u);
+    assert.match(css, /\.history-controls \.search-box \{ flex: 1; min-width: 0;/u);
 });
 
 test('Home uses private cached history, real summary and three-slot wraparound banner', () => {
@@ -53,7 +101,8 @@ test('Home uses private cached history, real summary and three-slot wraparound b
     const loader = read('../src/hooks/useHistoryEntries.js');
     assert.doesNotMatch(home, /className="status-bar/u);
     assert.match(home, /loop=\{true\}/u);
-    assert.match(home, /slidesPerView=\{3\}/u);
+    assert.match(home, /slidesPerView=\{1\.2\}/u);
+    assert.match(home, /breakpoints=\{\{ 768: \{ slidesPerView: 3, spaceBetween: 0 \} \}\}/u);
     assert.match(home, /const loopSlides = \[\.\.\.slides, \.\.\.slides, \.\.\.slides\]/u);
     assert.match(home, /centeredSlides=\{true\}/u);
     assert.match(summary, /summarizeHistory\(entries\)/u);

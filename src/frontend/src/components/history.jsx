@@ -15,7 +15,33 @@ const History = () => {
   const [selectedOutcome, setSelectedOutcome] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
   const [controlPanel, setControlPanel] = useState(null);
+  const toolbar = useRef(null);
+  const optionsPanel = useRef(null);
   const detailController = useRef(null);
+
+  const closePanel = () => {
+    toolbar.current?.querySelector(`[aria-controls="history-${controlPanel}-panel"]`)?.focus({ preventScroll: true });
+    setControlPanel(null);
+  };
+
+  useEffect(() => {
+    if (!controlPanel) return;
+    optionsPanel.current?.querySelector('input, select')?.focus({ preventScroll: true });
+    const outside = event => {
+      if (!toolbar.current?.contains(event.target)) setControlPanel(null);
+    };
+    const escape = event => {
+      if (event.key !== 'Escape') return;
+      toolbar.current?.querySelector(`[aria-controls="history-${controlPanel}-panel"]`)?.focus({ preventScroll: true });
+      setControlPanel(null);
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [controlPanel]);
 
   useEffect(() => {
     return () => {
@@ -150,6 +176,7 @@ const History = () => {
           {/* History Content */}
           <div className="history-main-content">
 
+        <div className="history-toolbar" ref={toolbar}>
         <div className="history-controls animate-card" style={{ animationDelay: '0.05s' }}>
           <div className="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -163,14 +190,14 @@ const History = () => {
               onChange={(e) => { setSearchQuery(e.target.value); setExpanded(false); }}
             />
           </div>
-          <button className="filter-btn" aria-label="กรองประวัติ" aria-expanded={controlPanel === 'filter'} aria-controls="history-filter-panel"
+          <button className="filter-btn" aria-label="กรองประวัติ" aria-haspopup="dialog" aria-expanded={controlPanel === 'filter'} aria-controls="history-filter-panel"
             onClick={() => setControlPanel(controlPanel === 'filter' ? null : 'filter')}>
             <div className="active-dot" style={{ display: hasFilters ? 'block' : 'none' }}></div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
             </svg>
           </button>
-          <button className="sort-btn" aria-label="เรียงตามวันที่" aria-expanded={controlPanel === 'sort'} aria-controls="history-sort-panel"
+          <button className="sort-btn" aria-label="เรียงตามวันที่" aria-haspopup="dialog" aria-expanded={controlPanel === 'sort'} aria-controls="history-sort-panel"
             onClick={() => setControlPanel(controlPanel === 'sort' ? null : 'sort')}>
             <div className="active-dot" style={{ display: sortOrder === 'oldest' ? 'block' : 'none' }}></div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -183,7 +210,11 @@ const History = () => {
           </button>
         </div>
 
-        {controlPanel === 'filter' && <div id="history-filter-panel" className="history-options-panel">
+        {controlPanel === 'filter' && <div id="history-filter-panel" className="history-options-panel" ref={optionsPanel}
+          role="dialog" aria-label="กรองประวัติ">
+          <div className="history-options-header"><strong>กรองประวัติ</strong>
+            <button type="button" aria-label="ปิดตัวกรอง" onClick={closePanel}>×</button>
+          </div>
           <fieldset>
             <legend>ประเภทการตรวจสอบ (ไม่เลือก = ทุกประเภท)</legend>
             <div className="history-type-options">
@@ -209,7 +240,11 @@ const History = () => {
             setSelectedTypes([]); setSelectedOutcome('all'); setSelectedDate(null); setSearchQuery(''); setExpanded(false);
           }}>ล้างตัวกรองทั้งหมด</button>
         </div>}
-        {controlPanel === 'sort' && <div id="history-sort-panel" className="history-options-panel">
+        {controlPanel === 'sort' && <div id="history-sort-panel" className="history-options-panel" ref={optionsPanel}
+          role="dialog" aria-label="เรียงตามวันที่">
+          <div className="history-options-header"><strong>เรียงตามวันที่</strong>
+            <button type="button" aria-label="ปิดการเรียงตามวันที่" onClick={closePanel}>×</button>
+          </div>
           <label className="history-option-label">เรียงตามวันที่
             <select value={sortOrder} onChange={event => { setSortOrder(event.target.value); setExpanded(false); }}>
               <option value="newest">ใหม่ที่สุดก่อน</option>
@@ -217,6 +252,7 @@ const History = () => {
             </select>
           </label>
         </div>}
+        </div>
         {!loading && !loadError && <p className="history-result-count">
           {filteredItems.length} รายการ{hasFilters || searchQuery ? 'ที่ตรงกับตัวกรอง' : ''} · จากประวัติล่าสุดสูงสุด 50 รายการ · {sortOrder === 'newest' ? 'ใหม่ที่สุดก่อน' : 'เก่าที่สุดก่อน'}
         </p>}

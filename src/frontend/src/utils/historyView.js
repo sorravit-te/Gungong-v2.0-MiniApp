@@ -1,8 +1,7 @@
 import { getHistoryResultPresentation } from './fraudResultPresentation.js';
 
 export const HISTORY_TYPES = [
-    { value: 'link', label: 'ลิงก์', color: '#86EFAC' },
-    { value: 'qr', label: 'QR Code', color: '#93C5FD' },
+    { value: 'link', label: 'ลิงก์ / QR Code', color: '#86EFAC' },
     { value: 'text', label: 'ข้อความ', color: '#D8B4FE' },
     { value: 'bank', label: 'บัญชีธนาคาร', color: '#FDBA74' },
     { value: 'phone', label: 'เบอร์โทร', color: '#FCA5A5' },
@@ -23,6 +22,8 @@ export function getHistoryOutcome(item) {
 }
 
 export function getHistoryType(item) {
+    // Group only the view/filter key; preserve the record's original scan type.
+    if (item.type === 'qr') return 'link';
     return ['message', 'sms'].includes(item.type) ? 'text' : item.type;
 }
 

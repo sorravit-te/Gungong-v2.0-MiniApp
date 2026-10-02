@@ -30,7 +30,9 @@ const Home = ({ onNavigate }) => {
             effect="coverflow"
             grabCursor={true}
             centeredSlides={true}
-            slidesPerView={3}
+            slidesPerView={1.2}
+            spaceBetween={-10}
+            breakpoints={{ 768: { slidesPerView: 3, spaceBetween: 0 } }}
             initialSlide={3}
             loop={true}
             onSwiper={swiper => { swiperRef.current = swiper; }}

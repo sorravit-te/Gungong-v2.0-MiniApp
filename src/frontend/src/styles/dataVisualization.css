@@ -112,10 +112,9 @@
 
 .summary-total { margin: 0 0 8px; color: #6d6d6d; font-weight: 600; }
 .summary-outcomes { display: flex; flex-wrap: wrap; gap: 8px 16px; color: #6d6d6d; font-size: 12px; margin-bottom: 12px; }
-.summary-load-message { text-align: center; color: #6d6d6d; padding: 16px 0; }
+.summary-load-message { text-align: center; color: #aaa; padding: 16px 0; }
 html.dark-mode .summary-total,
-html.dark-mode .summary-outcomes,
-html.dark-mode .summary-load-message { color: #E2E8F0; }
+html.dark-mode .summary-outcomes { color: #E2E8F0; }
 
 .stat-item-inline {
   display: flex;
