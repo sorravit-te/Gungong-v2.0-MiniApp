@@ -1,8 +1,8 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const TopBanner = ({ userProfile, onShare, isDarkMode, onToggleDarkMode }) => {
-  const { user, signInWithGoogle, signOut, isAuthenticated, loading } = useAuth();
+const TopBanner = ({ userProfile, isDarkMode, onToggleDarkMode }) => {
+  const { user } = useAuth();
   const handleLineOAClick = (e) => {
     e.preventDefault();
     if (window.Swal) {
@@ -33,7 +33,7 @@ const TopBanner = ({ userProfile, onShare, isDarkMode, onToggleDarkMode }) => {
 
       <div className="user-info">
         <div className="avatar-container">
-          {/* ใช้รูปจาก Firebase (Google) ก่อน, ถ้าไม่มีใช้จาก LIFF, ถ้าไม่มีใช้ SVG */}
+          {/* LINE profile with an anonymous avatar fallback. */}
           {(user?.photoURL || userProfile?.pictureUrl) ? (
             <img
               className="avatar"
@@ -49,10 +49,9 @@ const TopBanner = ({ userProfile, onShare, isDarkMode, onToggleDarkMode }) => {
           )}
         </div>
         <div className="text-group">
-          {/* ใช้ชื่อจาก Firebase ก่อน, ถ้าไม่มีใช้จาก LIFF */}
           <div className="user-name">{user?.displayName || userProfile?.displayName || '(Username)'}</div>
           <div className="username-id">
-            {user?.email ? user.email : `User ID: ${userProfile?.userId?.slice(0, 10) || '...'}`}
+            {`User ID: ${userProfile?.userId?.slice(0, 10) || '...'}`}
           </div>
         </div>
       </div>
@@ -80,14 +79,6 @@ const TopBanner = ({ userProfile, onShare, isDarkMode, onToggleDarkMode }) => {
             <div className="toggle-thumb"></div>
           </div>
         </div>
-
-        <button className="action-btn" onClick={onShare}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-            <polyline points="16 6 12 2 8 6"></polyline>
-            <line x1="12" y1="2" x2="12" y2="15"></line>
-          </svg>
-        </button>
 
         <a href="#" onClick={handleLineOAClick} className="action-btn line-oa-header-btn">
           <img src="/img/logo.png" alt="LINE" />

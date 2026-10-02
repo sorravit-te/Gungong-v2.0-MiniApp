@@ -11,41 +11,62 @@ from uuid import uuid4
 import httpx
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
-from google.api_core.exceptions import AlreadyExists
+from google.api_core.exceptions import AlreadyExists, FailedPrecondition
+from google.cloud import firestore
 from PIL import Image
 
 from src.backend.routers import community, history, fraud, blacklist
 from src.backend.services import user_identity_service as identity
 
 
+class Snapshot:
+    def __init__(self, reference):
+        self.reference, self.id = reference, reference.id
+        self.exists = reference.exists
+        self.update_time = reference._collection.versions.get(reference.id, 0)
+        self.data = reference.to_dict()
+
+    def to_dict(self):
+        return copy.deepcopy(self.data)
+
+
 class Document:
     def __init__(self, collection, key):
-        self.collection, self.id = collection, key
+        self._collection, self.id = collection, key
+        self.path = collection.path + '/' + key
 
     @property
     def exists(self):
-        return self.id in self.collection.records
+        return self.id in self._collection.records
 
     def get(self, **kwargs):
-        return self
+        return Snapshot(self)
 
     def to_dict(self):
-        return copy.deepcopy(self.collection.records.get(self.id, {}))
+        return copy.deepcopy(self._collection.records.get(self.id, {}))
+
+    def collection(self, name):
+        return self._collection.children.setdefault((self.id, name), Collection(self.path + '/' + name))
 
     def create(self, data, **kwargs):
         if self.exists:
             raise AlreadyExists('test duplicate')
-        self.collection.records[self.id] = copy.deepcopy(data)
+        self._collection.records[self.id] = copy.deepcopy(data)
+        self._collection.versions[self.id] = self._collection.versions.get(self.id, 0) + 1
 
 
 class Collection:
-    def __init__(self):
+    def __init__(self, path='test'):
         self.records, self.filters, self.cursor, self.size = {}, [], None, 100
+        self.path, self.versions, self.children = path, {}, {}
+        self.reverse = True
 
     def document(self, key):
         return Document(self, key)
 
     def order_by(self, *args, **kwargs):
+        self.reverse = kwargs.get('direction') == firestore.Query.DESCENDING
+        self.cursor, self.size = None, 100
         return self
 
     def where(self, *, filter):
@@ -67,21 +88,82 @@ class Collection:
         return self
 
     def stream(self, **kwargs):
-        rows = sorted(self.records, key=lambda key: (self.records[key]['created_at'], key), reverse=True)
+        rows = sorted((key for key in self.records if 'created_at' in self.records[key]),
+                      key=lambda key: (self.records[key]['created_at'], key), reverse=self.reverse)
         if self.cursor:
             rows = rows[rows.index(self.cursor) + 1:]
-        return [self.document(key) for key in rows
+        return [self.document(key).get() for key in rows
                 if all(self.records[key].get(field) == value for field, value in self.filters)][:self.size]
 
     def count(self):
         return SimpleNamespace(get=lambda **kw: [[SimpleNamespace(value=len(self.stream()))]])
 
 
+class FakeBatch:
+    def __init__(self, db):
+        self.db, self.writes = db, []
+
+    def set(self, ref, data):
+        self.writes.append(('set', ref, data, None))
+
+    def create(self, ref, data):
+        self.writes.append(('create', ref, data, None))
+
+    def delete(self, ref):
+        self.writes.append(('delete', ref, None, None))
+
+    def update(self, ref, data, option=None):
+        self.writes.append(('update', ref, data, option))
+
+    def commit(self, **kwargs):
+        self.db.commits += 1
+        if self.db.conflict:
+            callback, self.db.conflict = self.db.conflict, None
+            callback()
+            raise FailedPrecondition('simulated concurrent write')
+        # Validate every precondition BEFORE changing any document.
+        for kind, ref, data, option in self.writes:
+            if option and ref._collection.versions.get(ref.id, 0) != option.last_update_time:
+                raise FailedPrecondition('stale snapshot')
+            if kind == 'create' and ref.exists:
+                raise AlreadyExists('existing child')
+        for kind, ref, data, option in self.writes:
+            if kind == 'delete':
+                ref._collection.records.pop(ref.id, None)
+            elif kind == 'update':
+                target = ref._collection.records[ref.id]
+                for key, value in data.items():
+                    if value is firestore.DELETE_FIELD:
+                        target.pop(key, None)
+                    else:
+                        target[key] = copy.deepcopy(value)
+            else:
+                ref._collection.records[ref.id] = copy.deepcopy(data)
+            ref._collection.versions[ref.id] = ref._collection.versions.get(ref.id, 0) + 1
+
+
+class FakeDb:
+    def __init__(self, posts, history):
+        self.posts, self.history = posts, history
+        self.commits, self.conflict = 0, None
+
+    def collection(self, name):
+        return self.posts if name == community.COLLECTION else self.history
+
+    def batch(self):
+        return FakeBatch(self)
+
+    def write_option(self, **kwargs):
+        return SimpleNamespace(**kwargs)
+
+    def get_all(self, refs, **kwargs):
+        return [ref.get() for ref in refs]
+
+
 class CommunityHistoryTests(unittest.TestCase):
     def setUp(self):
-        self.posts, self.history = Collection(), Collection()
-        self.service = SimpleNamespace(db=SimpleNamespace(collection=lambda name:
-            self.posts if name == community.COLLECTION else self.history))
+        self.posts, self.history = Collection(community.COLLECTION), Collection('fraud_check_history')
+        self.service = SimpleNamespace(db=FakeDb(self.posts, self.history))
         self.app = FastAPI()
         self.app.state.limiter = community.limiter
         self.app.include_router(community.router)
@@ -226,6 +308,97 @@ class CommunityHistoryTests(unittest.TestCase):
         with Image.open(BytesIO(response.content)) as image:
             self.assertFalse(image.getexif())
 
+    def action(self, method, key, suffix='', user='A', body=None):
+        return self.client.request(method, '/community/posts/' + key + suffix,
+            headers={'X-Test-User': user}, **({'json': body} if body is not None else {}))
+
+    def test_likes_are_member_scoped_idempotent_and_real_counts(self):
+        key = self.post().json()['id']
+        for member, expected in [('A', 1), ('A', 1), ('B', 2)]:
+            result = self.action('PUT', key, '/like', member, {'liked': True})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json()['like_count'], expected)
+        for _ in range(2):
+            result = self.action('PUT', key, '/like', 'A', {'liked': False})
+            self.assertEqual(result.json()['like_count'], 1)
+        self.assertEqual(self.action('PUT', key, '/like', '', {'liked': True}).status_code, 401)
+        self.assertEqual(self.action('PUT', key, '/like', 'A', {'liked': 'true'}).status_code, 422)
+
+    def test_viewer_state_private_permissions_without_exposing_ids(self):
+        key = self.post().json()['id']
+        self.action('PUT', key, '/like', 'B', {'liked': True})
+        for member, edit, liked in [('A', True, False), ('B', False, True)]:
+            result = self.client.post('/community/posts/viewer-state',
+                headers={'X-Test-User': member}, json={'post_ids': [key]})
+            self.assertEqual(result.json(), {'states': {key: {'can_edit': edit, 'liked': liked}}})
+            self.assertNotIn('author_id', result.text)
+        self.assertEqual(self.client.post('/community/posts/viewer-state', json={'post_ids': [key]}).status_code, 401)
+
+    def test_comment_retry_only_increments_once_and_no_author_spoofing(self):
+        key, request_id = self.post().json()['id'], str(uuid4())
+        body = {'content': 'A comment', 'request_id': request_id}
+        first = self.action('POST', key, '/comments', 'B', body)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json(), self.action('POST', key, '/comments', 'B', body).json())
+        self.assertEqual(first.json()['comment_count'], 1)
+        self.assertEqual(self.action('POST', key, '/comments', 'B', {**body, 'content': 'changed'}).status_code, 409)
+        self.assertEqual(self.action('POST', key, '/comments', 'B', {**body, 'author_id': 'A'}).status_code, 422)
+        listed = self.action('GET', key, '/comments').json()['comments']
+        self.assertEqual(len(listed), 1)
+        self.assertNotIn('author_id', listed[0])
+
+    def test_only_owner_edits_image_text_and_deletes_no_resurrection(self):
+        draft_id = str(uuid4())
+        key = self.post(request_id=draft_id, image=self.image()).json()['id']
+        body = {'content': 'Edited', 'expected_revision': 0, 'image': self.image('red')}
+        self.assertEqual(self.action('PATCH', key, user='B', body=body).status_code, 403)
+        edited = self.action('PATCH', key, body=body)
+        self.assertEqual(edited.status_code, 200)
+        self.assertEqual(edited.json()['revision'], 1)
+        self.assertEqual(self.action('PATCH', key, body=body).status_code, 409)
+        removed = self.action('PATCH', key, body={'content': 'Text only', 'expected_revision': 1, 'remove_image': True})
+        self.assertFalse(removed.json()['has_image'])
+        self.assertEqual(self.action('GET', key, '/image').status_code, 404)
+        self.assertEqual(self.action('DELETE', key, user='B').status_code, 403)
+        self.assertEqual(self.action('DELETE', key).status_code, 200)
+        self.assertEqual(self.client.get('/community/posts').json()['posts'], [])
+        for suffix in ['', '/image', '/comments']:
+            self.assertEqual(self.action('GET', key, suffix).status_code, 404)
+        self.assertEqual(self.action('PUT', key, '/like', body={'liked': True}).status_code, 404)
+        self.assertEqual(self.post(request_id=draft_id, image=self.image()).status_code, 409)
+
+    def test_reports_private_pending_not_auto_hiding_post(self):
+        key = self.post().json()['id']
+        for _ in range(2):
+            result = self.action('PUT', key, '/report', 'B', {'reason': 'scam', 'details': 'Check please'})
+            self.assertEqual(result.json(), {'reported': True, 'status': 'pending'})
+        self.assertEqual(len(self.posts.document(key).collection('reports').records), 1)
+        feed = self.client.get('/community/posts').json()['posts']
+        self.assertEqual(len(feed), 1)
+        self.assertNotIn('reporter_id', str(feed))
+        self.assertNotIn('Check please', str(feed))
+
+    def test_atomic_conflict_retries_without_losing_completed_counter(self):
+        key = self.post().json()['id']
+        def concurrent():
+            self.posts.records[key]['like_count'] = 2
+            self.posts.versions[key] += 1
+        self.service.db.conflict = concurrent
+        result = self.action('PUT', key, '/like', body={'liked': True})
+        self.assertEqual(result.json()['like_count'], 3)
+        self.assertEqual(self.service.db.commits, 2)
+        self.assertEqual(len(self.posts.document(key).collection('likes').records), 1)
+
+    def test_concurrent_deletion_rejects_child_write_after_retry(self):
+        key = self.post().json()['id']
+        def concurrent():
+            self.posts.records[key]['deleted_at'] = datetime.now(timezone.utc)
+            self.posts.versions[key] += 1
+        self.service.db.conflict = concurrent
+        result = self.action('POST', key, '/comments', body={'content': 'No resurrection', 'request_id': str(uuid4())})
+        self.assertEqual(result.status_code, 404)
+        self.assertEqual(self.posts.document(key).collection('comments').records, {})
+
 
 class IdentityTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_unsupported_expired_and_wrong_channel_sessions_fail_closed(self):
@@ -266,7 +439,8 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
             user = await identity.require_user('Bearer test-token', 'firebase')
         self.assertEqual(user.user_id, 'firebase-user')
         self.assertEqual(verify.call_args.kwargs['audience'], 'test-project')
-        with patch.object(identity.id_token, 'verify_firebase_token', side_effect=ValueError('bad signature')):
+        with patch.object(identity.settings, 'firestore_project_id', 'test-project'), patch.object(
+            identity.id_token, 'verify_firebase_token', side_effect=ValueError('bad signature')):
             with self.assertRaises(HTTPException) as error:
                 await identity.require_user('Bearer test-token', 'firebase')
         self.assertEqual(error.exception.status_code, 401)

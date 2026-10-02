@@ -37,6 +37,7 @@ export const banks = [
 
 import { getUserId } from './liff.js';
 import { getSessionHeaders } from './session.js';
+import { invalidateHistoryCache } from './pageCache.js';
 
 // Fraud Check API
 export async function callFraudCheckApi(message, type, options = {}) {
@@ -66,7 +67,9 @@ export async function callFraudCheckApi(message, type, options = {}) {
 
         if (response.ok) {
             try {
-                return await response.json();
+                const result = await response.json();
+                invalidateHistoryCache();
+                return result;
             } catch {
                 throw new Error("INVALID_RESPONSE");
             }
@@ -124,7 +127,9 @@ export async function callBlacklistApi(endpoint, payload) {
         throw new Error(`Server returned ${response.status}: ${response.statusText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    invalidateHistoryCache();
+    return result;
 }
 
 // Check Link

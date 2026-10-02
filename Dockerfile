@@ -20,8 +20,10 @@ WORKDIR /app
 
 COPY requirements.txt ./
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r requirements.txt \
+    && python -m pip install --no-compile -r requirements.txt \
     && python -m playwright install --with-deps chromium \
+    && python -c "from pathlib import Path; [p.unlink() for p in Path('/usr/local/lib/python3.12').rglob('*.pyc')]" \
+    && rm -rf /var/lib/apt/lists/* \
     && chmod -R a+rX /ms-playwright
 
 COPY src/backend ./src/backend

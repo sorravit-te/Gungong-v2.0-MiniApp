@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import TopBanner from './components/shared/TopBanner';
 import BottomNav from './components/shared/BottomNav';
 import Sidebar from './components/shared/Sidebar';
+import MobileLineEntry from './components/shared/MobileLineEntry';
 import PDPAModal from './components/shared/PDPAModal';
 import Home from './components/home';
 import Verify from './components/verify';
@@ -21,12 +22,15 @@ import Social from './components/social';
 import History from './components/history';
 import IDCardScanner from './components/IDCardScanner';
 import ScanImage from './components/ScanImage';
+import { APP_SECTIONS } from './utils/lineAuth';
 
 function App() {
-  const [activeSection, setActiveSection] = useState('home');
-  const [userProfile, setUserProfile] = useState(null);
-  const [showPDPA, setShowPDPA] = useState(false);
-  const [isLiffReady, setIsLiffReady] = useState(false);
+  const [activeSection, setActiveSection] = useState(() => {
+    const section = new URLSearchParams(window.location.search).get('section');
+    return APP_SECTIONS.has(section) ? section : 'home';
+  });
+  const { user, lineProfile: userProfile } = useAuth();
+  const [showPDPA, setShowPDPA] = useState(() => localStorage.getItem('gungong_pdpa_accepted') !== 'true');
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -35,17 +39,6 @@ function App() {
     const saved = localStorage.getItem('gungong_dark_mode');
     return saved === 'true';
   });
-
-  useEffect(() => {
-    // Check PDPA consent
-    const pdpaAccepted = localStorage.getItem('gungong_pdpa_accepted');
-    if (!pdpaAccepted) {
-      setShowPDPA(true);
-    }
-
-    // Initialize LIFF if available
-    initLiff();
-  }, []);
 
   // Apply dark mode class to document
   useEffect(() => {
@@ -65,72 +58,11 @@ function App() {
     setIsSidebarCollapsed(prev => !prev);
   }, []);
 
-  const initLiff = async () => {
-    try {
-      if (window.liff) {
-        await window.liff.init({ liffId: '2008548759-KkM4Noxa' });
-        setIsLiffReady(true);
-
-        if (window.liff.isLoggedIn()) {
-          const profile = await window.liff.getProfile();
-          setUserProfile(profile);
-        }
-      }
-    } catch (error) {
-      console.log('LIFF initialization failed:', error);
-      // App still works without LIFF
-    }
-  };
-
   const handleNavigate = useCallback((section) => {
     setActiveSection(section);
     // Scroll to top when changing sections
     window.scrollTo(0, 0);
   }, []);
-
-  const handleShare = async () => {
-    if (!window.liff || !window.liff.isApiAvailable('shareTargetPicker')) {
-      window.Swal?.fire({
-        icon: 'info',
-        title: 'แชร์ Mini App',
-        text: 'ฟังก์ชันนี้ต้องใช้ LIFF SDK กรุณาเปิดผ่าน LINE App',
-        confirmButtonColor: '#3ACE00',
-      });
-      return;
-    }
-
-    try {
-      await window.liff.shareTargetPicker([
-        {
-          type: 'flex',
-          altText: 'GunGong - ปกป้องคุณจากมิจฉาชีพ',
-          contents: {
-            type: 'bubble',
-            body: {
-              type: 'box',
-              layout: 'vertical',
-              contents: [
-                {
-                  type: 'text',
-                  text: 'GunGong Mini App',
-                  weight: 'bold',
-                  size: 'lg',
-                },
-                {
-                  type: 'text',
-                  text: 'ปกป้องคุณจากมิจฉาชีพ',
-                  size: 'sm',
-                  color: '#666666',
-                },
-              ],
-            },
-          },
-        },
-      ]);
-    } catch (error) {
-      console.error('Share failed:', error);
-    }
-  };
 
   const handlePDPAAccept = () => {
     setShowPDPA(false);
@@ -160,9 +92,9 @@ function App() {
       case 'scanner':
         return <Scanner onNavigate={handleNavigate} currentSubPage={activeSection} />;
       case 'social':
-        return <Social userProfile={userProfile} />;
+        return <Social key={user?.uid || 'anonymous'} userProfile={userProfile} />;
       case 'history':
-        return <History />;
+        return <History key={user?.uid || 'anonymous'} />;
       default:
         return <Home />;
     }
@@ -170,6 +102,7 @@ function App() {
 
   return (
     <div className={`app ${isDarkMode ? 'dark-mode' : ''}`}>
+      <MobileLineEntry />
       <PDPAModal isOpen={showPDPA} onAccept={handlePDPAAccept} />
 
       {/* Sidebar for Desktop/Tablet */}
@@ -184,7 +117,6 @@ function App() {
       <div className={`app-container ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} has-sidebar`}>
         <TopBanner
           userProfile={userProfile}
-          onShare={handleShare}
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkMode}
         />

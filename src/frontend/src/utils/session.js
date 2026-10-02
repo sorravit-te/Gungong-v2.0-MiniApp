@@ -6,14 +6,6 @@ async function resolveSessionHeaders({ required = true } = {}) {
         const token = liff.getAccessToken();
         if (token) return { Authorization: `Bearer ${token}`, 'X-Auth-Provider': 'line' };
     }
-    if (typeof navigator !== 'undefined' && typeof document !== 'undefined') {
-        const { auth } = await import('./firebase.js');
-        await auth.authStateReady();
-        if (auth.currentUser) return {
-            Authorization: `Bearer ${await auth.currentUser.getIdToken()}`,
-            'X-Auth-Provider': 'firebase',
-        };
-    }
     if (required) throw new Error('LOGIN_REQUIRED');
     return {};
 }

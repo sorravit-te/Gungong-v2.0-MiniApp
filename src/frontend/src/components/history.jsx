@@ -3,6 +3,8 @@ import { loadHistory, getHistoryById, formatTime, getTypeName } from '../utils/s
 import HistoryCalendar from './shared/HistoryCalendar';
 import { getHistoryResultPresentation } from '../utils/fraudResultPresentation';
 import { createHistoryDetailController } from '../utils/historyDetail';
+import { useAuth } from '../contexts/AuthContext';
+import { historyCache } from '../utils/pageCache';
 
 const parseHistoryDate = (dateString) => {
   if (!dateString) return null;
@@ -12,59 +14,71 @@ const parseHistoryDate = (dateString) => {
 };
 
 const History = () => {
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.uid;
   const [searchQuery, setSearchQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
-  const [historyData, setHistoryData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [historyData, setHistoryData] = useState(() => userId ? historyCache.peek(userId) || [] : []);
+  const [loading, setLoading] = useState(() => !userId || historyCache.peek(userId) === undefined);
   const [loadError, setLoadError] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
   const detailController = useRef(null);
+  const loaded = useRef(!!userId && historyCache.peek(userId) !== undefined);
 
   useEffect(() => {
+    if (authLoading) return;
     let isMounted = true;
     let fetching = false;
+    let refreshAgain = false;
 
     const fetchHistory = async () => {
       if (fetching || document.hidden) return;
       fetching = true;
-      setLoading(true);
+      if (!loaded.current) setLoading(true);
       setLoadError('');
 
       try {
-        const entries = await loadHistory();
+        if (!userId) throw new Error('LOGIN_REQUIRED');
+        const entries = await historyCache.read(userId, loadHistory);
         if (isMounted) {
+          loaded.current = true;
           setHistoryData(Array.isArray(entries) ? entries : []);
         }
       } catch (error) {
+        if (error.message === 'CACHE_INVALIDATED') { refreshAgain = true; return; }
         console.error('Failed to load history:', error);
         if (isMounted) {
-          setHistoryData([]);
+          if (error.message === 'LOGIN_REQUIRED') { loaded.current = false; setHistoryData([]); }
           setLoadError(error.message === 'LOGIN_REQUIRED'
-            ? 'กรุณาเข้าสู่ระบบ LINE หรือ Google เพื่อดูประวัติของคุณ'
+            ? 'กรุณาเข้าสู่ระบบ LINE เพื่อดูประวัติของคุณ'
             : 'ไม่สามารถโหลดประวัติการตรวจสอบได้ กรุณาลองใหม่อีกครั้ง');
         }
       } finally {
         fetching = false;
         if (isMounted) {
           setLoading(false);
+          if (refreshAgain) { refreshAgain = false; void fetchHistory(); }
         }
       }
     };
 
     fetchHistory();
-    const refreshTimer = setInterval(fetchHistory, 30000);
+    const changed = () => { if (fetching) refreshAgain = true; else void fetchHistory(); };
+    const refreshTimer = setInterval(() => { historyCache.invalidate(userId); changed(); }, 30000);
     window.addEventListener('focus', fetchHistory);
+    window.addEventListener('gungong:history-changed', changed);
     document.addEventListener('visibilitychange', fetchHistory);
 
     return () => {
       isMounted = false;
       clearInterval(refreshTimer);
       window.removeEventListener('focus', fetchHistory);
+      window.removeEventListener('gungong:history-changed', changed);
       document.removeEventListener('visibilitychange', fetchHistory);
       detailController.current?.dispose();
       detailController.current = null;
     };
-  }, []);
+  }, [userId, authLoading]);
 
   const getTypeIcon = (type) => {
     switch (type) {
@@ -251,16 +265,15 @@ const History = () => {
         </div>
 
         <div className="history-list">
+          {loadError && <div role="alert" className="history-load-message" style={{ textAlign: 'center', padding: '20px' }}>
+            {loadError}
+          </div>}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#aaa' }}>
+            <div role="status" className="page-loading">
               กำลังโหลดข้อมูล...
             </div>
-          ) : loadError ? (
-            <div className="history-load-message" style={{ textAlign: 'center', padding: '20px' }}>
-              {loadError}
-            </div>
           ) : displayedItems.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
+            !loadError && <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
               ไม่พบประวัติการตรวจสอบ
             </div>
           ) : (
