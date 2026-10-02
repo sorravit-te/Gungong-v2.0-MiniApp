@@ -109,6 +109,7 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entry["message"], url)
         self.assertEqual(entry["url_check_result"]["verification_verdict"], "NO_THREAT_FOUND")
         self.assertIn("policy_version", self.db.saved_results[0]["url_check_result"])
+        self.line.show_loading_animation.assert_awaited_once_with("TEST_ONLY", loading_seconds=30)
 
     async def test_trusted_benign_skips_both_providers(self):
         result, gemini, vt, _ = await self.run_candidate("https://www.youtube.com/")
@@ -170,6 +171,7 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
             await self.send("https://example.com/", source={"type": "group", "groupId": "TEST_GROUP"})
         check.assert_not_awaited()
         self.line.reply_message.assert_not_called()
+        self.line.show_loading_animation.assert_not_awaited()
 
     async def test_signed_http_url_event_reaches_shared_route(self):
         app = FastAPI()
@@ -201,6 +203,7 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(check.await_args.args[0].user_id, "TEST_GROUP")
         self.assertEqual(check.await_args.args[0].message_type, "link")
         self.line.reply_message.assert_called_once()
+        self.line.show_loading_animation.assert_not_awaited()
 
     async def test_old_message_cache_cannot_override_new_url_verdict(self):
         self.db.cached = {"category": "SCAM_MALICIOUS", "is_fraud": True,
@@ -234,6 +237,7 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         prescreen.check_message.assert_called_once_with("สวัสดีครับ", allow_network=False)
         detector.classify_with_details_async.assert_awaited_once_with("สวัสดีครับ")
         self.line.create_url_verification_flex_message.assert_not_called()
+        self.line.show_loading_animation.assert_awaited_once_with("TEST_ONLY", loading_seconds=30)
 
     async def test_text_cache_hit_persists_private_history_before_reply_without_click(self):
         db = Mock()

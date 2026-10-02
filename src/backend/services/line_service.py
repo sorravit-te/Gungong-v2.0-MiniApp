@@ -1,5 +1,8 @@
 """LINE Bot service for sending messages and handling webhooks."""
 
+import asyncio
+import re
+import httpx
 from linebot.v3 import WebhookHandler
 from linebot.v3.messaging import (
     Configuration,
@@ -18,6 +21,11 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from typing import Optional
 from ..core.config import settings
+from ..core.logger import get_logger
+
+
+logger = get_logger(__name__)
+LINE_LOADING_REQUEST_TIMEOUT_SECONDS = 2.0
 
 
 class LineService:
@@ -46,6 +54,32 @@ class LineService:
         # Initialize LINE Bot SDK
         self.configuration = Configuration(access_token=self.channel_access_token)
         self.handler = WebhookHandler(self.channel_secret)
+
+    async def show_loading_animation(self, user_id: str, loading_seconds: int = 30) -> bool:
+        """Best-effort native chat loading; never send or consume a reply message."""
+        if not isinstance(user_id, str) or not re.fullmatch(r"U[0-9a-f]{32}", user_id):
+            return False
+        if type(loading_seconds) is not int or loading_seconds not in range(5, 61, 5):
+            return False
+        try:
+            # Bound the entire request, not just each network phase. No retries or redirects.
+            async with asyncio.timeout(LINE_LOADING_REQUEST_TIMEOUT_SECONDS):
+                async with httpx.AsyncClient(
+                    timeout=LINE_LOADING_REQUEST_TIMEOUT_SECONDS,
+                    follow_redirects=False, trust_env=False,
+                ) as client:
+                    response = await client.post(
+                        "https://api.line.me/v2/bot/chat/loading/start",
+                        headers={"Authorization": f"Bearer {self.channel_access_token}"},
+                        json={"chatId": user_id, "loadingSeconds": loading_seconds},
+                    )
+            if response.status_code == 202:
+                return True
+            logger.warning("line_loading_unavailable status=%s", response.status_code)
+        except Exception as error:
+            # Do not log request headers, token, user ID or provider response body.
+            logger.warning("line_loading_unavailable error_type=%s", type(error).__name__)
+        return False
 
     def reply_message(
         self,

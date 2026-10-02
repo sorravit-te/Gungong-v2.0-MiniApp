@@ -61,6 +61,16 @@ def _is_url_only(message: str) -> bool:
         return False
 
 
+async def _show_personal_chat_loading(source: dict) -> None:
+    """Optional UI hint only; unavailable loading must not stop verification."""
+    if source.get("type") != "user" or not source.get("userId"):
+        return
+    try:
+        await get_line_service().show_loading_animation(source["userId"], loading_seconds=30)
+    except Exception as error:
+        logger.warning("webhook_loading_skipped error_type=%s", type(error).__name__)
+
+
 @router.get("/webhook")
 async def webhook_info():
     """
@@ -170,6 +180,7 @@ async def webhook(
                 continue
 
             try:
+                await _show_personal_chat_loading(source)
                 # Use precisely the Mini App's versioned URL/cache/history path.
                 # Do this before legacy message pre-screening or message-cache lookup.
                 if _is_url_only(message_text):
