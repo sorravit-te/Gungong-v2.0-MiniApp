@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import LineLoginButton from './LineLoginButton';
 import { SCANNER_ROUTE_IDS } from '../../utils/scannerNavigation';
 import '../../styles/sidebar.css';
+import { PRIMARY_NAV_ITEMS } from '../../utils/appNavigation';
+import NavigationIcon from './NavigationIcon';
 
 const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
   const { user, isAuthenticated, signOut, canSignOut } = useAuth();
@@ -88,73 +90,8 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
   const isActive = item => currentPage === item.id ||
     (item.id === 'scanner' && SCANNER_ROUTE_IDS.includes(currentPage));
 
-  // Menu groups following Modern SaaS pattern
   const menuGroups = [
-    {
-      title: 'Main',
-      items: [
-        {
-          id: 'home',
-          label: 'Home',
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-              <polyline points="9 22 9 12 15 12 15 22"></polyline>
-            </svg>
-          ),
-        },
-        {
-          id: 'verify',
-          label: 'Verify',
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="8" r="7"></circle>
-              <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
-            </svg>
-          ),
-        },
-        {
-          id: 'social',
-          label: 'Community',
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-            </svg>
-          ),
-        },
-      ],
-    },
-    {
-      title: 'Tools',
-      items: [
-        {
-          id: 'scanner',
-          label: 'Scanner',
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-            </svg>
-          ),
-        },
-      ],
-    },
-    {
-      title: 'Management',
-      items: [
-        {
-          id: 'history',
-          label: 'History',
-          icon: (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-            </svg>
-          ),
-        },
-      ],
-    },
+    { title: 'Primary', items: PRIMARY_NAV_ITEMS },
   ];
 
   return (
@@ -190,13 +127,15 @@ const Sidebar = ({ isCollapsed, onToggle, currentPage, onNavigate }) => {
               {group.items.map((item) => (
                 <div key={item.id} className="sidebar-item-wrapper">
                   <button
+                    type="button"
                     className={`sidebar-item ${isActive(item) ? 'active' : ''}`}
                     onClick={() => onNavigate(item.id)}
                     title={isCollapsed ? item.label : ''}
                     aria-label={item.label}
+                    aria-current={isActive(item) ? 'page' : undefined}
                   >
                     {isActive(item) && <div className="active-indicator"></div>}
-                    <div className="item-icon">{item.icon}</div>
+                    <div className="item-icon"><NavigationIcon id={item.id} /></div>
                     <span className="item-label" aria-hidden={isCollapsed}>{item.label}</span>
                   </button>
                 </div>

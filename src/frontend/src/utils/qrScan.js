@@ -19,7 +19,9 @@ export function normalizeScannedUrl(value) {
 
   try {
     const url = new URL(candidate);
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) {
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname ||
+        url.username || url.password || candidate.length > 2048 || /\s/u.test(candidate) ||
+        !/^https?:\/\//iu.test(candidate)) {
       throw new QrScanInputError(QR_SCAN_ERROR_CODES.INVALID_URL);
     }
   } catch (error) {
@@ -30,8 +32,20 @@ export function normalizeScannedUrl(value) {
   return candidate;
 }
 
-export async function readQrUrl(scan) {
-  return normalizeScannedUrl(await scan());
+export async function readQrUrl(scan, { signal, timeoutMs = 60000 } = {}) {
+  if (signal?.aborted) throw new QrScanInputError('QR_SCAN_CANCELLED');
+  let timer, cancel;
+  try {
+    const cancelled = new Promise((_, reject) => {
+      cancel = () => reject(new QrScanInputError('QR_SCAN_CANCELLED'));
+      signal?.addEventListener('abort', cancel, { once: true });
+      timer = setTimeout(() => reject(new QrScanInputError('QR_SCAN_TIMEOUT')), timeoutMs);
+    });
+    return normalizeScannedUrl(await Promise.race([Promise.resolve().then(scan), cancelled]));
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  }
 }
 
 export function isQrScanCancelled(error) {
@@ -40,6 +54,18 @@ export function isQrScanCancelled(error) {
 }
 
 export function getQrScanError(error) {
+  const imageErrors = {
+    QR_IMAGE_TYPE: ['เลือกรูป JPG, PNG หรือ WebP', 'ไฟล์รูปแบบนี้ยังไม่รองรับ กรุณาเลือกรูปอื่น'],
+    QR_IMAGE_SIZE: ['รูปมีขนาดไม่เหมาะสม', 'กรุณาเลือกรูปที่มีขนาดไม่เกิน 10 MB'],
+    QR_IMAGE_INVALID: ['อ่านภาพนี้ไม่ได้', 'กรุณาเลือกรูป JPG, PNG หรือ WebP ที่เปิดดูได้ตามปกติ'],
+    QR_IMAGE_NOT_FOUND: ['ไม่สามารถอ่าน QR Code จากภาพได้', 'ไม่พบ QR Code หรือภาพไม่ชัดเจน กรุณาเลือกรูปอื่น'],
+    QR_IMAGE_TIMEOUT: ['อ่าน QR Code จากภาพนานเกินไป', 'กรุณาเลือกรูปที่เล็กลงหรือชัดเจนขึ้น แล้วลองอีกครั้ง'],
+    QR_SCAN_TIMEOUT: ['สแกน QR Code นานเกินไป', 'กรุณาลองสแกนอีกครั้ง หรือแนบภาพ QR Code'],
+  };
+  if (imageErrors[error?.code]) {
+    const [title, message] = imageErrors[error.code];
+    return { icon: 'warning', title, message };
+  }
   if (error instanceof QrScanInputError) {
     return error.code === QR_SCAN_ERROR_CODES.EMPTY
       ? {

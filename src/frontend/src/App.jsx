@@ -16,11 +16,12 @@ import Sidebar from './components/shared/Sidebar';
 import MobileLineEntry from './components/shared/MobileLineEntry';
 import PDPAModal from './components/shared/PDPAModal';
 import Home from './components/home';
-import Verify from './components/verify';
+// Verify components remain in source, but are not registered as active pages.
+import Report from './components/report';
+import './styles/report.css';
 import Scanner from './components/scanner';
 import Social from './components/social';
 import History from './components/history';
-import IDCardScanner from './components/IDCardScanner';
 import ScanImage from './components/ScanImage';
 import { APP_SECTIONS } from './utils/lineAuth';
 
@@ -59,7 +60,7 @@ function App() {
   }, []);
 
   const handleNavigate = useCallback((section) => {
-    setActiveSection(section);
+    setActiveSection(APP_SECTIONS.has(section) ? section : 'home');
     // Scroll to top when changing sections
     window.scrollTo(0, 0);
   }, []);
@@ -69,26 +70,20 @@ function App() {
   };
 
   const renderPage = () => {
-    // Handle ID card scanner route
-    if (activeSection === 'id-card-scanner') {
-      return <IDCardScanner onNavigate={handleNavigate} />;
-    }
-
     // Handle scan image mode selection route
     if (activeSection === 'scan-image') {
       return <ScanImage onNavigate={handleNavigate} />;
     }
 
     // Get the main section from activeSection
-    const mainSection = activeSection.startsWith('verify-') ? 'verify' :
-                        activeSection.startsWith('check-') || activeSection === 'scan-qr' ? 'scanner' :
+    const mainSection = activeSection.startsWith('check-') || activeSection === 'scan-qr' ? 'scanner' :
                         activeSection;
 
     switch (mainSection) {
       case 'home':
         return <Home key={user?.uid || 'anonymous'} onNavigate={handleNavigate} />;
-      case 'verify':
-        return <Verify userProfile={userProfile} onNavigate={handleNavigate} currentSubPage={activeSection} />;
+      case 'report':
+        return <Report key={user?.uid || 'anonymous'} />;
       case 'scanner':
         return <Scanner onNavigate={handleNavigate} currentSubPage={activeSection} />;
       case 'social':

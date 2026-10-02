@@ -283,6 +283,15 @@ html.dark-mode .avatar-svg {
   font-size: 14px !important;
   color: #666 !important;}
 
+/* Keep LINE OA colors scoped so other scan-result dialogs stay unchanged. */
+.line-oa-popup .swal2-title,
+.line-oa-popup .swal2-html-container {
+  color: #6d6d6d !important;
+}
+
+.line-oa-popup .swal2-image { object-fit: contain; }
+.line-oa-popup .swal2-cancel { color: #6d6d6d !important; }
+
 .swal2-actions {
   display: flex !important;
   justify-content: center !important;

@@ -17,7 +17,7 @@ from .core.config import settings
 from .services.blacklist_service import get_blacklist_service
 
 # Import routers (v1.0)
-from .routers import health, blacklist, history, fraud, webhook, community
+from .routers import health, blacklist, history, fraud, webhook, community, reports
 
 # Import v2.0 routers
 from .routers import conversation, fraud_v2, verification
@@ -81,6 +81,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(blacklist.router, tags=["blacklist"])
 app.include_router(history.router, tags=["history"])
 app.include_router(community.router, tags=["community"])
+app.include_router(reports.router, tags=["reports"])
 app.include_router(fraud.router, tags=["fraud"])
 app.include_router(webhook.router, tags=["webhook"])
 

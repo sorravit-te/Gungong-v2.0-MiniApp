@@ -224,10 +224,11 @@ const Social = () => {
   return (
     <section id="social-page"><div className="section-content">
       {!selected && <div className="scanner-header"><h2>Community</h2></div>}
-      {!selected && <button className="community-compose-trigger" type="button" aria-haspopup="dialog"
+      {!selected && <button className="community-compose-trigger" type="button" aria-haspopup="dialog" aria-label="สร้างโพสต์"
         onClick={() => { setEditing(null); setRemoveImage(false); setContent(''); setAttachment(null); pending.current = null;
           setComposerError(''); setComposerOpen(true); }}>
-        มีอะไรน่าสงสัย? โพสต์ถามเลย...
+        <span className="community-compose-placeholder">มีอะไรน่าสงสัย? โพสต์ถามเลย...</span>
+        <span className="community-compose-plus" aria-hidden="true">+</span>
       </button>}
       <dialog ref={dialog} className="community-composer" aria-labelledby="community-composer-title"
         onCancel={event => { event.preventDefault(); if (!posting && !preparing) setComposerOpen(false); }}>

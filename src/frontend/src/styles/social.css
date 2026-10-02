@@ -319,12 +319,16 @@ html.dark-mode .s-card-bottom {
 }
 /* Real public posts: keep long URLs and multiline text inside the card. */
 #social-page .post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
-#social-page .scanner-header h2 { margin-left: 0; }
+#social-page .scanner-header { justify-content: center; }
+#social-page .scanner-header h2 { margin-left: 0; text-align: center; }
 #social-page .community-compose-trigger {
-  display: block; width: 100%; text-align: left; padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 12px 18px;
   border: 1.5px solid #E5E7EB; border-radius: 24px; background: #fff;
   color: #9CA3AF; font: inherit; cursor: pointer; margin-bottom: 20px;
 }
+.community-compose-placeholder { min-width: 0; overflow-wrap: anywhere; }
+.community-compose-plus { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: #edfbe9; color: #32c900; font-size: 24px; line-height: 1; }
+html.dark-mode .community-compose-plus { background: #143b27; color: #86efac; }
 #social-page .community-compose-trigger:focus-visible,
 .community-composer button:focus-visible { outline: 2px solid #3ACE00; outline-offset: 3px; }
 .community-composer {

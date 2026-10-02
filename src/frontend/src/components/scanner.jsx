@@ -7,8 +7,7 @@ import {
   checkPhone as apiCheckPhone,
   getErrorMessage
 } from '../utils/script';
-import { scanCode as liffScanCode } from '../utils/liff';
-import { getQrScanError, isQrScanCancelled, readQrUrl } from '../utils/qrScan';
+import QrInputActions from './shared/QrInputActions';
 import { getFraudResultPresentation } from '../utils/fraudResultPresentation';
 import { resolveScannerSubPage } from '../utils/scannerNavigation';
 
@@ -249,35 +248,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
     }
   };
 
-  const scanQrIntoLinkInput = async () => {
-    if (isQrScanning) return;
-
-    setIsQrScanning(true);
-    try {
-      const scannedUrl = await readQrUrl(liffScanCode);
-      handleInputChange('link', scannedUrl);
-      window.Swal?.fire({
-        icon: 'success',
-        title: 'สแกน QR Code สำเร็จ',
-        text: 'ตรวจสอบ URL ในช่องด้านบน แล้วกด “ตรวจสอบลิงก์” เมื่อต้องการวิเคราะห์',
-        confirmButtonColor: GUNGONG_GREEN,
-        confirmButtonText: 'ตกลง'
-      });
-    } catch (error) {
-      if (isQrScanCancelled(error)) return;
-      const details = getQrScanError(error);
-      window.Swal?.fire({
-        icon: details.icon,
-        title: details.title,
-        text: details.message,
-        confirmButtonColor: GUNGONG_GREEN,
-        confirmButtonText: 'ตกลง'
-      });
-    } finally {
-      setIsQrScanning(false);
-    }
-  };
-
   const checkSMS = async () => {
     const text = inputs.sms.trim();
     if (!text) {
@@ -380,27 +350,15 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
                   </button>
                 </div>
                 <p className="form-hint">ระบบจะวิเคราะห์ลิงก์ว่าเป็นอันตรายหรือไม่</p>
-                <button className="form-submit-btn" onClick={checkLink}>
+                <button className="form-submit-btn" onClick={checkLink} disabled={isQrScanning}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
                   ตรวจสอบลิงก์
                 </button>
                 <div className="qr-option-divider" aria-hidden="true">
                   <span>หรือ</span>
                 </div>
-                <button
-                  type="button"
-                  className="form-secondary-btn"
-                  onClick={scanQrIntoLinkInput}
-                  disabled={isQrScanning}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7"></rect>
-                    <rect x="14" y="3" width="7" height="7"></rect>
-                    <rect x="3" y="14" width="7" height="7"></rect>
-                    <path d="M14 14h3v3h-3zM18 18h3v3h-3zM18 14h3M14 18v3"></path>
-                  </svg>
-                  {isQrScanning ? 'กำลังเปิดเครื่องสแกน...' : 'สแกน QR Code'}
-                </button>
+                <QrInputActions resetKey={currentSubPage + ':' + inputs.link}
+                  onRead={url => handleInputChange('link', url)} onBusyChange={setIsQrScanning} />
                 <p className="form-hint qr-option-hint">QR Code ต้องมี URL และจะยังไม่ถูกตรวจสอบจนกว่าคุณจะกดปุ่มด้านบน</p>
               </>
             ) : (

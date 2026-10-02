@@ -1,8 +1,8 @@
 import { LIFF_ID } from './liff.js';
 
 export const LINE_ENDPOINT_URL = 'https://gungong-vercel-preview.vercel.app/';
-export const APP_SECTIONS = new Set(['home', 'verify', 'verify-id-card', 'verify-bank', 'verify-phone',
-    'scanner', 'check-link', 'check-sms', 'check-content', 'check-personal', 'scan-qr', 'social', 'history', 'id-card-scanner', 'scan-image']);
+export const APP_SECTIONS = new Set(['home', 'report',
+    'scanner', 'check-link', 'check-sms', 'check-content', 'check-personal', 'scan-qr', 'social', 'history', 'scan-image']);
 const initializations = new WeakMap();
 const mobileAttempts = new WeakSet();
 const MOBILE_HANDOFF_KEY = 'gungong_line_handoff';

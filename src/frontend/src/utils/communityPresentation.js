@@ -13,5 +13,5 @@ export function communityTimestamp(value) {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) return '';
     return date.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', year: 'numeric', month: 'numeric', day: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        hour: '2-digit', minute: '2-digit', hour12: false });
 }
