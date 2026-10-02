@@ -252,7 +252,7 @@ class ConversationAnalyzer:
                 ]
 
                 if not all(field in result for field in required_fields):
-                    print(f"⚠️  Missing fields in response. Has: {result.keys()}")
+                    print(f"Missing fields in response. Has: {result.keys()}")
                     # Try to fill in missing fields with defaults
                     result.setdefault("manipulation_score", 0)
                     result.setdefault("risk_level", "LOW")
@@ -266,14 +266,14 @@ class ConversationAnalyzer:
                 # Validate risk_level
                 valid_risk_levels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
                 if result["risk_level"] not in valid_risk_levels:
-                    print(f"⚠️  Invalid risk_level: {result['risk_level']}, defaulting to LOW")
+                    print(f"Invalid risk_level: {result['risk_level']}, defaulting to LOW")
                     result["risk_level"] = "LOW"
 
                 return result
 
             except (json.JSONDecodeError, ValueError) as e:
                 # JSON parsing failed - log and return default safe response
-                print(f"⚠️  Failed to parse JSON response: {e}")
+                print(f"Failed to parse JSON response: {e}")
                 print(f"Raw response (first 500 chars): {content[:500]}")
 
                 return {

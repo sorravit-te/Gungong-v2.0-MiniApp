@@ -44,10 +44,10 @@ class GamblingDomainService:
                 "last_updated": now_utc()
             }
             doc_ref.set(data)
-            print(f"✅ Whitelisted domain: {domain}")
+            print(f"Whitelisted domain: {domain}")
             return True
         except Exception as e:
-            print(f"❌ Error whitelisting domain {domain}: {e}")
+            print(f"Error whitelisting domain {domain}: {e}")
             return False
 
     def is_whitelisted(self, domain: str) -> bool:
@@ -59,7 +59,7 @@ class GamblingDomainService:
             doc = doc_ref.get(timeout=get_performance_config().DATABASE_OPERATION_TIMEOUT)
             return doc.exists
         except Exception as e:
-            print(f"❌ Error checking whitelist for {domain}: {e}")
+            print(f"Error checking whitelist for {domain}: {e}")
             return False
 
 
@@ -100,7 +100,7 @@ class GamblingDomainService:
                 doc_ref.update(update_data)
 
                 print(
-                    f"💾 Updated gambling domain: {domain} "
+                    f"Updated gambling domain: {domain} "
                     f"(confidence: {old_confidence:.0%} → {new_confidence:.0%})"
                 )
 
@@ -126,7 +126,7 @@ class GamblingDomainService:
                 doc_ref.set(new_domain_data)
 
                 print(
-                    f"💾 Saved new gambling domain: {domain} "
+                    f"Saved new gambling domain: {domain} "
                     f"(confidence: {confidence:.0%}, source: {source})"
                 )
 
@@ -138,7 +138,7 @@ class GamblingDomainService:
                 }
 
         except Exception as e:
-            print(f"❌ Error saving gambling domain {domain}: {e}")
+            print(f"Error saving gambling domain {domain}: {e}")
             return {
                 "saved": False,
                 "domain": domain,
@@ -163,7 +163,7 @@ class GamblingDomainService:
             return False
 
         except Exception as e:
-            print(f"❌ Error checking gambling domain {domain}: {e}")
+            print(f"Error checking gambling domain {domain}: {e}")
             return False
 
     def lookup_domain_evidence(self, domain: str, min_confidence: float = 0.5) -> Dict:
@@ -218,7 +218,7 @@ class GamblingDomainService:
             return None
 
         except Exception as e:
-            print(f"❌ Error getting gambling domain info {domain}: {e}")
+            print(f"Error getting gambling domain info {domain}: {e}")
             return None
 
     def get_all_domains(self, min_confidence: float = 0.5) -> List[str]:
@@ -240,7 +240,7 @@ class GamblingDomainService:
             return domains
 
         except Exception as e:
-            print(f"❌ Error getting all gambling domains: {e}")
+            print(f"Error getting all gambling domains: {e}")
             return []
 
 
@@ -251,10 +251,10 @@ class GamblingDomainService:
         try:
             doc_ref = self.db.collection(COLLECTION_GAMBLING_DOMAINS).document(domain)
             doc_ref.delete()
-            print(f"🗑️ Removed domain from blacklist: {domain}")
+            print(f"Removed domain from blacklist: {domain}")
             return True
         except Exception as e:
-            print(f"❌ Error removing domain {domain}: {e}")
+            print(f"Error removing domain {domain}: {e}")
             return False
 
 
@@ -270,6 +270,6 @@ def get_gambling_domain_service() -> Optional[GamblingDomainService]:
         if db_service:
             _gambling_domain_service_instance = GamblingDomainService(db_service)
         else:
-            print("ℹ️ Gambling Domain service disabled (DATABASE_URL not configured)")
+            print("Gambling Domain service disabled (DATABASE_URL not configured)")
             return None
     return _gambling_domain_service_instance

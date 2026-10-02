@@ -10,7 +10,7 @@ function resultPopup(item, typeName) {
     const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
     const hasConfidence = presentation.showConfidence && item.confidence_score !== undefined && item.confidence_score !== null;
     return {
-        title: isUrl ? presentation.status : item.is_safe ? 'ปลอดภัย ✅' : 'อันตราย! ⚠️',
+        title: isUrl ? presentation.status : item.is_safe ? 'ปลอดภัย' : 'อันตราย!',
         html: `
             <div style="text-align: left; font-size: 14px;">
                 <p><b>ข้อความ:</b> ${escapeHtml(displayText)}</p>

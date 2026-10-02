@@ -81,7 +81,7 @@ class FraudMessageService:
                     "last_seen_at": now_utc()
                 })
 
-                print(f"📊 Fraud message similar to existing ({similar['similarity']:.0%}), updated hit count")
+                print(f"Fraud message similar to existing ({similar['similarity']:.0%}), updated hit count")
 
                 return {
                     "saved": False,
@@ -113,7 +113,7 @@ class FraudMessageService:
             # Invalidate cache
             self._tfidf_cache = None
 
-            print(f"💾 New unique fraud message saved (id={message_hash})")
+            print(f"New unique fraud message saved (id={message_hash})")
 
             return {
                 "saved": True,
@@ -124,7 +124,7 @@ class FraudMessageService:
             }
 
         except Exception as e:
-            print(f"❌ Error saving fraud message: {e}")
+            print(f"Error saving fraud message: {e}")
             return {
                 "saved": False,
                 "message_id": None,
@@ -201,7 +201,7 @@ class FraudMessageService:
                 }
 
         except Exception as e:
-            print(f"⚠️  Similarity check failed: {e}")
+            print(f"Similarity check failed: {e}")
 
         return None
 
@@ -211,7 +211,7 @@ class FraudMessageService:
             docs = self.db.collection(COLLECTION_FRAUD_MESSAGES).stream()
             return [doc.to_dict() for doc in docs]
         except Exception as e:
-            print(f"❌ Error getting all fraud messages: {e}")
+            print(f"Error getting all fraud messages: {e}")
             return []
 
     def get_fraud_count(self) -> int:
@@ -222,7 +222,7 @@ class FraudMessageService:
             snapshot = query.get()
             return snapshot[0][0].value
         except Exception as e:
-            print(f"❌ Error getting fraud count: {e}")
+            print(f"Error getting fraud count: {e}")
             return 0
 
     def clear_old_messages(self, days: int = 90) -> int:
@@ -250,11 +250,11 @@ class FraudMessageService:
             if count > 0:
                 batch.commit()
 
-            print(f"🗑️  Deleted {deleted_count} old fraud messages")
+            print(f"Deleted {deleted_count} old fraud messages")
             return deleted_count
 
         except Exception as e:
-            print(f"❌ Error clearing old messages: {e}")
+            print(f"Error clearing old messages: {e}")
             return 0
 
 
@@ -271,6 +271,6 @@ def get_fraud_message_service() -> Optional[FraudMessageService]:
         if db_service:
             _fraud_message_service_instance = FraudMessageService(db_service)
         else:
-            print("ℹ️ Fraud Message service disabled (DATABASE_URL not configured)")
+            print("Fraud Message service disabled (DATABASE_URL not configured)")
             return None
     return _fraud_message_service_instance

@@ -20,10 +20,10 @@ print_header() {
     echo -e "${BLUE}========================================${NC}"
 }
 
-print_success() { echo -e "${GREEN}✅ $1${NC}"; }
-print_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-print_error() { echo -e "${RED}❌ $1${NC}"; }
-print_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+print_success() { echo -e "${GREEN}$1${NC}"; }
+print_warning() { echo -e "${YELLOW}$1${NC}"; }
+print_error() { echo -e "${RED}$1${NC}"; }
+print_info() { echo -e "${BLUE}$1${NC}"; }
 
 # ========================================
 # Check Prerequisites
@@ -85,7 +85,7 @@ SERVICE_URL=$(gcloud run services describe gungong-fullstack \
 
 if [ -n "$SERVICE_URL" ]; then
     echo ""
-    echo -e "${GREEN}🎉 Deployment successful!${NC}"
+    echo -e "${GREEN}Deployment successful!${NC}"
     echo ""
     echo -e "${BLUE}Service URL:${NC} $SERVICE_URL"
     echo ""

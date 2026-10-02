@@ -180,10 +180,10 @@ class FraudPrescreenService:
                     # Expansion failed (timeout or other error)
                     # Remove the problematic URL from the message to avoid false positives on the shortener itself
                     analysis_message = analysis_message.replace(original_url, "")
-                    print(f"⚠️ Failed to expand {original_url}, removing it from analysis. Reason: {result.error if result else 'Unknown'}")
+                    print(f"Failed to expand {original_url}, removing it from analysis. Reason: {result.error if result else 'Unknown'}")
 
             if successful_expansions > 0:
-                print(f"🔗 Replaced {successful_expansions} short URLs in message for analysis.")
+                print(f"Replaced {successful_expansions} short URLs in message for analysis.")
 
             # Scrape content from the successfully expanded URLs
             if final_urls_to_scrape:

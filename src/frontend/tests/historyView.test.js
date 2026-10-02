@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { HISTORY_TYPES, selectHistoryItems, summarizeHistory, parseHistoryDate } from '../src/utils/historyView.js';
+import { HISTORY_TYPES, SUMMARY_OUTCOMES, selectHistoryItems, summarizeHistory, summarizeScannerHistory, parseHistoryDate } from '../src/utils/historyView.js';
 
 test('History and Summary status messages match the empty Community message color', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -86,17 +86,59 @@ test('Summary and History filters combine links and QR codes without changing re
     assert.equal(summarizeHistory([]).types[0].count, 0);
 });
 
-test('Summary hides text counts and outcomes while retaining real chart data and mobile label styling', () => {
+test('Scanner Summary only counts active link/QR and text scans, preserving old History records', () => {
+    const entries = [
+        { type: 'link' }, { type: 'qr' }, { type: 'text' }, { type: 'message' }, { type: 'sms' },
+        { type: 'bank' }, { type: 'phone' }, { type: 'unknown' },
+    ];
+    const before = structuredClone(entries);
+    const summary = summarizeScannerHistory(entries);
+    assert.deepEqual(summary.types.map(type => [type.value, type.count]), [['link', 2], ['text', 3]]);
+    assert.equal(summary.total, 5);
+    assert.deepEqual(entries, before);
+    assert.equal(summarizeHistory(entries).total, 8);
+    for (const empty of [[], [{ type: 'bank' }, { type: 'phone' }]]) {
+        assert.deepEqual(summarizeScannerHistory(empty).types.map(type => type.count), [0, 0]);
+        assert.equal(summarizeScannerHistory(empty).total, 0);
+    }
+});
+
+test('Summary always renders its graph without sample counts and retains mobile label styling', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
     const summary = read('../src/components/DataVisualization.jsx');
     const css = read('../src/styles/dataVisualization.css');
-    assert.doesNotMatch(summary, /summary-total|summary-outcomes|stat-value|ตรวจแล้ว|summary\.counts/u);
-    assert.match(summary, /className="stat-label">\{item\.shortName\}/u);
+    assert.doesNotMatch(summary, /summary-total|summary-outcomes|stat-value|ตรวจแล้ว/u);
+    assert.doesNotMatch(summary, /summary-stats-inline/u);
+    assert.ok(summary.indexOf('className="chart-container"') < summary.indexOf('{loading ?'));
+    assert.match(summary, /CartesianGrid vertical=\{false\}/u);
     assert.match(summary, /value: type\.count/u);
+    assert.match(summary, /stackId="results"/u);
+    assert.match(summary, /summary\.counts\[outcome\.key\]/u);
+    assert.match(summary, /showCounts=\{summary\.total > 0 \|\| \(!loading && !error\)\}/u);
     assert.match(summary, /className="chart-axis-tick chart-category-axis"/u);
     assert.match(summary, /ยังไม่มีประวัติการตรวจสอบ/u);
     assert.match(css, /@media \(max-width: 767px\) \{\s*\.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*font-size: 12px;\s*font-weight: 400;\s*fill: #6d6d6d;/u);
     assert.match(css, /html\.dark-mode \.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*fill: #E2E8F0 !important;/u);
+});
+
+test('stacked Summary outcomes reconcile with feature and global totals without mutating history', () => {
+    const entries = [...records, { type: 'bank', is_fraud: true }, { type: 'phone', is_safe: true }];
+    const before = structuredClone(entries);
+    const summary = summarizeScannerHistory(entries);
+    assert.deepEqual(summary.counts, { safe: 2, risk: 1, unknown: 2, invalid: 1 });
+    assert.deepEqual(summary.types[0].outcomes, { safe: 1, risk: 1, unknown: 1, invalid: 1 });
+    assert.deepEqual(summary.types[1].outcomes, { safe: 1, risk: 0, unknown: 1, invalid: 0 });
+    for (const type of summary.types) {
+        assert.equal(Object.values(type.outcomes).reduce((sum, count) => sum + count, 0), type.count);
+    }
+    for (const { key } of SUMMARY_OUTCOMES) {
+        assert.equal(summary.types.reduce((sum, type) => sum + type.outcomes[key], 0), summary.counts[key]);
+    }
+    assert.equal(summary.types.reduce((sum, type) => sum + type.count, 0), summary.total);
+    assert.deepEqual(entries, before);
+    assert.deepEqual(summarizeScannerHistory([]).types.map(type => type.outcomes), [
+        { safe: 0, risk: 0, unknown: 0, invalid: 0 }, { safe: 0, risk: 0, unknown: 0, invalid: 0 },
+    ]);
 });
 
 test('mobile History calendar, list and search use a shared full-width column', () => {
@@ -118,7 +160,7 @@ test('Home uses private cached history, real summary and three-slot wraparound b
     assert.match(home, /breakpoints=\{\{ 768: \{ slidesPerView: 3, spaceBetween: 0 \} \}\}/u);
     assert.match(home, /const loopSlides = \[\.\.\.slides, \.\.\.slides, \.\.\.slides\]/u);
     assert.match(home, /centeredSlides=\{true\}/u);
-    assert.match(summary, /summarizeHistory\(entries\)/u);
+    assert.match(summary, /summarizeScannerHistory\(entries\)/u);
     assert.match(summary, /useHistoryEntries\(\)/u);
     assert.match(summary, /onNavigate\?\.\('history'\)/u);
     assert.doesNotMatch(summary, /value: (43|36|12)|of this week/u);

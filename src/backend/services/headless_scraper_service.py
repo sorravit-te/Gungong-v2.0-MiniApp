@@ -74,7 +74,7 @@ class HeadlessBrowserService:
 
         async with self._browser_lock:
             if not self.browser:
-                print("🚀 Launching Headless Browser (Persistent)...")
+                print("Launching Headless Browser (Persistent)...")
                 if not PLAYWRIGHT_AVAILABLE:
                     raise ImportError("Playwright is not installed.")
                 
@@ -92,7 +92,7 @@ class HeadlessBrowserService:
                         '--blink-settings=imagesEnabled=false'
                     ]
                 )
-                print("✅ Headless Browser Launched!")
+                print("Headless Browser Launched!")
 
     async def _scrape_url_lightweight_async(self, url: str) -> Dict:
         """
@@ -154,7 +154,7 @@ class HeadlessBrowserService:
                 self._analyze_content(result)
                 
         except Exception as e:
-            print(f"⚠️ Lightweight scraping failed: {e}")
+            print(f"Lightweight scraping failed: {e}")
             result["error"] = str(e)
         
         result["time"] = time.time() - start_time
@@ -173,17 +173,17 @@ class HeadlessBrowserService:
             Dict with scraping results
         """
         # Step 1: Try lightweight scraping first (FAST - ~200ms)
-        print(f"🚀 Trying lightweight scraping for: {url}")
+        print(f"Trying lightweight scraping for: {url}")
         lightweight_result = await self._scrape_url_lightweight_async(url)
         
         # Check if we got enough content
         if lightweight_result["success"] and len(lightweight_result["text"]) > 100:
-            print(f"✅ Lightweight scraping succeeded ({lightweight_result['time']:.2f}s)")
+            print(f"Lightweight scraping succeeded ({lightweight_result['time']:.2f}s)")
             lightweight_result["method"] = "lightweight"
             return lightweight_result
         
         # Step 2: Fallback to Playwright for JavaScript-heavy sites (SLOW - ~5-10s)
-        print(f"⚠️ Lightweight scraping insufficient, using Playwright...")
+        print(f"Lightweight scraping insufficient, using Playwright...")
         playwright_result = await self._scrape_url_playwright_async(url)
         playwright_result["method"] = "playwright"
         return playwright_result
@@ -235,7 +235,7 @@ class HeadlessBrowserService:
                     timeout=self.timeout
                 )
             except Exception as e:
-                print(f"⚠️  Page load timeout/error: {e}")
+                print(f"Page load timeout/error: {e}")
                 pass
 
             # Get final URL
@@ -256,7 +256,7 @@ class HeadlessBrowserService:
             result["success"] = True
 
         except Exception as e:
-            print(f"❌ Playwright scraping error: {e}")
+            print(f"Playwright scraping error: {e}")
             result["error"] = str(e)
             
         finally:

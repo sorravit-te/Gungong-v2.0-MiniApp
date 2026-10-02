@@ -164,7 +164,7 @@ async def verify_phone(http_request: Request, request: PhoneVerificationRequest)
     """
     try:
         verification_service = get_verification_service()
-        logger.info(f"🔍 Verifying phone: {request.phone}")
+        logger.info(f"Verifying phone: {request.phone}")
 
         # Verify phone
         result = verification_service.verify_phone(request.phone)
@@ -181,7 +181,7 @@ async def verify_phone(http_request: Request, request: PhoneVerificationRequest)
         )
 
     except Exception as e:
-        logger.error(f"❌ Phone verification failed: {e}")
+        logger.error(f"Phone verification failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Phone verification failed: {str(e)}"
@@ -238,7 +238,7 @@ async def verify_bank(http_request: Request, request: BankVerificationRequest):
     """
     try:
         verification_service = get_verification_service()
-        logger.info(f"🏦 Verifying bank account: {request.account_number} ({request.bank_code})")
+        logger.info(f"Verifying bank account: {request.account_number} ({request.bank_code})")
 
         # Verify bank account
         result = verification_service.verify_bank(
@@ -260,7 +260,7 @@ async def verify_bank(http_request: Request, request: BankVerificationRequest):
         )
 
     except Exception as e:
-        logger.error(f"❌ Bank verification failed: {e}")
+        logger.error(f"Bank verification failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Bank verification failed: {str(e)}"
@@ -316,7 +316,7 @@ async def verify_social(http_request: Request, request: SocialVerificationReques
     """
     try:
         verification_service = get_verification_service()
-        logger.info(f"👤 Verifying social profile: {request.profile_url}")
+        logger.info(f"Verifying social profile: {request.profile_url}")
 
         # Verify social profile
         result = verification_service.verify_social(
@@ -336,7 +336,7 @@ async def verify_social(http_request: Request, request: SocialVerificationReques
         )
 
     except Exception as e:
-        logger.error(f"❌ Social verification failed: {e}")
+        logger.error(f"Social verification failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Social verification failed: {str(e)}"

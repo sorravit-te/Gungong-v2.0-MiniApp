@@ -294,7 +294,7 @@ def create_id_card_verification_flex(
                         layout="vertical",
                         contents=[
                             FlexText(
-                                text="⚠️ คำเตือน",
+                                text="คำเตือน",
                                 size="sm",
                                 weight="bold",
                                 color="#FF4444"

@@ -47,7 +47,7 @@ class FeedbackService:
             message_hash = parsed_data.get("hash", [None])[0]
 
             if action != "feedback" or not feedback_value or not message_hash:
-                print(f"⚠️ Invalid postback data received: {postback_data}")
+                print(f"Invalid postback data received: {postback_data}")
                 return False
 
             # 1. Get original message context
@@ -62,7 +62,7 @@ class FeedbackService:
                 original_text = data.get("message_text")
                 original_classification = data.get("classification")
             else:
-                print(f"⚠️ Original message not found for hash: {message_hash}")
+                print(f"Original message not found for hash: {message_hash}")
 
             # 2. Save feedback log
             feedback_data = {
@@ -75,7 +75,7 @@ class FeedbackService:
                 "created_at": now_utc()
             }
             self.db.collection(COLLECTION_FEEDBACK_LOGS).add(feedback_data)
-            print(f"💾 Feedback saved: User '{user_id}' rated message (hash: {message_hash[:8]}...) as '{feedback_value}'")
+            print(f"Feedback saved: User '{user_id}' rated message (hash: {message_hash[:8]}...) as '{feedback_value}'")
 
             # 3. Apply corrections based on feedback
             if original_text:
@@ -84,7 +84,7 @@ class FeedbackService:
             return True
 
         except Exception as e:
-            print(f"❌ ERROR saving feedback: {e}")
+            print(f"ERROR saving feedback: {e}")
             return False
 
     def _apply_correction(self, message_hash: str, message_text: str, feedback_value: str):
@@ -97,7 +97,7 @@ class FeedbackService:
 
             # Case A: False Positive (AI said Fraud, User says Safe)
             if feedback_value == "incorrect_fraud":
-                print(f"🔄 Correcting False Positive for {message_hash[:8]}...")
+                print(f"Correcting False Positive for {message_hash[:8]}...")
                 
                 # 1. Update Cache to Safe
                 # IMPORTANT: Must also clear URL threats, otherwise LineService will override to HIGH risk
@@ -116,7 +116,7 @@ class FeedbackService:
                 # 2. Remove from Fraud Messages collection
                 # Note: FraudMessageService uses hash as ID
                 self.db.collection(COLLECTION_FRAUD_MESSAGES).document(message_hash).delete()
-                print("✅ Removed from fraud_messages and updated cache to SAFE")
+                print("Removed from fraud_messages and updated cache to SAFE")
 
                 # 3. Remove domains from blacklist (True Learning)
                 try:
@@ -158,14 +158,14 @@ class FeedbackService:
                                 for domain in domains_to_remove:
                                     gambling_service.remove_domain(domain)
                                     gambling_service.add_whitelist_domain(domain, reason="user_feedback_safe")
-                                    print(f"✅ Removed {domain} from blacklist and added to whitelist")
+                                    print(f"Removed {domain} from blacklist and added to whitelist")
 
                 except Exception as e:
-                    print(f"⚠️ Error removing domains from blacklist: {e}")
+                    print(f"Error removing domains from blacklist: {e}")
 
             # Case B: False Negative (AI said Safe, User says Fraud)
             elif feedback_value == "incorrect_safe":
-                print(f"🔄 Correcting False Negative for {message_hash[:8]}...")
+                print(f"Correcting False Negative for {message_hash[:8]}...")
                 
                 # 1. Update Cache to Fraud
                 cache_ref.update({
@@ -185,7 +185,7 @@ class FeedbackService:
                         confidence_score=100.0,
                         keywords=["user_reported"]
                     )
-                print("✅ Added to fraud_messages and updated cache to FRAUD")
+                print("Added to fraud_messages and updated cache to FRAUD")
 
             # Case C: Confirmed Fraud (Reinforce)
             elif feedback_value == "correct_fraud":
@@ -200,7 +200,7 @@ class FeedbackService:
                     )
 
         except Exception as e:
-            print(f"❌ Error applying correction: {e}")
+            print(f"Error applying correction: {e}")
 
 
 # Singleton instance
@@ -213,7 +213,7 @@ def get_feedback_service() -> "FeedbackService":
     if _feedback_service_instance is None:
         db_service = get_database_service()
         if not db_service:
-            print("ℹ️ Feedback service disabled (DATABASE_URL not configured)")
+            print("Feedback service disabled (DATABASE_URL not configured)")
             return None
         _feedback_service_instance = FeedbackService(db_service)
     return _feedback_service_instance

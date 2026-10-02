@@ -280,7 +280,7 @@ class HomoglyphDetector:
                     })
             except Exception as e:
                 # Ignore errors in parsing single URLs
-                print(f"⚠️  Error analyzing URL for homoglyphs: {url} - {e}")
+                print(f"Error analyzing URL for homoglyphs: {url} - {e}")
                 continue
                 
         return suspicious_urls

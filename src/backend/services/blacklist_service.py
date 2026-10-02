@@ -48,7 +48,7 @@ class BlacklistService:
             return {"is_blacklisted": False}
 
         except Exception as e:
-            print(f"❌ Error checking bank account: {e}")
+            print(f"Error checking bank account: {e}")
             return {"is_blacklisted": False, "error": str(e)}
 
     def check_phone_number(self, phone_number: str) -> Dict:
@@ -74,14 +74,14 @@ class BlacklistService:
             return {"is_blacklisted": False}
 
         except Exception as e:
-            print(f"❌ Error checking phone number: {e}")
+            print(f"Error checking phone number: {e}")
             return {"is_blacklisted": False, "error": str(e)}
 
     def seed_mock_data(self):
         """
         Seed mock data for testing.
         """
-        print("🌱 Seeding mock blacklist data...")
+        print("Seeding mock blacklist data...")
         
         # 1. Mock Bank Accounts (Mule Accounts)
         mock_accounts = [
@@ -156,7 +156,7 @@ class BlacklistService:
             except Exception as e:
                 print(f"   - Failed to add phone {phone['phone_number']}: {e}")
         
-        print("✅ Mock data seeding completed.")
+        print("Mock data seeding completed.")
 
 # Singleton instance
 _blacklist_service_instance = None
@@ -170,6 +170,6 @@ def get_blacklist_service() -> Optional[BlacklistService]:
             if db_service:
                 _blacklist_service_instance = BlacklistService(db_service)
         except Exception as e:
-            print(f"⚠️ Failed to initialize BlacklistService: {e}")
+            print(f"Failed to initialize BlacklistService: {e}")
             return None
     return _blacklist_service_instance

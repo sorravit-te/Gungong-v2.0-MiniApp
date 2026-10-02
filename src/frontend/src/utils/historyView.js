@@ -7,6 +7,14 @@ export const HISTORY_TYPES = [
     { value: 'phone', label: 'เบอร์โทร', color: '#FCA5A5' },
 ];
 
+// Mutually exclusive outcomes; incomplete checks must not be counted as safe.
+export const SUMMARY_OUTCOMES = [
+    { key: 'safe', label: 'ไม่พบสัญญาณอันตราย', color: '#86EFAC' },
+    { key: 'risk', label: 'พบความเสี่ยง', color: '#FCA5A5' },
+    { key: 'unknown', label: 'ยังสรุปไม่ได้', color: '#FCD68A' },
+    { key: 'invalid', label: 'ข้อมูลไม่ถูกต้อง / ไม่อนุญาต', color: '#CBD5E1' },
+];
+
 export function parseHistoryDate(value) {
     if (!value) return null;
     const date = new Date(value);
@@ -61,4 +69,17 @@ export function summarizeHistory(entries) {
         .reduce((total, [, type]) => total + type.count, 0);
     return { total: entries.length, counts, types: otherCount
         ? [...known, { value: 'other', label: 'อื่น ๆ', color: '#94A3B8', count: otherCount }] : known };
+}
+
+// Summary follows the two active Scanner features; History keeps all older scan types.
+export function summarizeScannerHistory(entries) {
+    const activeTypes = ['link', 'text'];
+    const activeEntries = entries.filter(entry => activeTypes.includes(getHistoryType(entry)));
+    const summary = summarizeHistory(activeEntries);
+    const types = summary.types.filter(type => activeTypes.includes(type.value))
+        .map(type => ({ ...type, outcomes: { safe: 0, risk: 0, unknown: 0, invalid: 0 } }));
+    for (const entry of activeEntries) {
+        types.find(type => type.value === getHistoryType(entry)).outcomes[getHistoryOutcome(entry)] += 1;
+    }
+    return { ...summary, types };
 }

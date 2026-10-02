@@ -239,7 +239,6 @@ html.dark-mode .community-post-menu button:hover { background: #4A5568; }
   .community-feed-item { width: 100%; }
 }
 @media (max-width: 900px) { .community-detail-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
-@media (prefers-reduced-motion: reduce) { .community-post-detail { animation: none; } }
 
 /* ส่วนล่างและปุ่ม Action */
 .s-card-bottom {

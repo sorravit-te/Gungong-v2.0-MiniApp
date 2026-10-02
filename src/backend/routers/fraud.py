@@ -322,7 +322,7 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
             cached_result = db_service.get_cached_result(fraud_request.message)
 
             if cached_result:
-                logger.info(f"✅ Cache HIT for message (hash: {db_service.hash_message(fraud_request.message)[:8]}...)")
+                logger.info(f"Cache HIT for message (hash: {db_service.hash_message(fraud_request.message)[:8]}...)")
 
                 # Save to history log even on cache hit
                 if fraud_request.user_id:
@@ -344,11 +344,11 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                             cached_result.get("has_malicious_urls", False),
                         ),
                     )
-                    logger.debug(f"📜 Saved cache hit to history for user {fraud_request.user_id}")
+                    logger.debug(f"Saved cache hit to history for user {fraud_request.user_id}")
 
                 return cached_result
 
-        logger.info(f"⚠️  Cache MISS - checking with AI...")
+        logger.info(f"Cache MISS - checking with AI...")
 
         # 2. Get fraud detector
         detector = get_fraud_detector()
@@ -364,7 +364,7 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
             url_task = vt_service.check_text_for_malicious_urls_async(fraud_request.message)
 
         # 4. Execute in parallel
-        logger.debug(f"⚡ Starting parallel execution for message: {fraud_request.message[:20]}...")
+        logger.debug(f"Starting parallel execution for message: {fraud_request.message[:20]}...")
         import time
         start_time = time.time()
 
@@ -377,7 +377,7 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
              url_check = {"error": "URL check skipped"}
 
         execution_time = time.time() - start_time
-        logger.info(f"⚡ Parallel execution finished in {execution_time:.2f}s")
+        logger.info(f"Parallel execution finished in {execution_time:.2f}s")
 
         # 5. Combine results
         response = {
@@ -412,11 +412,11 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                                     category="adult_content",
                                     source="pattern_detection"
                                 )
-                                print(f"💾 Saved adult website domain to blacklist: {domain} (confidence: 0.90)")
+                                print(f"Saved adult website domain to blacklist: {domain} (confidence: 0.90)")
                         except Exception as url_error:
-                            print(f"⚠️  Failed to extract domain from {url}: {url_error}")
+                            print(f"Failed to extract domain from {url}: {url_error}")
                 except Exception as e:
-                    print(f"⚠️  Failed to save adult website domain: {e}")
+                    print(f"Failed to save adult website domain: {e}")
 
         # 7. Upgrade fraud level if malicious URLs found
         has_malicious_urls = False
@@ -479,13 +479,13 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                                     category=category,
                                     source=source
                                 )
-                                print(f"💾 Saved {category} domain to blacklist: {domain} (confidence: {confidence:.2f})")
+                                print(f"Saved {category} domain to blacklist: {domain} (confidence: {confidence:.2f})")
 
                         except Exception as url_error:
-                            print(f"⚠️  Failed to extract domain from {url}: {url_error}")
+                            print(f"Failed to extract domain from {url}: {url_error}")
 
                 except Exception as e:
-                    print(f"⚠️  Failed to save malicious domain to blacklist: {e}")
+                    print(f"Failed to save malicious domain to blacklist: {e}")
 
         # 8. Save result to cache AND history
         if db_service:
@@ -512,9 +512,9 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                         model_used=response.get("model"),
                         message_type=msg_type
                     )
-                    logger.debug(f"📜 Saved result to history for user {fraud_request.user_id}")
+                    logger.debug(f"Saved result to history for user {fraud_request.user_id}")
                 except Exception as e:
-                    logger.error(f"⚠️  Failed to save history: {e}")
+                    logger.error(f"Failed to save history: {e}")
 
             # Save to cache
             try:
@@ -531,9 +531,9 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                     user_id=fraud_request.user_id,
                     cache_ttl_days=30
                 )
-                logger.debug(f"💾 Result saved to cache")
+                logger.debug(f"Result saved to cache")
             except Exception as e:
-                logger.error(f"⚠️  Failed to save to cache: {e}")
+                logger.error(f"Failed to save to cache: {e}")
 
         # 9. Save to fraud_messages table
         if response["is_fraud"]:
@@ -547,11 +547,11 @@ async def check_fraud(request: Request, fraud_request: FraudCheckRequest, backgr
                         keywords=response.get("keywords_found", [])
                     )
                     if save_result["saved"]:
-                        logger.info(f"💾 New fraud message saved (unique)")
+                        logger.info(f"New fraud message saved (unique)")
                     else:
-                        logger.debug(f"💾 Fraud message updated (similarity: {save_result.get('similarity', 0):.2%}, hit_count incremented)")
+                        logger.debug(f"Fraud message updated (similarity: {save_result.get('similarity', 0):.2%}, hit_count incremented)")
                 except Exception as e:
-                    logger.error(f"⚠️  Failed to save fraud message: {e}")
+                    logger.error(f"Failed to save fraud message: {e}")
 
         return response
 

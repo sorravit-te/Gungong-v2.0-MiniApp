@@ -89,6 +89,16 @@ test('QR uses stored detail while text/bank/phone preserve the existing no-fetch
   assert.equal(reads, 1);
 });
 
+test('non-URL History titles are plain text and retain their result icons', async () => {
+  const { flow, swal } = controller(async () => { throw new Error('unexpected detail read'); });
+  await flow.open({ id: 'safe-text', type: 'text', is_safe: true });
+  assert.equal(swal.current.title, 'ปลอดภัย');
+  assert.equal(swal.current.icon, 'success');
+  await flow.open({ id: 'risk-text', type: 'text', is_safe: false, is_fraud: true });
+  assert.equal(swal.current.title, 'อันตราย!');
+  assert.equal(swal.current.icon, 'warning');
+});
+
 test('History keeps incomplete verdict distinct despite a stored clean AI assessment', async () => {
   const detail = record();
   detail.url_check_result.verification_verdict = 'INCOMPLETE';

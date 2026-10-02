@@ -118,8 +118,8 @@ test('image is carried in the same authenticated idempotent post, not a separate
 
 test('excerpt keeps full content available and truncates unicode or many lines', () => {
   assert.deepEqual(postExcerpt('Short'), { text: 'Short', truncated: false });
-  assert.equal(Array.from(postExcerpt('😀'.repeat(200)).text).length, 180);
-  assert.equal(postExcerpt('😀'.repeat(200)).truncated, true);
+  assert.equal(Array.from(postExcerpt('\u{1f600}'.repeat(200)).text).length, 180);
+  assert.equal(postExcerpt('\u{1f600}'.repeat(200)).truncated, true);
   assert.equal(postExcerpt('a\nb\nc\nd\ne').text, 'a\nb\nc\nd');
 });
 
@@ -156,6 +156,17 @@ test('post detail keeps post left and comments right on desktop and stacks on mo
   assert.ok(cards.indexOf('className="community-detail-post"') < cards.indexOf('className="community-comments"'));
   assert.match(css, /\.community-detail-layout \{ display: grid; grid-template-columns: minmax\(0, \.9fr\) minmax\(0, 1\.1fr\)/u);
   assert.match(css, /@media \(max-width: 900px\).*\.community-detail-layout \{ grid-template-columns: minmax\(0, 1fr\)/u);
+});
+
+test('opening each post replays the same entrance animation as the Community page', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const social = read('../src/components/social.jsx');
+  const css = read('../src/styles/social.css');
+  const sharedCss = read('../src/styles/main.css');
+  assert.match(social, /CommunityPostDetail key=\{selected\.id\}/u);
+  assert.match(css, /\.community-post-detail \{[^}]*animation: pageSlideIn 0\.4s ease-out forwards;/u);
+  assert.match(sharedCss, /\.section-content \{\s*animation: pageSlideIn 0\.4s ease-out forwards;/u);
+  assert.doesNotMatch(css, /\.community-post-detail \{[^}]*animation: none/u);
 });
 
 test('cards open separately from image/actions and menus are exclusive and dismissible', () => {

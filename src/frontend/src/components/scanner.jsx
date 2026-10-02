@@ -10,6 +10,7 @@ import {
 import { scanCode as liffScanCode } from '../utils/liff';
 import { getQrScanError, isQrScanCancelled, readQrUrl } from '../utils/qrScan';
 import { getFraudResultPresentation } from '../utils/fraudResultPresentation';
+import { resolveScannerSubPage } from '../utils/scannerNavigation';
 
 const GUNGONG_GREEN = '#3ACE00';
 
@@ -118,10 +119,10 @@ const showBlacklistResult = (result, type, submittedValue, bank) => {
 };
 
 const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
-  const [currentSubPage, setCurrentSubPage] = useState(null);
+  const [currentSubPage, setCurrentSubPage] = useState(() => resolveScannerSubPage(externalSubPage));
   const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
   const [selectedBank, setSelectedBank] = useState(null);
-  const [contentTab, setContentTab] = useState('link'); // 'link' or 'sms'
+  const contentTab = currentSubPage === 'check-sms' ? 'sms' : 'link';
   const [personalTab, setPersonalTab] = useState('bank'); // 'bank' or 'phone'
   const [isQrScanning, setIsQrScanning] = useState(false);
   const bankDropdownRef = useRef(null);
@@ -144,13 +145,8 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
 
   // Sync external subpage prop with internal state
   useEffect(() => {
-    if (externalSubPage === 'scan-qr') {
-      setCurrentSubPage('check-content');
-      setContentTab('link');
-    } else if (externalSubPage && externalSubPage !== 'scanner') {
-      setCurrentSubPage(externalSubPage);
-    } else if (externalSubPage === 'scanner') {
-      setCurrentSubPage(null);
+    if (externalSubPage !== undefined) {
+      setCurrentSubPage(resolveScannerSubPage(externalSubPage));
     }
   }, [externalSubPage]);
 
@@ -229,10 +225,11 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   };
 
   const openFeature = (feature) => {
-    setCurrentSubPage(feature);
+    const page = resolveScannerSubPage(feature);
+    setCurrentSubPage(page);
     // Notify parent to update activeSection for sidebar highlighting
     if (onNavigate) {
-      onNavigate(feature);
+      onNavigate(page || 'scanner');
     }
   };
 
@@ -335,11 +332,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
 
 
 
-  const handleContentTabChange = (tab) => {
-    setContentTab(tab);
-    setInputs(prev => ({ ...prev, link: '', sms: '' }));
-  };
-
   const handlePersonalTabChange = (tab) => {
     setPersonalTab(tab);
     setInputs(prev => ({ ...prev, bank: '', phone: '' }));
@@ -348,42 +340,23 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   };
 
   // Sub-pages Logic
-  if (currentSubPage === 'check-content') {
+  if (currentSubPage === 'check-link' || currentSubPage === 'check-sms') {
     return (
-      <section id="check-content-page">
+      <section id="check-content-page" key={currentSubPage}>
         <div className="section-content">
           <div className="scanner-subpage-header">
             <button className="back-btn-modern" onClick={goBack}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
             </button>
             <div className="subpage-title-block">
-              <div className="subpage-icon icon-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                </svg>
+              <div className="scanner-feature-mascot scanner-subpage-mascot" aria-hidden="true">
+                <img src={contentTab === 'link' ? '/img/mascot_02.png' : '/img/mascot_03.png'} alt="" width="48" height="48" />
               </div>
               <div>
-                <h2>ตรวจสอบเนื้อหา</h2>
-                <p className="subpage-subtitle">วิเคราะห์ลิงก์และข้อความ</p>
+                <h2>{contentTab === 'link' ? 'ตรวจสอบลิงก์ / QR Code' : 'ตรวจสอบข้อความ'}</h2>
+                <p className="subpage-subtitle">{contentTab === 'link' ? 'วิเคราะห์ลิงก์และ URL จาก QR Code' : 'วิเคราะห์ข้อความที่น่าสงสัย'}</p>
               </div>
             </div>
-          </div>
-
-          <div className="scanner-tabs-modern">
-            <button className={`tab-modern ${contentTab === 'link' ? 'active' : ''}`} onClick={() => handleContentTabChange('link')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-              ลิงก์
-            </button>
-            <button className={`tab-modern ${contentTab === 'sms' ? 'active' : ''}`} onClick={() => handleContentTabChange('sms')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
-              ข้อความ
-            </button>
           </div>
 
           <div className="scanner-form-card">
@@ -462,6 +435,7 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
     );
   }
 
+  // Temporarily retained for later re-enabling; the route resolver cannot open this form.
   if (currentSubPage === 'check-personal') {
     return (
       <section id="check-personal-page">
@@ -602,46 +576,49 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
 
   // Main Menu
   return (
-    <section id="scanner-page">
-      <div className="section-content scanner-wide">
-        <div className="scanner-header"><h2>My Scanner</h2></div>
-        <div className="scanner-card-grid">
-          {/* Card 1: Check Content */}
-          <div className="scanner-package-card animate-card" style={{ animationDelay: '0.05s' }} onClick={() => openFeature('check-content')}>
-            <div className="package-icon icon-link">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-            </div>
-            <h3 className="package-title">ตรวจสอบเนื้อหา</h3>
-            <p className="package-desc">วิเคราะห์ลิงก์และข้อความ</p>
-            <ul className="package-features">
-              <li className="feature-yes"><span className="check-icon">✓</span> ตรวจสอบลิงก์อันตราย</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> วิเคราะห์ข้อความ SMS</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> ตรวจจับ Phishing URL</li>
-            </ul>
-            <button className="package-btn">เลือกใช้งาน</button>
+    <section id="scanner-page" key="scanner">
+      <div className="section-content scanner-landing">
+        <div className="scanner-intro-card">
+          <div className="scanner-intro-copy">
+            <span className="scanner-intro-label">GUNGONG SCANNER</span>
+            <h3>เช็กลิงก์และข้อความ</h3>
+            <p>เช็กลิงก์และข้อความที่น่าสงสัย<br />ก่อนคลิก แชร์ หรือให้ข้อมูลส่วนตัว</p>
           </div>
-
-          {/* Card 2: Check Personal */}
-          <div className="scanner-package-card animate-card" style={{ animationDelay: '0.15s' }} onClick={() => openFeature('check-personal')}>
-            <div className="package-icon icon-bank">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                <line x1="1" y1="10" x2="23" y2="10"></line>
-              </svg>
-            </div>
-            <h3 className="package-title">ตรวจสอบข้อมูลส่วนตัว</h3>
-            <p className="package-desc">ค้นหาบัญชีและเบอร์โทร Blacklist</p>
-            <ul className="package-features">
-              <li className="feature-yes"><span className="check-icon">✓</span> ตรวจสอบเลขบัญชีธนาคาร</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> ตรวจสอบเบอร์โทรศัพท์</li>
-              <li className="feature-yes"><span className="check-icon">✓</span> ค้นหาจากฐานข้อมูล Blacklist</li>
-            </ul>
-            <button className="package-btn">เลือกใช้งาน</button>
+          <div className="scanner-intro-art" aria-hidden="true">
+            <img className="scanner-intro-mascot" src="/img/mascot_01.png" alt="" width="128" height="128" />
           </div>
+        </div>
 
+        <div className="scanner-menu-heading">
+          <h3>ตรวจสอบเนื้อหา</h3>
+          <p>เลือกสิ่งที่คุณต้องการตรวจสอบ</p>
+        </div>
+        <div className="scanner-feature-list">
+          <button type="button" className="scanner-feature-card animate-card" style={{ animationDelay: '0.05s' }} onClick={() => openFeature('check-link')}>
+            <span className="scanner-feature-mascot" aria-hidden="true">
+              <img src="/img/mascot_02.png" alt="" width="56" height="56" />
+            </span>
+            <span className="scanner-feature-copy">
+              <span className="scanner-feature-title">ตรวจสอบลิงก์ / QR Code</span>
+              <span className="scanner-feature-description">วิเคราะห์ลิงก์หรือ URL จาก QR Code</span>
+            </span>
+            <svg className="scanner-feature-arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+
+          <button type="button" className="scanner-feature-card animate-card" style={{ animationDelay: '0.15s' }} onClick={() => openFeature('check-sms')}>
+            <span className="scanner-feature-mascot" aria-hidden="true">
+              <img src="/img/mascot_03.png" alt="" width="56" height="56" />
+            </span>
+            <span className="scanner-feature-copy">
+              <span className="scanner-feature-title">ตรวจสอบข้อความ</span>
+              <span className="scanner-feature-description">วิเคราะห์ข้อความ SMS หรือแชตที่น่าสงสัย</span>
+            </span>
+            <svg className="scanner-feature-arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
         </div>
       </div>
     </section>

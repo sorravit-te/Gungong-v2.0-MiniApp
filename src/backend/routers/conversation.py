@@ -190,7 +190,7 @@ async def analyze_conversation(request: ConversationAnalysisRequest):
             )
 
         if cached_result and "manipulation_score" in cached_result:
-            print(f"✅ Cache HIT for conversation analysis")
+            print(f"Cache HIT for conversation analysis")
 
             # Return cached result
             return ConversationAnalysisResponse(
@@ -207,7 +207,7 @@ async def analyze_conversation(request: ConversationAnalysisRequest):
             )
 
         # Cache miss - analyze with AI
-        print(f"❌ Cache MISS - analyzing conversation with AI")
+        print(f"Cache MISS - analyzing conversation with AI")
 
         # Perform AI analysis
         conversation_analyzer = get_conversation_analyzer()
@@ -250,7 +250,7 @@ async def analyze_conversation(request: ConversationAnalysisRequest):
         )
 
     except Exception as e:
-        print(f"❌ Error analyzing conversation: {e}")
+        print(f"Error analyzing conversation: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to analyze conversation: {str(e)}"
@@ -325,7 +325,7 @@ async def analyze_conversation_file(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error processing file: {e}")
+        print(f"Error processing file: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to process file: {str(e)}"

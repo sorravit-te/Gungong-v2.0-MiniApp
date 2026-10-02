@@ -124,7 +124,7 @@ async def check_message_enhanced(http_request: Request, request: EnhancedFraudCh
             cached_result = db_service.get_cached_result(request.message)
 
             if cached_result and "emotional_manipulation" in cached_result:
-                logger.info(f"✅ Cache HIT for enhanced fraud check")
+                logger.info(f"Cache HIT for enhanced fraud check")
 
                 # Return cached result
                 return EnhancedFraudCheckResponse(
@@ -140,7 +140,7 @@ async def check_message_enhanced(http_request: Request, request: EnhancedFraudCh
                     timestamp=datetime.now()
                 )
 
-        logger.info(f"❌ Cache MISS - analyzing with AI + emotional detection")
+        logger.info(f"Cache MISS - analyzing with AI + emotional detection")
 
         # 1. Basic fraud detection with AI
         detector = get_fraud_detector()
@@ -217,7 +217,7 @@ async def check_message_enhanced(http_request: Request, request: EnhancedFraudCh
         return response
 
     except Exception as e:
-        logger.error(f"❌ Enhanced fraud check failed: {e}")
+        logger.error(f"Enhanced fraud check failed: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Enhanced fraud check failed: {str(e)}"

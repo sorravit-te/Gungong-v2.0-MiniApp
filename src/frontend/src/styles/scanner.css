@@ -144,6 +144,11 @@
   margin-bottom: 12px;
 }
 
+#check-content-page .subpage-title-block h2,
+#check-content-page .form-label {
+  color: #6d6d6d;
+}
+
 .form-input-group {
   display: flex;
   gap: 10px;
@@ -223,11 +228,6 @@
   align-items: center;
   gap: 4px;
   animation: warningShake 0.3s ease;
-}
-
-.input-warning-text::before {
-  content: "⚠";
-  font-size: 11px;
 }
 
 .form-input.input-error {
@@ -396,6 +396,212 @@ html.dark-mode .qr-option-divider::after {
   height: 24px;}
 
 /* ==================== SCANNER MENU ==================== */
+/* Verify-inspired landing: faceted hero and compact horizontal menu cards. */
+#scanner-page .scanner-landing {
+  max-width: 600px;
+  padding-bottom: 24px;
+}
+
+.scanner-landing .scanner-header h2 {
+  margin-left: 0;
+}
+
+.scanner-intro-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 190px;
+  padding: 28px 32px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  background: linear-gradient(110deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.12)), url('/img/emerald_card.png') center / cover;
+  box-shadow: 0 14px 36px rgba(100, 116, 139, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.scanner-intro-copy {
+  min-width: 0;
+}
+
+.scanner-intro-label {
+  display: block;
+  color: #166534;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+}
+
+.scanner-intro-copy h3 {
+  margin: 10px 0 8px;
+  color: #166534;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.scanner-intro-copy p {
+  margin: 0;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.8;
+  line-height: 1.8;
+}
+
+.scanner-intro-art {
+  position: relative;
+  flex-shrink: 0;
+  width: 128px;
+  height: 128px;
+  box-sizing: border-box;
+  padding: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  display: grid;
+  place-items: center;
+}
+
+.scanner-intro-mascot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.scanner-menu-heading {
+  margin: 28px 0 16px;
+  padding-left: 16px;
+}
+
+.scanner-menu-heading h3 {
+  margin: 0 0 4px;
+  color: #6d6d6d;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.scanner-menu-heading p {
+  margin: 0;
+  color: #999;
+  font-size: 12px;
+}
+
+.scanner-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scanner-feature-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 82px;
+  padding: 16px 20px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.scanner-feature-card:hover {
+  border-color: #dcefd7;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+}
+
+.scanner-feature-card:focus-visible {
+  outline: 2px solid #3ACE00;
+  outline-offset: 4px;
+}
+
+.scanner-feature-mascot {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #edfbe9;
+}
+
+.scanner-feature-mascot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.scanner-feature-mascot.scanner-subpage-mascot { width: 48px; height: 48px; }
+
+.scanner-feature-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.scanner-feature-title {
+  color: #6d6d6d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.scanner-feature-description {
+  color: #999;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.scanner-feature-arrow {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: #64748b;
+}
+
+html.dark-mode .scanner-feature-card {
+  background: #2d3748;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+html.dark-mode .scanner-feature-card:hover {
+  border-color: #48644b;
+}
+
+html.dark-mode .scanner-feature-title,
+html.dark-mode #check-content-page .subpage-title-block h2,
+html.dark-mode #check-content-page .form-label,
+html.dark-mode .scanner-menu-heading h3 {
+  color: #e2e8f0;
+}
+
+html.dark-mode .scanner-feature-description,
+html.dark-mode .scanner-feature-arrow,
+html.dark-mode .scanner-menu-heading p {
+  color: #94a3b8;
+}
+
+@media (max-width: 480px) {
+  .scanner-intro-card {
+    min-height: 164px;
+    padding: 22px 20px;
+    gap: 12px;
+  }
+  .scanner-intro-label { font-size: 20px; }
+  .scanner-intro-art { width: 88px; height: 88px; }
+  .scanner-feature-card { padding: 14px 16px; gap: 12px; }
+  .scanner-feature-mascot { width: 52px; height: 52px; }
+}
+
 .scanner-menu-list {
   display: flex;
   flex-direction: column;

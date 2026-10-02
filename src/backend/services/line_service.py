@@ -103,24 +103,24 @@ class LineService:
 
                 # Create message based on type
                 if flex_message:
-                    print(f"📨 Creating Flex Message...")
+                    print(f"Creating Flex Message...")
                     # Create Flex Message with optional quote token
                     # Convert dict to FlexContainer using from_dict
                     from linebot.v3.messaging.models import FlexContainer as FlexContainerModel
 
                     contents_dict = flex_message.get("contents")
-                    print(f"📋 Flex contents type: {type(contents_dict)}")
-                    print(f"📋 Flex contents: {contents_dict}")
+                    print(f"Flex contents type: {type(contents_dict)}")
+                    print(f"Flex contents: {contents_dict}")
 
                     flex_container = FlexContainerModel.from_dict(contents_dict)
-                    print(f"✅ FlexContainer created: {type(flex_container)}")
+                    print(f"FlexContainer created: {type(flex_container)}")
 
                     message = FlexMessage(
                         alt_text=flex_message.get("alt_text", "Fraud Detection Result"),
                         contents=flex_container,
                         quote_token=quote_token
                     )
-                    print(f"✅ FlexMessage created with quote_token={quote_token}")
+                    print(f"FlexMessage created with quote_token={quote_token}")
                 elif text:
                     # Create text message with optional quote token
                     if quote_token:
@@ -130,16 +130,16 @@ class LineService:
                 else:
                     raise ValueError("Either text or flex_message must be provided")
 
-                print(f"📤 Sending message via LINE API...")
+                print(f"Sending message via LINE API...")
                 line_bot_api.reply_message(
                     ReplyMessageRequest(
                         reply_token=reply_token,
                         messages=[message]
                     )
                 )
-                print(f"✅ Message sent successfully!")
+                print(f"Message sent successfully!")
         except Exception as e:
-            print(f"❌ ERROR in reply_message: {type(e).__name__}: {str(e)}")
+            print(f"ERROR in reply_message: {type(e).__name__}: {str(e)}")
             import traceback
             print(f"Stack trace:\n{traceback.format_exc()}")
             raise
@@ -267,7 +267,7 @@ class LineService:
         if url_check and url_check.get("is_dangerous"):
             risk_level = "high"
             danger_percentage = max(danger_percentage, 95.0)
-            print("📈 OVERRIDE: Malicious URL detected. Forcing risk level to HIGH.")
+            print("OVERRIDE: Malicious URL detected. Forcing risk level to HIGH.")
 
         # --- 2. Define Feedback Footer ---
         # The postback data is a query string that will be handled by the webhook
@@ -394,7 +394,7 @@ class LineService:
                     }
                 }
             }
-            alt_text = "🚨 อันตราย! พบข้อความฉ้อโกง"
+            alt_text = "อันตราย! พบข้อความฉ้อโกง"
 
         else:
             # SAFE - Green gradient
@@ -513,7 +513,7 @@ class LineService:
                     }
                 }
             }
-            alt_text = "✅ ปลอดภัย ข้อความนี้ไม่มีอันตราย"
+            alt_text = "ปลอดภัย ข้อความนี้ไม่มีอันตราย"
 
         return {
             "alt_text": alt_text,
@@ -544,8 +544,8 @@ class LineService:
         if url_check and url_check.get("is_dangerous"):
             malicious_urls = url_check.get("malicious_urls", [])
             url_warning = (
-                f"\n\n🔗 พบลิงก์อันตราย ({len(malicious_urls)} ลิงก์):\n"
-                "⛔ ลิงก์นี้ถูกระบุว่าเป็นอันตรายโดย antivirus หลายตัว\n"
+                f"\n\nพบลิงก์อันตราย ({len(malicious_urls)} ลิงก์):\n"
+                "ลิงก์นี้ถูกระบุว่าเป็นอันตรายโดย antivirus หลายตัว\n"
                 "• อย่าคลิกลิงก์นี้เด็ดขาด\n"
                 "• อาจเป็น phishing หรือ malware\n"
             )
@@ -562,7 +562,7 @@ class LineService:
 
             # Only show similarity info if we have data
             if times_seen > 1 or danger_percentage > 0:
-                similarity_info = f"\n\n📊 ข้อมูลเพิ่มเติม:\n"
+                similarity_info = f"\n\nข้อมูลเพิ่มเติม:\n"
 
                 if times_seen > 1:
                     similarity_info += f"• ข้อความนี้ถูกรายงานแล้ว {times_seen} ครั้ง\n"
@@ -573,24 +573,24 @@ class LineService:
 
         if classification == "FRAUD_GAMBLING_AD":
             return (
-                "⚠️ ข้อความนี้มีลักษณะเป็นโฆษณาการพนันออนไลน์\n\n"
-                "🚨 คำเตือน:\n"
+                "ข้อความนี้มีลักษณะเป็นโฆษณาการพนันออนไลน์\n\n"
+                "คำเตือน:\n"
                 "• อาจเป็นการพนันผิดกฎหมาย\n"
                 "• ระวังการหลอกลวงทางการเงิน\n"
                 "• ไม่แนะนำให้คลิกลิงก์หรือโอนเงิน\n\n"
-                "💡 ควรรายงานข้อความนี้หรือลบทิ้ง"
+                "ควรรายงานข้อความนี้หรือลบทิ้ง"
                 + similarity_info
                 + url_warning
             )
         elif classification == "SCAM_MALICIOUS_INVITE":
             return (
-                "🚨 ข้อความนี้มีลักษณะพยายามหลอกลวง\n\n"
-                "⚠️ คำเตือน:\n"
+                "ข้อความนี้มีลักษณะพยายามหลอกลวง\n\n"
+                "คำเตือน:\n"
                 "• อาจเป็น Phishing หรือ Social Engineering\n"
                 "• ระวังการขอข้อมูลส่วนตัว\n"
                 "• ไม่ควรคลิกลิงก์ที่น่าสงสัย\n"
                 "• ไม่ควรให้ข้อมูลธนาคารหรือรหัสผ่าน\n\n"
-                "💡 ควรรายงานข้อความนี้หรือลบทิ้ง"
+                "ควรรายงานข้อความนี้หรือลบทิ้ง"
                 + similarity_info
                 + url_warning
             )
@@ -598,18 +598,18 @@ class LineService:
             # If URL is dangerous but message looks safe
             if url_check and url_check.get("is_dangerous"):
                 return (
-                    "⚠️ ข้อความดูปกติ แต่พบลิงก์อันตราย!\n\n"
-                    "🚨 คำเตือนสำคัญ:\n"
+                    "ข้อความดูปกติ แต่พบลิงก์อันตราย!\n\n"
+                    "คำเตือนสำคัญ:\n"
                     "• ลิงก์ในข้อความนี้ถูกระบุว่าเป็นอันตราย\n"
                     "• อย่าคลิกลิงก์นี้เด็ดขาด\n"
                     "• อาจเป็น phishing, malware, หรือไวรัส\n\n"
-                    "💡 ควรรายงานข้อความนี้หรือลบทิ้ง"
+                    "ควรรายงานข้อความนี้หรือลบทิ้ง"
                 )
             else:
                 return (
-                    "✅ ข้อความนี้ดูปลอดภัย\n\n"
+                    "ข้อความนี้ดูปลอดภัย\n\n"
                     "ไม่พบสัญญาณของการหลอกลวงหรือการพนันผิดกฎหมาย\n\n"
-                    "💡 อย่างไรก็ตาม ควรใช้วิจารณญาณในการตัดสินใจเสมอ"
+                    "อย่างไรก็ตาม ควรใช้วิจารณญาณในการตัดสินใจเสมอ"
                 )
 
     def verify_signature(self, body: str, signature: str) -> bool:

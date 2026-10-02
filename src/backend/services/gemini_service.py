@@ -410,14 +410,14 @@ class GeminiFraudDetector:
                 # Validate category
                 valid_categories = ["FRAUD_GAMBLING", "SCAM_MALICIOUS", "SAFE_NORMAL"]
                 if result["category"] not in valid_categories:
-                    print(f"⚠️  Invalid category: {result['category']}, defaulting to SAFE_NORMAL")
+                    print(f"Invalid category: {result['category']}, defaulting to SAFE_NORMAL")
                     result["category"] = "SAFE_NORMAL"
 
                 return result
 
             except (json.JSONDecodeError, ValueError) as e:
                 # JSON parsing failed - log and return default safe response
-                print(f"⚠️  Failed to parse JSON response: {e}")
+                print(f"Failed to parse JSON response: {e}")
                 print(f"Raw response: {content}")
 
                 return {
@@ -512,12 +512,12 @@ class GeminiFraudDetector:
 
                 valid_categories = ["FRAUD_GAMBLING", "SCAM_MALICIOUS", "SAFE_NORMAL"]
                 if result["category"] not in valid_categories:
-                    print(f"⚠️  Invalid category from educational prompt: {result['category']}, defaulting to SAFE_NORMAL")
+                    print(f"Invalid category from educational prompt: {result['category']}, defaulting to SAFE_NORMAL")
                     result["category"] = "SAFE_NORMAL"
 
                 return result
             except (json.JSONDecodeError, ValueError) as e:
-                print(f"⚠️  Failed to parse JSON from educational prompt: {e}")
+                print(f"Failed to parse JSON from educational prompt: {e}")
                 print(f"Raw response: {content}")
                 return {
                     "category": "SAFE_NORMAL",

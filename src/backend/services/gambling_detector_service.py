@@ -109,7 +109,7 @@ class GamblingDetectorService:
                 from .headless_scraper_service import get_headless_scraper
                 self.headless_scraper = get_headless_scraper()
             except ImportError:
-                print("⚠️  Headless scraper not available (Playwright not installed)")
+                print("Headless scraper not available (Playwright not installed)")
                 self.use_headless = False
 
     def check_url(self, url: str, scrape_content: bool = False, use_headless_if_needed: bool = True) -> Dict:
@@ -169,7 +169,7 @@ class GamblingDetectorService:
             is_safe_domain = domain in self.SAFE_DOMAINS or any(domain.endswith('.' + safe) for safe in self.SAFE_DOMAINS)
             
             if is_safe_domain:
-                # print(f"🛡️ Skipping content scraping for safe domain: {domain}")
+                # print(f"Skipping content scraping for safe domain: {domain}")
                 scrape_content = False
 
             # Method 4: Scrape content (optional, slower)
@@ -196,7 +196,7 @@ class GamblingDetectorService:
             return result
 
         except Exception as e:
-            print(f"⚠️  Gambling detection error for {url}: {e}")
+            print(f"Gambling detection error for {url}: {e}")
             return result
 
     def _check_tld(self, domain: str) -> Optional[str]:
@@ -265,7 +265,7 @@ class GamblingDetectorService:
             is_safe_domain = domain in self.SAFE_DOMAINS or any(domain.endswith('.' + safe) for safe in self.SAFE_DOMAINS)
             
             if is_safe_domain:
-                # print(f"🛡️ Skipping content scraping for safe domain: {domain}")
+                # print(f"Skipping content scraping for safe domain: {domain}")
                 scrape_content = False
 
             # Method 4: Scrape content (optional, slower)
@@ -292,7 +292,7 @@ class GamblingDetectorService:
             return result
 
         except Exception as e:
-            print(f"⚠️  Gambling detection error for {url}: {e}")
+            print(f"Gambling detection error for {url}: {e}")
             return result
 
     async def _scrape_and_analyze_async(self, url: str, use_headless: bool = False) -> Dict:
@@ -312,23 +312,23 @@ class GamblingDetectorService:
             return httpx_result
 
         # Step 3: If confidence low and headless available, try headless browser
-        print(f"🔄 httpx confidence low ({httpx_result['confidence']:.0%}), trying headless browser...")
+        print(f"httpx confidence low ({httpx_result['confidence']:.0%}), trying headless browser...")
 
         try:
             # Call the ASYNC method directly
             headless_result = await self.headless_scraper._scrape_and_analyze_async(url)
 
             if headless_result["success"] and headless_result["confidence"] > httpx_result["confidence"]:
-                print(f"✅ Headless browser improved confidence: {httpx_result['confidence']:.0%} → {headless_result['confidence']:.0%} ({headless_result['time']:.1f}s)")
+                print(f"Headless browser improved confidence: {httpx_result['confidence']:.0%} → {headless_result['confidence']:.0%} ({headless_result['time']:.1f}s)")
                 return {
                     "keywords_found": headless_result["keywords_found"],
                     "confidence": headless_result["confidence"]
                 }
             else:
-                print(f"⚠️  Headless browser didn't improve results, using httpx")
+                print(f"Headless browser didn't improve results, using httpx")
 
         except Exception as e:
-            print(f"⚠️  Headless scraping failed: {e}, fallback to httpx")
+            print(f"Headless scraping failed: {e}, fallback to httpx")
 
         return httpx_result
 
@@ -360,23 +360,23 @@ class GamblingDetectorService:
             return httpx_result
 
         # Step 3: If confidence low and headless available, try headless browser
-        print(f"🔄 httpx confidence low ({httpx_result['confidence']:.0%}), trying headless browser...")
+        print(f"httpx confidence low ({httpx_result['confidence']:.0%}), trying headless browser...")
 
         try:
             # Call the sync wrapper
             headless_result = self.headless_scraper.scrape_and_analyze(url)
 
             if headless_result["success"] and headless_result["confidence"] > httpx_result["confidence"]:
-                print(f"✅ Headless browser improved confidence: {httpx_result['confidence']:.0%} → {headless_result['confidence']:.0%} ({headless_result['time']:.1f}s)")
+                print(f"Headless browser improved confidence: {httpx_result['confidence']:.0%} → {headless_result['confidence']:.0%} ({headless_result['time']:.1f}s)")
                 return {
                     "keywords_found": headless_result["keywords_found"],
                     "confidence": headless_result["confidence"]
                 }
             else:
-                print(f"⚠️  Headless browser didn't improve results, using httpx")
+                print(f"Headless browser didn't improve results, using httpx")
 
         except Exception as e:
-            print(f"⚠️  Headless scraping failed: {e}, fallback to httpx")
+            print(f"Headless scraping failed: {e}, fallback to httpx")
 
         return httpx_result
 
@@ -435,7 +435,7 @@ class GamblingDetectorService:
             return result
 
         except Exception as e:
-            print(f"⚠️  Content scraping failed for {url}: {e}")
+            print(f"Content scraping failed for {url}: {e}")
             return result
 
     def __del__(self):

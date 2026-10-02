@@ -143,7 +143,7 @@ async def webhook(
             postback_data = event["postback"].get("data")
             user_id = source.get("userId")
             
-            print(f"📩 Postback received: {postback_data} from {user_id}")
+            print(f"Postback received: {postback_data} from {user_id}")
             
             if postback_data and user_id:
                 feedback_service = get_feedback_service()
@@ -157,11 +157,11 @@ async def webhook(
                         parsed = parse_qs(postback_data)
                         feedback_type = parsed.get("feedback", [""])[0]
                         
-                        reply_text = "ขอบคุณสำหรับข้อมูลครับ! 🙏"
+                        reply_text = "ขอบคุณสำหรับข้อมูลครับ! "
                         if "incorrect" in feedback_type:
-                            reply_text = "ขอบคุณครับ! ระบบได้แก้ไขข้อมูลตามที่คุณแจ้งแล้ว ✅"
+                            reply_text = "ขอบคุณครับ! ระบบได้แก้ไขข้อมูลตามที่คุณแจ้งแล้ว "
                         elif "correct" in feedback_type:
-                            reply_text = "ขอบคุณที่ช่วยยืนยันความถูกต้องครับ! 👍"
+                            reply_text = "ขอบคุณที่ช่วยยืนยันความถูกต้องครับ! "
                             
                         line_service = get_line_service()
                         line_service.reply_message(reply_token, text=reply_text)
@@ -220,7 +220,7 @@ async def webhook(
                         break
 
                 if command_found and fraud_message_service:
-                    print(f"⚡️ Hackathon Feedback received: '{command_found}'")
+                    print(f"Hackathon Feedback received: '{command_found}'")
                     # This is a feedback message. Learn from it and stop.
                     # Remove the command to get the clean message
                     fraud_text = re.sub(r'\b' + re.escape(command_found) + r'\b', '', message_text, flags=re.IGNORECASE).strip()
@@ -235,11 +235,11 @@ async def webhook(
                         )
 
                         if save_result.get("saved"):
-                            reply_text = "✅ ขอบคุณสำหรับ Feedback ครับ! ระบบได้เรียนรู้และบันทึกข้อมูลนี้เรียบร้อยแล้ว"
+                            reply_text = "ขอบคุณสำหรับ Feedback ครับ! ระบบได้เรียนรู้และบันทึกข้อมูลนี้เรียบร้อยแล้ว"
                         else:
-                            reply_text = "✅ ขอบคุณสำหรับ Feedback ครับ! ข้อความนี้มีอยู่ในระบบแล้ว เราจะนำข้อมูลไปปรับปรุงต่อไป"
+                            reply_text = "ขอบคุณสำหรับ Feedback ครับ! ข้อความนี้มีอยู่ในระบบแล้ว เราจะนำข้อมูลไปปรับปรุงต่อไป"
                     else:
-                        reply_text = "⚠️ ไม่พบข้อความให้บันทึก กรุณาส่งต่อ (Forward) ข้อความที่ต้องการรายงานแล้วพิมพ์ #ผิด หรือ #f ต่อท้ายครับ"
+                        reply_text = "ไม่พบข้อความให้บันทึก กรุณาส่งต่อ (Forward) ข้อความที่ต้องการรายงานแล้วพิมพ์ #ผิด หรือ #f ต่อท้ายครับ"
 
                     # Reply to user and stop processing for this event
                     line_service.reply_message(reply_token, text=reply_text)
@@ -315,16 +315,16 @@ async def webhook(
                 # Determine routing strategy based on pre-screen confidence
                 # If user explicitly requested analysis, always do full check
                 if user_wants_analysis and prescreen_confidence < 0.5:
-                    print(f"🔍 USER REQUEST: User requested analysis, performing full check")
+                    print(f"USER REQUEST: User requested analysis, performing full check")
                     routing_strategy = "full"
                 elif should_skip_ai(prescreen_confidence):
-                    print(f"🚀 FAST PATH: Pre-screen confidence {prescreen_confidence:.2%} >= {perf_config.PRESCREEN_INSTANT_THRESHOLD:.2%} - skipping AI, instant response")
+                    print(f"FAST PATH: Pre-screen confidence {prescreen_confidence:.2%} >= {perf_config.PRESCREEN_INSTANT_THRESHOLD:.2%} - skipping AI, instant response")
                     routing_strategy = "instant"
                 elif should_skip_url_checks(prescreen_confidence):
-                    print(f"⚡ AI ONLY: Pre-screen confidence {prescreen_confidence:.2%} >= {perf_config.PRESCREEN_AI_ONLY_THRESHOLD:.2%} - using AI only, skipping URL checks")
+                    print(f"AI ONLY: Pre-screen confidence {prescreen_confidence:.2%} >= {perf_config.PRESCREEN_AI_ONLY_THRESHOLD:.2%} - using AI only, skipping URL checks")
                     routing_strategy = "ai_only"
                 elif should_do_full_check(prescreen_confidence):
-                    print(f"🔍 FULL CHECK: Pre-screen confidence {prescreen_confidence:.2%} < {perf_config.PRESCREEN_FULL_CHECK_THRESHOLD:.2%} - performing full check")
+                    print(f"FULL CHECK: Pre-screen confidence {prescreen_confidence:.2%} < {perf_config.PRESCREEN_FULL_CHECK_THRESHOLD:.2%} - performing full check")
                     routing_strategy = "full"
                 else:
                     routing_strategy = "full"  # Default to full check
@@ -343,7 +343,7 @@ async def webhook(
                     cached_result = db_service.get_cached_result(analysis_message)
 
                     if cached_result:
-                        print(f"✅ Cache HIT - using cached result for: {analysis_message[:100]}...")
+                        print(f"Cache HIT - using cached result for: {analysis_message[:100]}...")
                         # Use cached_result directly
                         result = cached_result
                         url_check = cached_result.get("url_check")
@@ -352,7 +352,7 @@ async def webhook(
                 # Step 2.2: If cache miss, use AI for detailed analysis
                 if not cached_result:
                     # The original message_text is passed to save_result later
-                    print(f"⚠️  Cache MISS - checking with AI for: {analysis_message[:100]}...")
+                    print(f"Cache MISS - checking with AI for: {analysis_message[:100]}...")
 
                     # Handle INSTANT routing (skip AI entirely)
                     if routing_strategy == "instant":
@@ -368,7 +368,7 @@ async def webhook(
                             "risk_level": "High",
                             "message_length": len(analysis_message)
                         }
-                        print(f"🚀 Instant response (pattern-based): {result['category']}, confidence: {prescreen_confidence:.2%}")
+                        print(f"Instant response (pattern-based): {result['category']}, confidence: {prescreen_confidence:.2%}")
 
                     else:
                         # AI-based or full check
@@ -382,7 +382,7 @@ async def webhook(
 
                             # Task 1: AI classification (Context-Aware)
                             if prescreen_result.is_educational_context:
-                                print("🧠 Using educational prompt for AI analysis.")
+                                print("Using educational prompt for AI analysis.")
                                 ai_task = asyncio.create_task(detector.classify_educational_with_details_async(analysis_message))
                             else:
                                 ai_task = asyncio.create_task(detector.classify_with_details_async(analysis_message))
@@ -400,7 +400,7 @@ async def webhook(
                                     timeout=perf_config.MAX_TOTAL_PROCESSING_TIME
                                 )
                             except asyncio.TimeoutError:
-                                print(f"⏱️ Global timeout ({perf_config.MAX_TOTAL_PROCESSING_TIME}s) exceeded, using partial results")
+                                print(f"Global timeout ({perf_config.MAX_TOTAL_PROCESSING_TIME}s) exceeded, using partial results")
                                 # Return partial results safely
                                 results = []
                                 for task in tasks:
@@ -408,7 +408,7 @@ async def webhook(
                                         try:
                                             results.append(task.result())
                                         except Exception as e:
-                                            print(f"⚠️ Task failed: {e}")
+                                            print(f"Task failed: {e}")
                                             results.append(None)
                                     else:
                                         results.append(None)
@@ -423,10 +423,10 @@ async def webhook(
 
                             # Check for URL check success first
                             if url_check and not isinstance(url_check, Exception) and url_check.get("is_dangerous"):
-                                print("✅ VirusTotal check SUCCEEDED and found a malicious URL.")
+                                print("VirusTotal check SUCCEEDED and found a malicious URL.")
                                 # If AI failed, create a result based on the VT finding
                                 if ai_result is None or isinstance(ai_result, Exception):
-                                    print(f"⚠️ AI check failed or timed out: {ai_result}. Creating result from successful URL check.")
+                                    print(f"AI check failed or timed out: {ai_result}. Creating result from successful URL check.")
                                     result = {
                                         "category": "SCAM_MALICIOUS",
                                         "risk_level": "High",
@@ -445,12 +445,12 @@ async def webhook(
                             else:
                                 # URL check either failed, didn't run, or found nothing dangerous
                                 if isinstance(url_check, Exception):
-                                    print(f"⚠️ VirusTotal check failed: {url_check}")
+                                    print(f"VirusTotal check failed: {url_check}")
                                     url_check = None
                                 
                                 # Now, handle AI result
                                 if ai_result is None or isinstance(ai_result, Exception):
-                                    print(f"⚠️ AI check failed and URL check was inconclusive. Falling back to pattern-based result. AI Error: {ai_result}")
+                                    print(f"AI check failed and URL check was inconclusive. Falling back to pattern-based result. AI Error: {ai_result}")
                                     result = {
                                         "category": "FRAUD_GAMBLING_AD" if prescreen_confidence >= 0.5 else "SAFE_NORMAL",
                                         "is_fraud": prescreen_confidence >= 0.5,
@@ -467,7 +467,7 @@ async def webhook(
 
                         except Exception as e:
                             # Fallback for the entire parallel execution block
-                            print(f"⚠️  Parallel execution failed entirely, falling back to sequential: {e}")
+                            print(f"Parallel execution failed entirely, falling back to sequential: {e}")
                             result = {
                                 "category": "FRAUD_GAMBLING_AD" if prescreen_confidence >= 0.5 else "SAFE_NORMAL",
                                 "is_fraud": prescreen_confidence >= 0.5,
@@ -484,7 +484,7 @@ async def webhook(
                                 if vt_service and routing_strategy == "full":
                                     url_check = await vt_service.check_text_for_malicious_urls_async(analysis_message)
                             except Exception as vt_e:
-                                print(f"⚠️  VirusTotal fallback check also failed: {vt_e}")
+                                print(f"VirusTotal fallback check also failed: {vt_e}")
                                 url_check = None
 
                     # Step 3.1: Save malicious/gambling domains to blacklist (if URL is dangerous)
@@ -504,7 +504,7 @@ async def webhook(
                                     parsed = urlparse(url)
                                     domain = parsed.netloc or parsed.path.split('/')[0]
                                     if domain and gambling_service.is_whitelisted(domain):
-                                        print(f"🛡️ Ignoring whitelisted domain: {domain}")
+                                        print(f"Ignoring whitelisted domain: {domain}")
                                         continue
                                     new_malicious_urls.append(url)
                                 except:
@@ -519,7 +519,7 @@ async def webhook(
                                     parsed = urlparse(url)
                                     domain = parsed.netloc or parsed.path.split('/')[0]
                                     if domain and gambling_service.is_whitelisted(domain):
-                                        print(f"🛡️ Ignoring whitelisted domain: {domain}")
+                                        print(f"Ignoring whitelisted domain: {domain}")
                                         continue
                                     new_gambling_urls.append(url)
                                 except:
@@ -530,7 +530,7 @@ async def webhook(
                             # Re-evaluate is_dangerous
                             url_check["is_dangerous"] = bool(new_malicious_urls or new_gambling_urls)
                             if not url_check["is_dangerous"]:
-                                print("✅ All dangerous URLs were whitelisted. Marking as safe.")
+                                print("All dangerous URLs were whitelisted. Marking as safe.")
 
                     has_malicious_urls = url_check and url_check.get("is_dangerous", False)
                     if has_malicious_urls and db_service:
@@ -584,13 +584,13 @@ async def webhook(
                                             category=category,
                                             source=source
                                         )
-                                        print(f"💾 Saved {category} domain to blacklist: {domain} (confidence: {confidence:.2f})")
+                                        print(f"Saved {category} domain to blacklist: {domain} (confidence: {confidence:.2f})")
 
                                 except Exception as url_error:
-                                    print(f"⚠️  Failed to extract domain from {url}: {url_error}")
+                                    print(f"Failed to extract domain from {url}: {url_error}")
 
                         except Exception as e:
-                            print(f"⚠️  Failed to save malicious domain to blacklist: {e}")
+                            print(f"Failed to save malicious domain to blacklist: {e}")
 
                     # Step 3.2: Save to cache ONLY if fraud detected (to save database space)
                     if db_service and result["is_fraud"]:
@@ -607,9 +607,9 @@ async def webhook(
                                 model_used=result.get("model"),
                                 cache_ttl_days=30
                             )
-                            print(f"💾 Fraud result saved to cache")
+                            print(f"Fraud result saved to cache")
                         except Exception as e:
-                            print(f"⚠️  Failed to save to cache: {e}")
+                            print(f"Failed to save to cache: {e}")
 
                     # Step 3.2: Save to fraud_messages table (if fraud detected, with deduplication)
                     if result["is_fraud"]:
@@ -634,11 +634,11 @@ async def webhook(
                                     keywords=final_keywords
                                 )
                                 if save_result["saved"]:
-                                    print(f"💾 New fraud message saved (unique)")
+                                    print(f"New fraud message saved (unique)")
                                 else:
-                                    print(f"💾 Fraud message updated (similarity: {save_result.get('similarity', 0):.2%}, hit_count incremented)")
+                                    print(f"Fraud message updated (similarity: {save_result.get('similarity', 0):.2%}, hit_count incremented)")
                             except Exception as e:
-                                print(f"⚠️  Failed to save fraud message: {e}")
+                                print(f"Failed to save fraud message: {e}")
 
                     # Step 3.3: Auto-save gambling domains detected in URLs
                     if url_check and url_check.get("gambling_urls"):
@@ -661,7 +661,7 @@ async def webhook(
                                         keywords=url_data.get("gambling_keywords", [])
                                     )
                                 except Exception as e:
-                                    print(f"⚠️  Failed to save gambling domain: {e}")
+                                    print(f"Failed to save gambling domain: {e}")
 
                 # Step 4: Calculate similarity analysis (ALWAYS, not just for fraud)
                 # This provides danger_percentage for Flex Message
@@ -676,9 +676,9 @@ async def webhook(
                         frequency = similarity_data["frequency"]
                         danger_analysis = similarity_data["danger_analysis"]
 
-                        print(f"📊 Similarity: {danger_analysis.get('danger_percentage', 0):.1f}%, seen {frequency.get('times_seen', 0)} times")
+                        print(f"Similarity: {danger_analysis.get('danger_percentage', 0):.1f}%, seen {frequency.get('times_seen', 0)} times")
                     except Exception as e:
-                        print(f"⚠️  Similarity analysis failed: {e}")
+                        print(f"Similarity analysis failed: {e}")
 
                 # If no similarity data, use pre-screen confidence as danger percentage
                 if not similarity_data or not similarity_data.get("danger_analysis"):
@@ -694,7 +694,7 @@ async def webhook(
                             "seen_before": False
                         }
                     }
-                    print(f"📊 Using pre-screen confidence as danger: {danger_pct:.1f}%")
+                    print(f"Using pre-screen confidence as danger: {danger_pct:.1f}%")
 
                 # Step 5: Save to history log (for both Personal and Group/Room messages)
                 # For Group/Room: use target_id (group_id or room_id)
@@ -718,9 +718,9 @@ async def webhook(
                             message_type="link" if (has_malicious_urls or (url_check or {}).get("has_urls")) else "text"
                         )
                         source_label = "GROUP/ROOM" if is_group else "USER"
-                        print(f"📜 Saved {source_label} message to history for {save_user_id} (ID: {history_id})")
+                        print(f"Saved {source_label} message to history for {save_user_id} (ID: {history_id})")
                     except Exception as e:
-                        print(f"⚠️  Failed to save history: {e}")
+                        print(f"Failed to save history: {e}")
 
                 # Step 6: Create and send response ONLY for dangerous messages OR when explicitly requested
                 # Safe messages are logged but not sent to avoid annoying users
@@ -728,7 +728,7 @@ async def webhook(
                 
                 if (is_fraud and should_respond) or user_wants_analysis:
                     # Option 1: Use Flex Message (prettier, more informative)
-                    print("🎨 Creating Flex Message response for DANGEROUS message...")
+                    print("Creating Flex Message response for DANGEROUS message...")
                     flex_message = line_service.create_fraud_flex_message(
                         classification=result["category"],
                         is_fraud=result["is_fraud"],
@@ -738,13 +738,13 @@ async def webhook(
                         similarity_data=similarity_data,
                         history_id=history_id
                     )
-                    print(f"🎨 Flex message created: {flex_message.get('alt_text', 'N/A')}")
-                    print(f"🎨 Sending reply with reply_token={reply_token[:20]}..., quote_token={quote_token[:20] if quote_token else None}...")
+                    print(f"Flex message created: {flex_message.get('alt_text', 'N/A')}")
+                    print(f"Sending reply with reply_token={reply_token[:20]}..., quote_token={quote_token[:20] if quote_token else None}...")
                     line_service.reply_message(reply_token, flex_message=flex_message, quote_token=quote_token)
-                    print(f"🎨 Reply sent!")
+                    print(f"Reply sent!")
                     print(f"AI check completed: {result['category']}")
                 else:
-                    print(f"✅ Message checked (is_fraud={is_fraud}, should_respond={should_respond}) - NOT sending response (silent mode)")
+                    print(f"Message checked (is_fraud={is_fraud}, should_respond={should_respond}) - NOT sending response (silent mode)")
                     print(f"AI check completed: {result['category']}")
 
             except Exception as e:
@@ -769,7 +769,7 @@ async def webhook(
             if not message_id:
                 continue
 
-            print(f"📸 Received image from user: {user_id}")
+            print(f"Received image from user: {user_id}")
 
             try:
                 line_service = get_line_service()
@@ -814,7 +814,7 @@ async def webhook(
                         if not qr_url:
                             line_service.reply_message(
                                 reply_token,
-                                text="🔍 พบ QR Code แต่ไม่สามารถอ่านข้อมูลได้\nกรุณาถ่ายรูปให้ชัดเจนขึ้น"
+                                text="พบ QR Code แต่ไม่สามารถอ่านข้อมูลได้\nกรุณาถ่ายรูปให้ชัดเจนขึ้น"
                             )
                             continue
 
@@ -829,20 +829,20 @@ async def webhook(
 
                         if is_fraud:
                             # Dangerous QR Code
-                            risk_emoji = "🚨" if confidence_score >= 80 else "⚠️"
+                            risk_emoji = "" if confidence_score >= 80 else ""
                             line_service.reply_message(
                                 reply_token,
                                 text=f"{risk_emoji} **ระวัง! QR Code อันตราย**\n\n"
                                      f"URL: {qr_url}\n\n"
                                      f"ประเภท: {fraud_result.get('reason_th', 'อันตราย')}\n"
                                      f"ความมั่นใจ: {confidence_score}%\n\n"
-                                     f"⚠️ **อย่าสแกนหรือเปิดลิงก์นี้!**"
+                                     f"**อย่าสแกนหรือเปิดลิงก์นี้!**"
                             )
                         else:
                             # Safe QR Code
                             line_service.reply_message(
                                 reply_token,
-                                text=f"✅ QR Code ปลอดภัย\n\n"
+                                text=f"QR Code ปลอดภัย\n\n"
                                      f"URL: {qr_url}\n\n"
                                      f"ไม่พบความเสี่ยง"
                             )
@@ -858,7 +858,7 @@ async def webhook(
                             print(f"[ERROR] ID card verification failed: {error_msg}")
                             line_service.reply_message(
                                 reply_token,
-                                text=f"❌ ไม่สามารถอ่านบัตรประชาชนได้\n\n"
+                                text=f"ไม่สามารถอ่านบัตรประชาชนได้\n\n"
                                      f"กรุณาถ่ายรูปให้ชัดเจนและแสงสว่างเพียงพอ\n"
                                      f"ตรวจสอบว่าบัตรอยู่ในกรอบทั้งหมด"
                             )
@@ -879,17 +879,17 @@ async def webhook(
 
                         # Determine status icon and message
                         if is_blacklisted:
-                            icon = "⚠️"
+                            icon = ""
                             status = "พบในบัญชีดำ"
                             safety = "ไม่ปลอดภัย"
                             warning_msg = f"• ระวัง! เลขบัตรนี้มี {reports_count} รายงานการฉ้อโกง"
                         elif not is_valid_format:
-                            icon = "⚠️"
+                            icon = ""
                             status = "รูปแบบไม่ถูกต้อง"
                             safety = "ควรตรวจสอบ"
                             warning_msg = "• เลขบัตรไม่ผ่านการตรวจสอบ checksum"
                         else:
-                            icon = "✅"
+                            icon = ""
                             status = "ปลอดภัย"
                             safety = "ปลอดภัย"
                             warning_msg = "• ไม่พบข้อมูลในบัญชีดำ"
@@ -967,14 +967,14 @@ async def webhook(
             if postback_data and user_id:
                 # Check if this is a feedback action
                 if "action=feedback" in postback_data:
-                    print(f"👍 Received feedback postback from user {user_id}")
+                    print(f"Received feedback postback from user {user_id}")
                     try:
                         feedback_service = get_feedback_service()
                         if feedback_service:
                             feedback_service.save_feedback_from_postback(postback_data, user_id)
                         # No reply needed as button press has displayText
                     except Exception as e:
-                        print(f"❌ Failed to save feedback: {e}")
+                        print(f"Failed to save feedback: {e}")
 
     return {"status": "ok"}
 

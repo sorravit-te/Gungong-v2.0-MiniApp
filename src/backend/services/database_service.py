@@ -223,7 +223,7 @@ class DatabaseService:
                         "last_accessed_at": now_utc()
                     }, timeout=timeout)
             except Exception as e:
-                print(f"⚠️ Failed to update cache stats: {e}")
+                print(f"Failed to update cache stats: {e}")
 
             # Parse URL check result if exists (stored as JSON string or dict in Firestore)
             url_check_result = data.get("url_check_result")
@@ -262,7 +262,7 @@ class DatabaseService:
             if cache_key:
                 logging.getLogger(__name__).warning("url_cache_lookup outcome=error error_type=%s", type(e).__name__)
             else:
-                print(f"❌ Firestore error getting cached result: {e}")
+                print(f"Firestore error getting cached result: {e}")
             return None
 
     def record_url_cache_access(self, cache_key: str) -> None:
@@ -332,7 +332,7 @@ class DatabaseService:
             return doc_ref.id
 
         except Exception as e:
-            print(f"❌ Firestore error saving history: {e}")
+            print(f"Firestore error saving history: {e}")
             return None
 
     def save_feedback(
@@ -362,7 +362,7 @@ class DatabaseService:
             return True
             
         except Exception as e:
-            print(f"❌ Firestore error saving feedback: {e}")
+            print(f"Firestore error saving feedback: {e}")
             return False
 
     def save_result(
@@ -458,7 +458,7 @@ class DatabaseService:
             return True
 
         except Exception as e:
-            print(f"❌ Firestore error saving result: {e}")
+            print(f"Firestore error saving result: {e}")
             return False
 
     def clear_expired_cache(self) -> int:
@@ -496,7 +496,7 @@ class DatabaseService:
             return deleted_count
 
         except Exception as e:
-            print(f"❌ Firestore error clearing expired cache: {e}")
+            print(f"Firestore error clearing expired cache: {e}")
             return 0
 
     def get_cache_stats(self) -> Dict[str, Any]:
@@ -531,7 +531,7 @@ class DatabaseService:
             }
 
         except Exception as e:
-            print(f"❌ Firestore error getting cache stats: {e}")
+            print(f"Firestore error getting cache stats: {e}")
             return {"error": str(e)}
 
     def save_malicious_domain(
@@ -572,15 +572,15 @@ class DatabaseService:
             doc = doc_ref.get()
             if not doc.exists:
                 data["created_at"] = now_utc()
-                print(f"💾 Saved new malicious domain to blacklist: {domain}")
+                print(f"Saved new malicious domain to blacklist: {domain}")
             else:
-                print(f"📝 Updated malicious domain: {domain}")
+                print(f"Updated malicious domain: {domain}")
                 
             doc_ref.set(data, merge=True)
             return True
 
         except Exception as e:
-            print(f"❌ Firestore error saving malicious domain: {e}")
+            print(f"Firestore error saving malicious domain: {e}")
             return False
 
 
@@ -603,10 +603,10 @@ def get_database_service() -> Optional[DatabaseService]:
             if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or settings.firestore_project_id:
                 _db_service = DatabaseService()
             else:
-                print("ℹ️ Firestore caching disabled (GOOGLE_APPLICATION_CREDENTIALS not set)")
+                print("Firestore caching disabled (GOOGLE_APPLICATION_CREDENTIALS not set)")
                 return None
         except Exception as e:
-            print(f"⚠️ Warning: Could not initialize Firestore service: {e}")
+            print(f"Warning: Could not initialize Firestore service: {e}")
             return None
 
     return _db_service

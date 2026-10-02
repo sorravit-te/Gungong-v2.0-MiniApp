@@ -107,7 +107,7 @@ def import_messages(messages: list, category: str = "FRAUD_GAMBLING_AD") -> dict
     """
     fraud_service = get_fraud_message_service()
     if not fraud_service:
-        print("❌ Fraud message service not available")
+        print("Fraud message service not available")
         return {"error": "Service not available"}
 
     stats = {
@@ -118,7 +118,7 @@ def import_messages(messages: list, category: str = "FRAUD_GAMBLING_AD") -> dict
         "errors": 0
     }
 
-    print(f"\n📥 Importing {len(messages)} messages...")
+    print(f"\nImporting {len(messages)} messages...")
     print(f"   Category: {category}")
     print(f"   Deduplication: 70% similarity threshold")
     print()
@@ -136,23 +136,23 @@ def import_messages(messages: list, category: str = "FRAUD_GAMBLING_AD") -> dict
             if result["saved"]:
                 stats["inserted"] += 1
                 if i % 10 == 0 or i <= 5:  # Show first 5 and every 10th
-                    print(f"   ✅ [{i}/{len(messages)}] Inserted: {message[:60]}...")
+                    print(f"   [{i}/{len(messages)}] Inserted: {message[:60]}...")
             else:
                 stats["updated"] += 1
                 similarity = result.get("similarity", 0)
                 if i <= 5:  # Show first 5 updates
-                    print(f"   ✏️  [{i}/{len(messages)}] Updated (similar {similarity:.0%}): {message[:60]}...")
+                    print(f"   [{i}/{len(messages)}] Updated (similar {similarity:.0%}): {message[:60]}...")
 
         except Exception as e:
             stats["errors"] += 1
-            print(f"   ❌ [{i}/{len(messages)}] Error: {e}")
+            print(f"   [{i}/{len(messages)}] Error: {e}")
 
     return stats
 
 
 def main():
     """Main import function."""
-    print("🎓 Fraud Dataset Importer")
+    print("Fraud Dataset Importer")
     print("=" * 80)
 
     # File paths
@@ -170,7 +170,7 @@ def main():
 
     # Import scamming_fraud_text.txt
     if scamming_file.exists():
-        print(f"\n📂 File 1: {scamming_file.name}")
+        print(f"\nFile 1: {scamming_file.name}")
         print("-" * 80)
 
         messages = parse_scamming_fraud_file(str(scamming_file))
@@ -184,16 +184,16 @@ def main():
         all_stats["total_updated"] += stats["updated"]
         all_stats["total_errors"] += stats["errors"]
 
-        print(f"\n   📊 Results:")
-        print(f"      ✅ Inserted: {stats['inserted']}")
-        print(f"      ✏️  Updated: {stats['updated']}")
-        print(f"      ❌ Errors: {stats['errors']}")
+        print(f"\n   Results:")
+        print(f"      Inserted: {stats['inserted']}")
+        print(f"      Updated: {stats['updated']}")
+        print(f"      Errors: {stats['errors']}")
     else:
-        print(f"⚠️  File not found: {scamming_file}")
+        print(f"File not found: {scamming_file}")
 
     # Import spam_dataset_500.txt
     if spam_file.exists():
-        print(f"\n📂 File 2: {spam_file.name}")
+        print(f"\nFile 2: {spam_file.name}")
         print("-" * 80)
 
         messages = parse_spam_dataset_file(str(spam_file))
@@ -207,32 +207,32 @@ def main():
         all_stats["total_updated"] += stats["updated"]
         all_stats["total_errors"] += stats["errors"]
 
-        print(f"\n   📊 Results:")
-        print(f"      ✅ Inserted: {stats['inserted']}")
-        print(f"      ✏️  Updated: {stats['updated']}")
-        print(f"      ❌ Errors: {stats['errors']}")
+        print(f"\n   Results:")
+        print(f"      Inserted: {stats['inserted']}")
+        print(f"      Updated: {stats['updated']}")
+        print(f"      Errors: {stats['errors']}")
     else:
-        print(f"⚠️  File not found: {spam_file}")
+        print(f"File not found: {spam_file}")
 
     # Final summary
     print(f"\n{'=' * 80}")
-    print(f"📊 FINAL SUMMARY")
+    print(f"FINAL SUMMARY")
     print(f"{'=' * 80}")
     print(f"   Files processed: {all_stats['total_files']}")
     print(f"   Total messages: {all_stats['total_messages']}")
-    print(f"   ✅ Inserted (unique): {all_stats['total_inserted']}")
-    print(f"   ✏️  Updated (duplicates): {all_stats['total_updated']}")
-    print(f"   ❌ Errors: {all_stats['total_errors']}")
+    print(f"   Inserted (unique): {all_stats['total_inserted']}")
+    print(f"   Updated (duplicates): {all_stats['total_updated']}")
+    print(f"   Errors: {all_stats['total_errors']}")
 
     # Show deduplication rate
     if all_stats['total_messages'] > 0:
         unique_rate = (all_stats['total_inserted'] / all_stats['total_messages']) * 100
-        print(f"\n   📈 Deduplication:")
+        print(f"\n   Deduplication:")
         print(f"      Unique messages: {unique_rate:.1f}%")
         print(f"      Duplicates removed: {100 - unique_rate:.1f}%")
 
-    print(f"\n✅ Import completed!")
-    print(f"\n💡 Next steps:")
+    print(f"\nImport completed!")
+    print(f"\nNext steps:")
     print(f"   1. Restart bot: docker-compose restart gungong-bot")
     print(f"   2. Bot will now use these {all_stats['total_inserted']} unique fraud messages")
     print(f"   3. Similarity analysis will be more accurate")

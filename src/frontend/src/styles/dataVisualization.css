@@ -140,8 +140,48 @@
 /* Chart Container */
 .chart-container {
   width: 100%;
-  height: 180px;
+  height: 220px;
 }
+
+.summary-chart-grid line { stroke: #edf0f3; }
+html.dark-mode .summary-chart-grid line { stroke: #465264; }
+
+.summary-viz-card .summary-load-message { margin: 8px 0 0; padding: 8px 0; }
+
+.summary-chart-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 4px; }
+.summary-chart-heading h4 { margin: 0; font-size: 13px; color: #6d6d6d; }
+.summary-chart-heading > span { font-size: 11px; color: #999; }
+.summary-segment-count { font-size: 12px; font-weight: 600; fill: #334155; pointer-events: none; }
+.summary-bar-total { font-size: 12px; font-weight: 600; fill: #6d6d6d; pointer-events: none; }
+
+.summary-result-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+  list-style: none;
+  margin: 16px 0 4px;
+  padding: 14px 0 0;
+  border-top: 1px solid #f0f0f0;
+  color: #6d6d6d;
+  font-size: 12px;
+}
+.summary-result-legend li, .summary-tooltip-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.summary-result-label { flex: 1; line-height: 1.5; }
+.summary-result-legend strong { font-size: 14px; font-variant-numeric: tabular-nums; }
+.summary-result-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.summary-result-tooltip { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: max-content; max-width: 260px; color: #6d6d6d; font-size: 11px; }
+.summary-result-tooltip > strong { padding-bottom: 6px; border-bottom: 1px solid #edf0f3; font-size: 12px; }
+.summary-tooltip-row > span:nth-child(2) { flex: 1; }
+.summary-tooltip-row strong { font-variant-numeric: tabular-nums; }
+/* Exact per-feature values remain accessible without relying on color or hover. */
+.summary-accessible-data { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+html.dark-mode .summary-chart-heading h4,
+html.dark-mode .summary-result-legend,
+html.dark-mode .summary-result-tooltip { color: #E2E8F0; }
+html.dark-mode .summary-result-legend { border-top-color: #3d4a5c; }
+html.dark-mode .summary-result-tooltip > strong { border-bottom-color: #3d4a5c; }
+html.dark-mode .summary-bar-total { fill: #E2E8F0; }
 
 /* Chart Bars Animation */
 .chart-bar {
@@ -310,10 +350,13 @@ html.dark-mode .tooltip-value {
   }
 
   .chart-container {
-    height: 160px;
+    height: 200px;
   }
 
   .summary-viz-title h3 {
     font-size: 15px;
   }
+
+  .summary-result-legend { gap: 12px; font-size: 11px; }
+  .summary-result-legend li { gap: 6px; }
 }

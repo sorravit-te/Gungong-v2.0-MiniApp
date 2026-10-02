@@ -17,25 +17,25 @@ try:
     from google.auth import default
     import google.auth.exceptions
 except ImportError:
-    print("❌ Error: Required packages not installed")
+    print("Error: Required packages not installed")
     print("Please install: pip install google-cloud-firestore google-auth")
     sys.exit(1)
 
 
 def print_success(msg):
-    print(f"✅ {msg}")
+    print(f"{msg}")
 
 
 def print_error(msg):
-    print(f"❌ {msg}")
+    print(f"{msg}")
 
 
 def print_info(msg):
-    print(f"ℹ️  {msg}")
+    print(f"{msg}")
 
 
 def print_warning(msg):
-    print(f"⚠️  {msg}")
+    print(f"{msg}")
 
 
 def test_environment():
@@ -244,7 +244,7 @@ def main():
     total = len(results)
 
     for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
+        status = "PASS" if result else "FAIL"
         print(f"{status} - {test_name}")
 
     print("\n" + "="*50)

@@ -74,12 +74,12 @@ class SimilarityService:
 
             # Update cache timestamp
             self.last_loaded_time = time.time()
-            print(f"✅ Loaded {len(self.fraud_messages)} fraud messages into TF-IDF cache")
+            print(f"Loaded {len(self.fraud_messages)} fraud messages into TF-IDF cache")
 
             return len(self.fraud_messages)
 
         except Exception as e:
-            print(f"❌ Error loading fraud messages: {e}")
+            print(f"Error loading fraud messages: {e}")
             return 0
 
     def calculate_danger_score(self, message: str) -> Dict[str, Any]:
@@ -153,7 +153,7 @@ class SimilarityService:
                 }
 
         except Exception as e:
-            print(f"❌ Error calculating danger score: {e}")
+            print(f"Error calculating danger score: {e}")
             return {
                 "danger_percentage": 0.0,
                 "most_similar_message": None,
@@ -227,7 +227,7 @@ def get_similarity_service() -> Optional[SimilarityService]:
         if db_service:
             _similarity_service = SimilarityService()
         else:
-            print("ℹ️ Similarity service disabled (DATABASE_URL not configured)")
+            print("Similarity service disabled (DATABASE_URL not configured)")
             return None
 
     return _similarity_service

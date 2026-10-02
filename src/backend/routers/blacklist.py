@@ -64,7 +64,7 @@ async def check_bank(request: Request, bank_request: BankCheckRequest):
                     message_type="bank"
                 )
         except Exception as e:
-            print(f"⚠️ Failed to save bank check history: {e}")
+            print(f"Failed to save bank check history: {e}")
 
     return result
 
@@ -106,6 +106,6 @@ async def check_phone(request: Request, phone_request: PhoneCheckRequest):
                     message_type="phone"
                 )
         except Exception as e:
-            print(f"⚠️ Failed to save phone check history: {e}")
+            print(f"Failed to save phone check history: {e}")
 
     return result

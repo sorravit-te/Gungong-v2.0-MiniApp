@@ -37,19 +37,19 @@ def check_table_exists(engine, table_name: str) -> bool:
 def migrate_database():
     """Create new performance optimization tables."""
 
-    print("🔧 Starting database migration...")
+    print("Starting database migration...")
     print("="*60)
 
     db_service = get_database_service()
     if not db_service:
-        print("❌ Database not configured (DATABASE_URL not set)")
+        print("Database not configured (DATABASE_URL not set)")
         return False
 
     engine = db_service.engine
 
     try:
         # Check which tables already exist
-        print("\n📊 Checking existing tables...")
+        print("\nChecking existing tables...")
         tables_to_create = [
             ("gambling_domains", GamblingDomain),
             ("url_reputation_cache", URLReputationCache),
@@ -60,11 +60,11 @@ def migrate_database():
         for table_name, model_class in tables_to_create:
             exists = check_table_exists(engine, table_name)
             tables_exist[table_name] = exists
-            status = "✅ EXISTS" if exists else "❌ MISSING"
+            status = "EXISTS" if exists else "MISSING"
             print(f"   {status}: {table_name}")
 
         # Create missing tables
-        print("\n🔨 Creating missing tables...")
+        print("\nCreating missing tables...")
         created_count = 0
 
         for table_name, model_class in tables_to_create:
@@ -73,7 +73,7 @@ def migrate_database():
                 try:
                     # Create single table
                     model_class.__table__.create(engine, checkfirst=True)
-                    print(f"   ✅ Created: {table_name}")
+                    print(f"   Created: {table_name}")
                     created_count += 1
 
                     # Show table schema
@@ -85,28 +85,28 @@ def migrate_database():
                         print(f"         - {col['name']}: {col['type']} {nullable}")
 
                 except Exception as e:
-                    print(f"   ❌ Failed to create {table_name}: {e}")
+                    print(f"   Failed to create {table_name}: {e}")
             else:
-                print(f"   ⏭️  Skipped: {table_name} (already exists)")
+                print(f"   Skipped: {table_name} (already exists)")
 
         # Summary
         print("\n" + "="*60)
-        print(f"📊 Migration Summary:")
-        print(f"   ✅ Tables created: {created_count}")
-        print(f"   ⏭️  Tables skipped: {len(tables_to_create) - created_count}")
+        print(f"Migration Summary:")
+        print(f"   Tables created: {created_count}")
+        print(f"   Tables skipped: {len(tables_to_create) - created_count}")
 
         if created_count > 0:
-            print(f"\n✅ Database migration completed successfully!")
-            print(f"\n💡 Next steps:")
+            print(f"\nDatabase migration completed successfully!")
+            print(f"\nNext steps:")
             print(f"   1. Run: python -m scripts.populate_gambling_domains")
             print(f"   2. Restart the bot to use the new tables")
         else:
-            print(f"\n✅ All tables already exist, no migration needed!")
+            print(f"\nAll tables already exist, no migration needed!")
 
         return True
 
     except Exception as e:
-        print(f"\n❌ Migration failed: {e}")
+        print(f"\nMigration failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -115,12 +115,12 @@ def migrate_database():
 def show_table_info():
     """Show information about all fraud detection tables."""
 
-    print("📊 Database Table Information")
+    print("Database Table Information")
     print("="*60)
 
     db_service = get_database_service()
     if not db_service:
-        print("❌ Database not configured (DATABASE_URL not set)")
+        print("Database not configured (DATABASE_URL not set)")
         return
 
     engine = db_service.engine
@@ -152,7 +152,7 @@ def show_table_info():
                 else:
                     count = "N/A"
 
-                print(f"\n✅ {table_name}")
+                print(f"\n{table_name}")
                 print(f"   Description: {description}")
                 print(f"   Row count: {count}")
 
@@ -166,12 +166,12 @@ def show_table_info():
                 if len(columns) > 5:
                     print(f"      ... and {len(columns) - 5} more")
             else:
-                print(f"\n❌ {table_name}")
+                print(f"\n{table_name}")
                 print(f"   Description: {description}")
                 print(f"   Status: NOT CREATED")
 
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
     finally:
         session.close()
 
@@ -199,6 +199,6 @@ if __name__ == "__main__":
 
         if success:
             print("\n" + "="*60)
-            print("📊 Current Database Status:")
+            print("Current Database Status:")
             print("="*60)
             show_table_info()

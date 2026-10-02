@@ -546,7 +546,7 @@
     "suspicious_emojis": {
       "weight": 0.1,
       "patterns": [
-        "[🎰🎲💰💸💵💴💶💷🤑]"
+        "[\ud83c\udfb0\ud83c\udfb2\ud83d\udcb0\ud83d\udcb8\ud83d\udcb5\ud83d\udcb4\ud83d\udcb6\ud83d\udcb7\ud83e\udd11]"
       ]
     },
     "generic_web_patterns": {

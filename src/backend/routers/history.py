@@ -77,7 +77,7 @@ def get_history_entry(entry_id: str, user: UserIdentity = Depends(require_user))
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Error fetching history entry {entry_id}: {e}")
+        print(f"Error fetching history entry {entry_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -168,7 +168,7 @@ def get_cache_entries(limit: int = Query(20, ge=1, le=100), offset: int = Query(
                     "type": data.get("type", "unknown")
                 })
             except Exception as e:
-                print(f"⚠️ Error processing history entry {doc.id}: {e}")
+                print(f"Error processing history entry {doc.id}: {e}")
                 continue
 
         result = {
@@ -185,7 +185,7 @@ def get_cache_entries(limit: int = Query(20, ge=1, le=100), offset: int = Query(
         raise
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Error fetching cache entries: {error_msg}")
+        print(f"Error fetching cache entries: {error_msg}")
         
         if "requires an index" in error_msg:
             raise HTTPException(

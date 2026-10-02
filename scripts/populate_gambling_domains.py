@@ -80,11 +80,11 @@ GAMBLING_DOMAINS = [
 def populate_gambling_domains():
     """Populate gambling_domains table with known gambling sites."""
 
-    print("🎲 Starting gambling domains population...")
+    print("Starting gambling domains population...")
 
     db_service = get_database_service()
     if not db_service:
-        print("❌ Database not configured (DATABASE_URL not set)")
+        print("Database not configured (DATABASE_URL not set)")
         return False
 
     session = db_service.get_session()
@@ -109,10 +109,10 @@ def populate_gambling_domains():
                         existing.category = domain_data["category"]
                         existing.source = domain_data["source"]
                         updated_count += 1
-                        print(f"   ✏️  Updated: {domain_data['domain']} ({domain_data['category']})")
+                        print(f"   Updated: {domain_data['domain']} ({domain_data['category']})")
                     else:
                         skipped_count += 1
-                        print(f"   ⏭️  Skipped: {domain_data['domain']} (already exists)")
+                        print(f"   Skipped: {domain_data['domain']} (already exists)")
                 else:
                     # Insert new domain
                     gambling_domain = GamblingDomain(
@@ -123,31 +123,31 @@ def populate_gambling_domains():
                     )
                     session.add(gambling_domain)
                     inserted_count += 1
-                    print(f"   ✅ Inserted: {domain_data['domain']} ({domain_data['category']}, confidence: {domain_data['confidence']:.0%})")
+                    print(f"   Inserted: {domain_data['domain']} ({domain_data['category']}, confidence: {domain_data['confidence']:.0%})")
 
             except IntegrityError as e:
-                print(f"   ⚠️  Integrity error for {domain_data['domain']}: {e}")
+                print(f"   Integrity error for {domain_data['domain']}: {e}")
                 session.rollback()
                 continue
 
         # Commit all changes
         session.commit()
 
-        print(f"\n📊 Summary:")
-        print(f"   ✅ Inserted: {inserted_count}")
-        print(f"   ✏️  Updated: {updated_count}")
-        print(f"   ⏭️  Skipped: {skipped_count}")
-        print(f"   📝 Total domains in list: {len(GAMBLING_DOMAINS)}")
+        print(f"\nSummary:")
+        print(f"   Inserted: {inserted_count}")
+        print(f"   Updated: {updated_count}")
+        print(f"   Skipped: {skipped_count}")
+        print(f"   Total domains in list: {len(GAMBLING_DOMAINS)}")
 
         # Count total in database
         total_in_db = session.query(GamblingDomain).count()
-        print(f"   💾 Total domains in database: {total_in_db}")
+        print(f"   Total domains in database: {total_in_db}")
 
-        print(f"\n✅ Gambling domains population completed!")
+        print(f"\nGambling domains population completed!")
         return True
 
     except Exception as e:
-        print(f"\n❌ Error populating gambling domains: {e}")
+        print(f"\nError populating gambling domains: {e}")
         session.rollback()
         return False
     finally:
@@ -160,11 +160,11 @@ def test_domain_lookup(domain: str):
     Args:
         domain: Domain to check (e.g., "ufabet.com")
     """
-    print(f"\n🔍 Testing domain lookup: {domain}")
+    print(f"\nTesting domain lookup: {domain}")
 
     db_service = get_database_service()
     if not db_service:
-        print("❌ Database not configured")
+        print("Database not configured")
         return
 
     session = db_service.get_session()
@@ -173,17 +173,17 @@ def test_domain_lookup(domain: str):
         result = session.query(GamblingDomain).filter_by(domain=domain).first()
 
         if result:
-            print(f"✅ Found in blacklist:")
+            print(f"Found in blacklist:")
             print(f"   Domain: {result.domain}")
             print(f"   Category: {result.category}")
             print(f"   Confidence: {result.confidence:.0%}")
             print(f"   Source: {result.source}")
             print(f"   Added: {result.created_at}")
         else:
-            print(f"❌ Not found in blacklist")
+            print(f"Not found in blacklist")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
     finally:
         session.close()
 
@@ -211,7 +211,7 @@ if __name__ == "__main__":
         if success:
             # Test a few domains
             print("\n" + "="*60)
-            print("🧪 Testing domain lookups...")
+            print("Testing domain lookups...")
             print("="*60)
             test_domain_lookup("ufabet.com")
             test_domain_lookup("sbobet.com")
