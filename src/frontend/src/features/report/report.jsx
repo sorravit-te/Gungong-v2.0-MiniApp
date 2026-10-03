@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { getReportDetail, getReportEntryId, sendReportReceiptNotification,
   REPORT_REASONS, reportError, submitContentReport, validateReport } from './reports';
 import QrInputActions from '../../shared/qr/QrInputActions';
+import ReportSendingDialog from './ReportSendingDialog';
 
 const EMPTY_DRAFT = { kind: 'link', content: '', reason: 'phishing', details: '' };
 const REPORT_TYPES = [
@@ -28,11 +29,19 @@ export default function Report() {
   const inFlight = useRef(false);
   const controller = useRef(null);
   const mounted = useRef(false);
+  const receiptElement = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; controller.current?.abort(); };
   }, []);
+
+  useEffect(() => {
+    if (!receipt) return;
+    receiptElement.current?.focus({ preventScroll: true });
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    receiptElement.current?.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'instant' : 'smooth' });
+  }, [receipt]);
 
   useEffect(() => {
     if (!detailId || !user || loading) return;
@@ -72,6 +81,9 @@ export default function Report() {
       const result = await submitContentReport(payload, attempt.current, controller.current.signal);
       if (mounted.current) {
         setReceipt(result);
+        // Saving has finished. Do not keep the blocking popup open while LINE
+        // does its separate acknowledgement request.
+        setSaving(false);
         setNotification('sending');
       }
       // Show the confirmed receipt first; acknowledgement never reverses it.
@@ -87,6 +99,7 @@ export default function Report() {
 
   return (
     <section id="report-page" aria-labelledby="report-title">
+      {saving && <ReportSendingDialog />}
       <div className="section-content report-content">
         <header className="report-heading">
           <div className="report-icon" aria-hidden="true">
@@ -154,13 +167,16 @@ export default function Report() {
           </fieldset>
           {!user && <p className="report-login">{loading ? 'กำลังตรวจสอบการเข้าสู่ระบบ…' : 'กรุณาเข้าสู่ระบบ LINE เพื่อส่งเบาะแส'}</p>}
           {error && <p className="report-error" role="alert">{error}</p>}
-          {receipt ? <div className="report-success" role="status">
+          {receipt ? <div className="report-success" role="status" ref={receiptElement} tabIndex={-1}>
             <strong>รับเบาะแสแล้ว</strong><p>สถานะ: รอตรวจสอบ</p>
             <p>หมายเลขอ้างอิง <span className="report-reference">{receipt.id}</span></p>
-            {notification === 'sending' && <p>กำลังส่งข้อความยืนยันผ่าน LINE…</p>}
+            {notification === 'sending' && <p className="report-notification-progress">
+              <span className="report-notification-spinner" aria-hidden="true" />
+              รับเบาะแสแล้ว กำลังส่งข้อความยืนยันผ่าน LINE…
+            </p>}
             {notification === 'sent' && <p>ส่งข้อความขอบคุณผ่าน LINE MINI App Notice แล้ว</p>}
             {notification === 'unavailable' && <p>รับเบาะแสแล้ว แต่ยังยืนยันการส่งข้อความผ่าน LINE ไม่ได้</p>}
-            <button type="button" disabled={saving} onClick={() => {
+            <button type="button" disabled={saving || notification === 'sending'} onClick={() => {
               setDraft(EMPTY_DRAFT); setReceipt(null); attempt.current = null;
             }}>ส่งเบาะแสอื่น</button>
           </div> : <button className="report-submit" type="submit" disabled={!user || loading || saving || isQrReading}>

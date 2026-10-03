@@ -97,6 +97,16 @@ the app open until the attempt finishes. Notification failure preserves the tip
 and its `pending` status; uncertain delivery is never automatically retried. Tips
 that have already been reviewed cannot start a delayed receipt acknowledgement.
 
+Submission immediately opens a native modal with a spinning indicator. It closes
+as soon as the save is confirmed, focuses/scrolls to the receipt, and shows LINE
+delivery progress separately without blocking the receipt behind that modal.
+The new-tip button remains disabled until the acknowledgement attempt settles.
+Independent report/session reads during token registration and final delivery
+persistence use Firestore BatchGet in the same transaction, avoiding two serial
+read round trips per acknowledgement while keeping owner/claim checks and locks.
+This is not a measured cloud latency guarantee; LINE and database response times
+still contribute to total delivery time.
+
 The button's permanent link opens `?section=report&reportId=<full-id>`.
 The app shows only the signed-in owner's tip/status and any real review result.
 Logged-out users must log in; a different owner receives no report data. URLs in

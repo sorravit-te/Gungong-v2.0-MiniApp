@@ -10,6 +10,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+from google.auth.credentials import AnonymousCredentials
+from google.cloud.firestore_v1.types import BatchGetDocumentsResponse, Document, Value
 from pydantic import SecretStr
 
 from src.backend.services import report_service_messages as messages
@@ -20,6 +22,7 @@ class MemoryDB:
     def __init__(self):
         self.records = {}
         self.lock = threading.RLock()
+        self.batch_reads = []
 
     def collection(self, name):
         db = self
@@ -36,6 +39,13 @@ class MemoryDB:
                 with db.lock:
                     db.records[self.path].update(deepcopy(data))
         return SimpleNamespace(document=Ref)
+
+    def get_all(self, references, transaction=None, **kwargs):
+        self.batch_reads.append((references, transaction, kwargs))
+        # Deliberately reverse Firestore's unspecified response order.
+        for reference in reversed(references):
+            snapshot = reference.get(transaction=transaction, **kwargs)
+            yield SimpleNamespace(reference=reference, to_dict=snapshot.to_dict)
 
     def atomic(self, operation):
         db = self
@@ -156,6 +166,27 @@ class ServiceMessagesTests(unittest.TestCase):
         self.assertNotIn("reviewed_at", self.report())
         self.assertNotIn("raw-test-liff-token", repr(self.db.records))
         self.assertNotIn("test-secret-not-real", repr(self.db.records))
+
+    def test_notification_batches_independent_reads_without_weakening_transactions(self):
+        self.assertEqual(self.send(), "sent")
+        self.assertEqual(len(self.db.batch_reads), 2)
+        for references, tx, kwargs in self.db.batch_reads:
+            self.assertEqual(len(references), 2)
+            self.assertIsNotNone(tx)
+            self.assertEqual(kwargs, {"timeout": 4, "retry": None})
+        self.assertEqual(self.report()["receipt_notification_state"], "sent")
+        self.assertEqual(self.session()["state"], "ready")
+        self.assertEqual(len(self.sends()), 1)
+
+    def test_incomplete_batch_read_does_not_issue_or_send(self):
+        def incomplete(references, **kwargs):
+            reference = references[0]
+            return [SimpleNamespace(reference=reference, to_dict=lambda: self.report())]
+        with patch.object(self.db, "get_all", side_effect=incomplete):
+            with self.assertRaisesRegex(messages.ServiceMessageError, "database_read_incomplete"):
+                self.send()
+        self.assertEqual(self.calls, [])
+        self.assertNotIn("notification_session", self.report())
 
     def test_review_replay_does_not_overwrite_or_change_timestamp(self):
         self.complete()
@@ -378,6 +409,32 @@ class ServiceMessagesTests(unittest.TestCase):
         self.assertEqual(run(args, self.cfg, SimpleNamespace(db=self.db))["notification"], "not_requested")
         self.assertEqual(self.report()["status"], "reviewed")
         self.assertEqual(self.calls, [])
+
+
+class FirestoreBatchReadTests(unittest.TestCase):
+    def test_installed_sdk_uses_one_rpc_with_reversed_and_missing_snapshots(self):
+        # Use the real installed SDK, but replace its RPC so no cloud is contacted.
+        db = messages.firestore.Client(project="synthetic-test-project", credentials=AnonymousCredentials())
+        self.addCleanup(db.close)
+        report_ref = db.collection(messages.REPORTS).document("a" * 64)
+        session_ref = db.collection(messages.SESSIONS).document("b" * 64)
+        tx = db.transaction()
+        tx._id = b"synthetic-transaction"
+        responses = [
+            BatchGetDocumentsResponse(missing=session_ref._document_path),
+            BatchGetDocumentsResponse(found=Document(name=report_ref._document_path,
+                fields={"reporter_id": Value(string_value="synthetic-user")})),
+        ]
+        with patch.object(db._firestore_api, "batch_get_documents", return_value=iter(responses)) as rpc:
+            report, session = messages.read_many(db, [report_ref, session_ref], tx)
+        self.assertEqual(report, {"reporter_id": "synthetic-user"})
+        self.assertEqual(session, {})
+        rpc.assert_called_once()
+        request = rpc.call_args.kwargs["request"]
+        self.assertEqual(request["transaction"], b"synthetic-transaction")
+        self.assertEqual(request["documents"], [report_ref._document_path, session_ref._document_path])
+        self.assertEqual(rpc.call_args.kwargs["timeout"], 4)
+        self.assertIsNone(rpc.call_args.kwargs["retry"])
 
 
 if __name__ == "__main__":

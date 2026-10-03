@@ -63,6 +63,16 @@ def read(reference, tx=None):
     return reference.get(transaction=tx, timeout=4, retry=None).to_dict() or {}
 
 
+def read_many(db, references, tx):
+    # BatchGet returns snapshots in arbitrary order, including missing documents.
+    # Keep the same transaction/timeout and fail closed on an incomplete response.
+    snapshots = {snapshot.reference.path: snapshot.to_dict() or {}
+                 for snapshot in db.get_all(references, transaction=tx, timeout=4, retry=None)}
+    if set(snapshots) != {reference.path for reference in references}:
+        raise ServiceMessageError("database_read_incomplete")
+    return tuple(snapshots[reference.path] for reference in references)
+
+
 def owned_report(db, report_id, user_id):
     validate_id(report_id)
     data = read(db.collection(REPORTS).document(report_id))
@@ -152,7 +162,7 @@ def register_notification(db, cfg, report_id, user_id, liff_token, client_factor
     session_ref = db.collection(SESSIONS).document(key)
 
     def reserve(tx):
-        report, session = read(report_ref, tx), read(session_ref, tx)
+        report, session = read_many(db, [report_ref, session_ref], tx)
         if not report or report.get("reporter_id") != user_id:
             raise HTTPException(404, "Report not found")
         if report.get("status") != "pending":
@@ -293,7 +303,7 @@ def send_receipt_notification(db, cfg, report_id, user_id, liff_token, client_fa
                 raise ServiceMessageError("invalid_line_response")
 
             def persist(tx):
-                current_report, current_session = read(report_ref, tx), read(session_ref, tx)
+                current_report, current_session = read_many(db, [report_ref, session_ref], tx)
                 if (current_report.get("receipt_notification_claim") != claim
                         or current_session.get("claim") != claim):
                     raise ServiceMessageError("delivery_claim_lost")

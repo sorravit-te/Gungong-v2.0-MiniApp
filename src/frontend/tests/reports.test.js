@@ -230,5 +230,33 @@ test('review detail is safely rendered and late reads do not cross accounts or n
     assert.ok(source.includes('ส่งข้อความขอบคุณผ่าน LINE MINI App Notice แล้ว'));
     assert.ok(source.includes('ยังยืนยันการส่งข้อความผ่าน LINE ไม่ได้'));
     assert.doesNotMatch(source, /เมื่อตรวจสอบเสร็จแล้ว|เตรียมการแจ้งผล/u);
-    assert.match(source, /button type="button" disabled=\{saving\}/u);
+    assert.match(source, /button type="button" disabled=\{saving \|\| notification === 'sending'\}/u);
+});
+
+test('sending popup ends at the confirmed save, not after the LINE acknowledgement', () => {
+    const source = read('../src/features/report/report.jsx');
+    const saved = source.indexOf('setReceipt(result)');
+    const release = source.indexOf('setSaving(false)', saved);
+    const notification = source.indexOf('await sendReportReceiptNotification', saved);
+    assert.ok(saved < release && release < notification);
+    assert.match(source, /saving && <ReportSendingDialog \/>/u);
+    assert.match(source, /report-notification-spinner/u);
+    assert.match(source, /receiptElement.current\?\.focus\(\{ preventScroll: true \}\)/u);
+    assert.match(source, /receiptElement.current\?\.scrollIntoView/u);
+    assert.match(source, /finally \{[\s\S]*inFlight.current = false;[\s\S]*setSaving\(false\)/u);
+});
+
+test('report popup is independent of remote scripts, modal, accessible and cleaned up', () => {
+    const source = read('../src/features/report/ReportSendingDialog.jsx');
+    const css = read('../src/features/report/report.css');
+    assert.match(source, /createPortal\(/u);
+    assert.match(source, /element.showModal\(\)/u);
+    assert.match(source, /element.close\(\)/u);
+    assert.match(source, /document.body.style.overflow = previousOverflow/u);
+    assert.match(source, /onCancel=\{event => event.preventDefault\(\)\}/u);
+    assert.match(source, /aria-labelledby="report-sending-title" aria-describedby="report-sending-description"/u);
+    assert.doesNotMatch(source, /Swal|setTimeout/u);
+    assert.match(css, /animation: reportSendingSpin 0.8s linear infinite/u);
+    assert.match(css, /prefers-reduced-motion: reduce/u);
+    assert.match(css, /\.dark-mode \.report-sending-dialog/u);
 });
