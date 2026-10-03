@@ -1,33 +1,73 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useAuth } from '../../features/auth/AuthContext';
+import { createLineFriendshipAction, LINE_OA_URL } from '../../features/auth/lineFriendship';
+
+const lineOAPopup = {
+  imageUrl: '/img/logo.png',
+  imageWidth: 120,
+  imageHeight: 120,
+  imageAlt: 'GunGong',
+  customClass: { popup: 'line-oa-popup' },
+  confirmButtonColor: '#1de165',
+  cancelButtonColor: '#e5e7eb',
+  background: '#fff',
+  borderRadius: '20px',
+};
+
+async function confirmLineOAFallback({ reason }) {
+  const text = reason === 'failed'
+    ? 'เปิดหน้าต่างเพิ่มเพื่อนใน LINE ไม่สำเร็จ ต้องการไปหน้า GunGong Official แทนหรือไม่?'
+    : 'คุณต้องการเพิ่มเพื่อน GunGong Official หรือไม่?';
+  if (window.Swal) {
+    await window.Swal.fire({
+      ...lineOAPopup,
+      title: 'เพิ่มเพื่อน LINE OA',
+      text,
+      showCancelButton: true,
+      confirmButtonText: 'ไปหน้า LINE OA',
+      cancelButtonText: 'ยกเลิก',
+      // Open on the confirm-button gesture, not after an awaited network call.
+      preConfirm: () => { window.open(LINE_OA_URL, '_blank', 'noopener,noreferrer'); },
+    });
+  } else if (window.confirm(text)) {
+    window.open(LINE_OA_URL, '_blank', 'noopener,noreferrer');
+  }
+}
 
 const TopBanner = ({ userProfile, isDarkMode, onToggleDarkMode }) => {
-  const { user } = useAuth();
-  const handleLineOAClick = (e) => {
+  const { user, lineLoading } = useAuth();
+  const [friendshipBusy, setFriendshipBusy] = useState(false);
+  const friendshipAction = useRef(null);
+  const handleLineOAClick = async (e) => {
     e.preventDefault();
-    if (window.Swal) {
-      window.Swal.fire({
-        title: 'เพิ่มเพื่อน LINE OA',
-        text: 'คุณต้องการเพิ่มเพื่อน GunGong Official หรือไม่?',
-        imageUrl: '/img/logo.png',
-        imageWidth: 120,
-        imageHeight: 120,
-        imageAlt: 'GunGong',
-        customClass: { popup: 'line-oa-popup' },
-        showCancelButton: true,
-        confirmButtonColor: '#1de165',
-        cancelButtonColor: '#e5e7eb',
-        confirmButtonText: 'ไปหน้า LINE OA',
-        cancelButtonText: 'ยกเลิก',
-        background: '#fff',
-        borderRadius: '20px',
-      }).then((result) => {
-        if (result.isConfirmed) {
-          window.open('https://line.me/R/ti/p/@357asclq', '_blank');
-        }
+    if (!friendshipAction.current) {
+      friendshipAction.current = createLineFriendshipAction({
+        fallback: confirmLineOAFallback,
+        onBusy: setFriendshipBusy,
+        onResult: async ({ friendFlag }) => {
+          if (friendFlag === true && window.Swal) {
+            await window.Swal.fire({
+              ...lineOAPopup,
+              title: 'GunGong Official',
+              text: 'คุณเป็นเพื่อนกับ GunGong Official แล้ว',
+              confirmButtonText: 'ตกลง',
+            });
+          }
+        },
       });
-    } else {
-      window.open('https://line.me/R/ti/p/@357asclq', '_blank');
+    }
+    try {
+      await friendshipAction.current();
+    } catch {
+      // Keep optional OA UI failures out of the app's navigation/auth flow.
+      if (window.Swal) {
+        await window.Swal.fire({
+          ...lineOAPopup,
+          title: 'เพิ่มเพื่อน LINE OA',
+          text: 'เปิดหน้าเพิ่มเพื่อนไม่สำเร็จ กรุณาลองอีกครั้ง',
+          confirmButtonText: 'ตกลง',
+        }).catch(() => {});
+      }
     }
   };
 
@@ -85,9 +125,11 @@ const TopBanner = ({ userProfile, isDarkMode, onToggleDarkMode }) => {
           </div>
         </div>
 
-        <a href="#" onClick={handleLineOAClick} className="action-btn line-oa-header-btn">
-          <img src="/img/logo.png" alt="LINE" />
-        </a>
+        <button type="button" onClick={handleLineOAClick} className="action-btn line-oa-header-btn"
+          aria-label="เพิ่มเพื่อน GunGong LINE OA" aria-busy={friendshipBusy}
+          disabled={friendshipBusy || (lineLoading && window.liff?.isInClient?.())}>
+          <img src="/img/logo.png" alt="" />
+        </button>
       </div>
     </div>
   );

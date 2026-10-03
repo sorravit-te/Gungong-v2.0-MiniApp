@@ -7,8 +7,8 @@ test('LINE OA confirmation uses GunGong logo instead of a question icon', () => 
   assert.match(source, /imageUrl: '\/img\/logo.png'/u);
   assert.match(source, /imageAlt: 'GunGong'/u);
   assert.doesNotMatch(source, /icon: 'question'/u);
-  assert.match(source, /if \(result.isConfirmed\)/u);
-  assert.match(source, /https:\/\/line.me\/R\/ti\/p\/@357asclq/u);
+  assert.match(source, /preConfirm: \(\) => \{ window.open\(LINE_OA_URL, '_blank', 'noopener,noreferrer'\)/u);
+  assert.match(source, /showCancelButton: true/u);
 });
 
 test('LINE OA popup enlarges the logo and matches Report text and Scanner button colors', () => {
