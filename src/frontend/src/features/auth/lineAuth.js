@@ -81,6 +81,12 @@ async function initializeSdk() {
     return sdk;
 }
 
+// Shared snapshots need callback restoration, not a recipient profile or
+// personal History. Reuse the same StrictMode-safe SDK initialization.
+export function initializePublicLineSession() {
+    return initializeSdk();
+}
+
 async function readProfile(sdk, signal, onSessionReady) {
     assertActive(signal);
     if (!sdk.isLoggedIn()) return null;
