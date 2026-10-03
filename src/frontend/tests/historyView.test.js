@@ -105,7 +105,7 @@ test('Scanner Summary only counts active link/QR and text scans, preserving old 
 
 test('Summary always renders its graph without sample counts and retains mobile label styling', () => {
     const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-    const summary = read('../src/features/home/components/DataVisualization.jsx');
+    const summary = read('../src/features/home/components/SummaryResults.jsx') + read('../src/features/home/components/DataVisualization.jsx');
     const css = read('../src/features/home/dataVisualization.css');
     assert.doesNotMatch(summary, /summary-total|summary-outcomes|stat-value|ตรวจแล้ว/u);
     assert.doesNotMatch(summary, /summary-stats-inline/u);

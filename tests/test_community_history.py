@@ -1,5 +1,6 @@
 """Shared posts/private History and identity checks; no live users or keys."""
 import copy
+import asyncio
 import base64
 from io import BytesIO
 import unittest
@@ -307,6 +308,22 @@ class CommunityHistoryTests(unittest.TestCase):
         first = self.post(request_id=key, image=image)
         self.assertEqual(first.json(), self.post(request_id=key, image=image).json())
         self.assertEqual(self.post(request_id=key, image=self.image('red')).status_code, 409)
+
+    def test_browser_image_cache_is_short_private_versioned_and_revalidated_after_deletion(self):
+        posted = self.post(image=self.image()).json()
+        key, version = posted['id'], posted['image_version']
+        url = f'/community/posts/{key}/image?v={version}'
+        response = self.client.get(url)
+        self.assertEqual(response.headers['cache-control'], 'private, max-age=30, must-revalidate')
+        etag = response.headers['etag']
+        self.assertEqual(self.client.get(url, headers={'If-None-Match': etag}).status_code, 304)
+        self.assertEqual(self.client.get(f'/community/posts/{key}/image?v=' + '0' * 64).status_code, 404)
+        self.assertEqual(self.client.get(f'/community/posts/{key}/image?v=bad').status_code, 422)
+        self.assertEqual(self.action('PATCH', key, body={'content': 'replacement', 'image': self.image('red'),
+            'expected_revision': 0}).status_code, 200)
+        self.assertEqual(self.client.get(url, headers={'If-None-Match': etag}).status_code, 404)
+        self.assertEqual(self.action('DELETE', key).status_code, 200)
+        self.assertEqual(self.client.get(f'/community/posts/{key}/image', headers={'If-None-Match': etag}).status_code, 404)
         self.assertEqual(len(self.posts.records), 1)
 
     def test_invalid_oversized_svg_animation_and_excessive_pixels_never_persist(self):
@@ -429,6 +446,44 @@ class CommunityHistoryTests(unittest.TestCase):
 
 
 class IdentityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_provider_reads_overlap_but_identity_waits_for_both(self):
+        started = set()
+        both_started = asyncio.Event()
+        async def read(url, **kwargs):
+            started.add(url)
+            if len(started) == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), timeout=1)
+            data = {'client_id': identity.settings.line_login_channel_id, 'expires_in': 30} if '/verify' in url else {
+                'userId': 'verified-owner', 'displayName': 'Member'}
+            return httpx.Response(200, json=data)
+        client = AsyncMock(); client.get.side_effect = read
+        with patch.object(identity.httpx, 'AsyncClient') as factory:
+            factory.return_value.__aenter__.return_value = client
+            result = await identity.require_user('Bearer test-token', 'line')
+        self.assertEqual(result.user_id, 'verified-owner')
+        self.assertEqual(len(started), 2)
+
+    async def test_provider_failure_or_invalid_profile_never_authenticates(self):
+        valid = httpx.Response(200, json={'client_id': identity.settings.line_login_channel_id, 'expires_in': 30})
+        for verify_result, profile_result, expected in [
+            (valid, httpx.Response(500), 503),
+            (valid, httpx.ReadTimeout('synthetic timeout'), 503),
+            (httpx.Response(400), httpx.Response(200, json={'userId': 'valid-profile'}), 401),
+            (valid, httpx.Response(200, json={}), 401),
+        ]:
+            async def read(url, **kwargs):
+                result = verify_result if '/verify' in url else profile_result
+                if isinstance(result, Exception):
+                    raise result
+                return result
+            client = AsyncMock(); client.get.side_effect = read
+            with patch.object(identity.httpx, 'AsyncClient') as factory:
+                factory.return_value.__aenter__.return_value = client
+                with self.assertRaises(HTTPException) as failure:
+                    await identity.require_user('Bearer test-token', 'line')
+            self.assertEqual(failure.exception.status_code, expected)
+
     async def test_missing_unsupported_expired_and_wrong_channel_sessions_fail_closed(self):
         for headers in [('', ''), ('Bearer token', 'other')]:
             with self.assertRaises(HTTPException) as error:
@@ -443,7 +498,7 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(HTTPException) as error:
                     await identity.verify_line_identity('test-token')
             self.assertEqual(error.exception.status_code, 401)
-            self.assertEqual(client.get.await_count, 1)
+            self.assertEqual(client.get.await_count, 2)
 
     async def test_line_identity_comes_from_verified_profile(self):
         client = AsyncMock()

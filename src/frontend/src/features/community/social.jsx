@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Activity, useCallback, useEffect, useRef, useState } from 'react';
 import { communityError, deleteCommunityPost, editCommunityPost, getCommunityImageUrl, getCommunityPost,
   likeCommunityPost, loadCommunity, loadCommunityViewer, postCommunity } from './utils/community';
 import { preparePostImage } from './utils/communityImage';
 import { communityCache } from '../../shared/cache/pageCache';
 import { communityCommentCache } from './utils/communityCommentCache';
+import { communityViewerCache } from './utils/communityViewerCache';
 import { useAuth } from '../auth/AuthContext';
 import { CommunityPostCard, CommunityPostDetail, CommunityImageViewer, CommunityReportDialog } from './components/CommunityPost';
 import CommunityFeed from './components/CommunityFeed';
@@ -20,7 +21,7 @@ const Social = () => {
   const [composerError, setComposerError] = useState('');
   const [attachment, setAttachment] = useState(null);
   const [preparing, setPreparing] = useState(false);
-  const [viewer, setViewer] = useState({});
+  const [viewer, setViewer] = useState(() => ({ ...communityViewerCache.peek(user?.uid) }));
   const [selected, setSelected] = useState(null);
   const [imageView, setImageView] = useState(null);
   const [reporting, setReporting] = useState(null);
@@ -35,7 +36,6 @@ const Social = () => {
   const alive = useRef(false);
   const busy = useRef(false);
   const actionBusy = useRef(new Set());
-  const viewerVersions = useRef({});
   const userId = user?.uid;
   const postIds = posts.map(post => post.id).join(',');
   const hasDraftImage = !!attachment || (editing?.has_image && !removeImage);
@@ -66,14 +66,9 @@ const Social = () => {
     const refresh = async () => {
       if (reading || document.hidden) return;
       reading = true;
-      const versions = { ...viewerVersions.current };
       try {
-        const ids = postIds.split(',');
-        const batches = [];
-        for (let start = 0; start < ids.length; start += 50) batches.push(loadCommunityViewer(ids.slice(start, start + 50)));
-        const states = Object.assign({}, ...await Promise.all(batches));
-        if (!stopped) setViewer(previous => Object.fromEntries(Object.entries(states).map(([id, state]) => [id,
-          { ...state, liked: versions[id] !== viewerVersions.current[id] ? previous[id]?.liked ?? state.liked : state.liked }])));
+        const states = await communityViewerCache.read(userId, postIds.split(','), loadCommunityViewer);
+        if (!stopped) setViewer({ ...states });
       } catch (failure) {
         if (!stopped && failure.message === 'LOGIN_REQUIRED') setViewer({});
       } finally { reading = false; }
@@ -87,6 +82,10 @@ const Social = () => {
     const update = list => list.map(post => post.id === change.id ? { ...post, ...change } : post);
     const cached = communityCache.peek('feed');
     if (cached) communityCache.write('feed', { ...cached, posts: update(cached.posts) });
+    const postKey = `post:${change.id}`;
+    const detail = communityCache.peek(postKey);
+    if (detail) communityCache.write(postKey, { ...detail, ...change });
+    else communityCache.invalidate(postKey); // Discard an older in-flight read after mutation.
     if (!alive.current) return;
     setPosts(update);
     setSelected(previous => previous?.id === change.id ? { ...previous, ...change } : previous);
@@ -95,13 +94,17 @@ const Social = () => {
   const like = async post => {
     if (actionBusy.current.has(post.id)) return;
     actionBusy.current.add(post.id); setLiking(previous => ({ ...previous, [post.id]: true }));
+    const cacheOwner = communityViewerCache.peek(userId);
     try {
       const result = await likeCommunityPost(post.id, !viewer[post.id]?.liked);
       updatePost({ id: post.id, like_count: result.like_count });
-      viewerVersions.current[post.id] = (viewerVersions.current[post.id] || 0) + 1;
-      if (alive.current) setViewer(previous => ({ ...previous, [post.id]: { ...previous[post.id], liked: result.liked } }));
+      // Do not retain a late mutation after logout/account switch.
+      communityViewerCache.write(userId, post.id, { liked: result.liked }, cacheOwner);
+      // Activity can hide this still-mounted component during the request.
+      // Keep its confirmed reaction state ready for the next reveal.
+      setViewer(previous => ({ ...previous, [post.id]: { ...previous[post.id], liked: result.liked } }));
     } catch (failure) { if (alive.current) setError(communityError(failure)); }
-    finally { actionBusy.current.delete(post.id); if (alive.current) setLiking(previous => ({ ...previous, [post.id]: false })); }
+    finally { actionBusy.current.delete(post.id); setLiking(previous => ({ ...previous, [post.id]: false })); }
   };
 
   const edit = async post => {
@@ -120,6 +123,7 @@ const Social = () => {
     try {
       await deleteCommunityPost(post.id);
       communityCommentCache.invalidate(post.id);
+      communityCache.invalidate(`post:${post.id}`);
       communityCache.invalidate('feed');
       if (alive.current) { setPosts(previous => previous.filter(item => item.id !== post.id)); setSelected(null); }
     } catch (failure) { if (alive.current) setError(communityError(failure)); }
@@ -267,16 +271,17 @@ const Social = () => {
       </dialog>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {selected ? <CommunityPostDetail key={selected.id} post={selected} viewer={viewer[selected.id]}
-        liking={liking[selected.id]} onLike={like} onBack={() => setSelected(null)} onUpdate={updatePost}
-        onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} /> : <>
+      {selected && <CommunityPostDetail key={selected.id} post={selected} viewer={viewer[selected.id]}
+        liking={liking[selected.id] || (!!userId && !viewer[selected.id])} onLike={like} onBack={() => setSelected(null)} onUpdate={updatePost}
+        onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} />}
+      <Activity mode={selected ? 'hidden' : 'visible'}>
         {loading && <p role="status" className="page-loading">กำลังโหลดโพสต์...</p>}
         {!loading && !error && posts.length === 0 && !cursor && <p className="page-loading">ยังไม่มีโพสต์</p>}
         <CommunityFeed>{posts.map(post => <CommunityPostCard key={post.id} post={post}
-          viewer={viewer[post.id]} liking={liking[post.id]} onLike={like} onOpen={setSelected}
+          viewer={viewer[post.id]} liking={liking[post.id] || (!!userId && !viewer[post.id])} onLike={like} onOpen={setSelected}
           onImage={setImageView} onEdit={edit} onDelete={remove} onReport={setReporting} />)}</CommunityFeed>
         {cursor && <button onClick={more} disabled={loading}>ดูโพสต์เพิ่มเติม</button>}
-      </>}
+      </Activity>
       {imageView && <CommunityImageViewer src={imageView} onClose={() => setImageView(null)} />}
       {reporting && <CommunityReportDialog post={reporting} onClose={() => setReporting(null)}
         onSaved={() => { setReporting(null); setNotice('บันทึกรายงานแล้ว รอการตรวจสอบ'); }} />}

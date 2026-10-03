@@ -158,7 +158,8 @@ test('official SDK, LINE entry points, identity remount and delayed analytics ar
   const app = read('../src/App.jsx');
   assert.doesNotMatch(app, /window\.liff\.init/u);
   assert.match(app, /<History key=\{user\?\.uid/u);
-  assert.match(app, /<Social key=\{user\?\.uid/u);
+  // Activity owns the account reset boundary while retaining DOM on page changes.
+  assert.match(app, /<Activity key=\{user\?\.uid/u);
   assert.match(read('../src/shared/layout/Sidebar.jsx'), /<LineLoginButton/u);
   assert.doesNotMatch(read('../src/shared/layout/TopBanner.jsx'), /LineLoginButton|onShare/u);
   assert.match(read('../src/features/auth/firebase.js'), /export let analytics = null/u);

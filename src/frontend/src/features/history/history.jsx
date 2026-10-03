@@ -295,7 +295,8 @@ const History = ({ entryId = null }) => {
               const itemDate = parseHistoryDate(item.created_at);
               const timeStr = getTimeString(item.created_at);
               const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
-              const animDelay = `${0.05 + index * 0.08}s`;
+              // Never make lower cards wait seconds after their data has arrived.
+              const animDelay = `${Math.min(index, 3) * 0.03}s`;
 
               return (
                 <div

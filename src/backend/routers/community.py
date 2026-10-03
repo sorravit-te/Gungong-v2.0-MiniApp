@@ -198,17 +198,27 @@ async def create_post(request: Request, post: PostRequest, user: UserIdentity = 
 
 
 @router.get("/posts/{post_id}/image")
-async def get_post_image(post_id: str = Path(pattern=r"^[a-f0-9]{64}$")):
+async def get_post_image(request: Request, post_id: str = Path(pattern=r"^[a-f0-9]{64}$"),
+                         v: str | None = Query(default=None, pattern=POST_ID_PATTERN)):
     def read():
-        doc = collection().document(post_id).get(field_paths=["image", "deleted_at"], timeout=RPC_TIMEOUT, retry=None)
+        doc = collection().document(post_id).get(field_paths=["image", "image_hash", "deleted_at"], timeout=RPC_TIMEOUT, retry=None)
         data = require_post(doc)
         image = data.get("image")
         if not isinstance(image, bytes):
             raise HTTPException(404, "Image not found")
-        return Response(image, media_type="image/jpeg", headers={
-            "Cache-Control": "no-store",
+        image_hash = data.get("image_hash") or hashlib.sha256(image).hexdigest()
+        if v and v != image_hash:
+            raise HTTPException(404, "Image version no longer available")
+        headers = {
+            # Browser-only, bounded like the feed cache. No shared CDN or year-long
+            # immutable caching: deleted/replaced public images must disappear promptly.
+            "Cache-Control": "private, max-age=30, must-revalidate",
+            "ETag": f'"{image_hash}"',
             "X-Content-Type-Options": "nosniff",
-        })
+        }
+        if request and request.headers.get("if-none-match") == headers["ETag"]:
+            return Response(status_code=304, headers=headers)
+        return Response(image, media_type="image/jpeg", headers=headers)
     return await database_call(read)
 
 

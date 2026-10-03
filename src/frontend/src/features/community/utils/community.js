@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from '../../../shared/api/script.js';
 import { getSessionHeaders } from '../../auth/session.js';
+import { communityCache } from '../../../shared/cache/pageCache.js';
 
 async function request(path, options = {}) {
     const controller = new AbortController();
@@ -49,6 +50,9 @@ export async function loadCommunityViewer(postIds) {
     return (await mutate('/viewer-state', 'POST', { post_ids: postIds })).states;
 }
 export function getCommunityPost(id) { return request(postPath(id)); }
+export function readCommunityPost(id) {
+    return communityCache.read(`post:${id}`, () => getCommunityPost(id));
+}
 export function loadPostComments(id, after = null) {
     return request(`${postPath(id)}/comments${after ? `?after=${encodeURIComponent(after)}` : ''}`);
 }

@@ -41,7 +41,16 @@ def safe_line_picture(value):
 
 async def verify_line_identity(token: str) -> UserIdentity:
     async with httpx.AsyncClient(timeout=3, follow_redirects=False, trust_env=False) as client:
-        verified = await client.get("https://api.line.me/oauth2/v2.1/verify", params={"access_token": token})
+        # Independent reads to the same trusted provider. Never return identity
+        # until BOTH responses pass the existing audience/expiry/profile checks.
+        # No cached authentication or extended token validity.
+        verified, profile = await asyncio.gather(
+            client.get("https://api.line.me/oauth2/v2.1/verify", params={"access_token": token}),
+            client.get("https://api.line.me/v2/profile", headers={"Authorization": f"Bearer {token}"}),
+            return_exceptions=True,
+        )
+        if isinstance(verified, Exception):
+            raise verified
         if verified.status_code >= 500 or verified.status_code == 429:
             raise HTTPException(503, "Identity provider unavailable")
         if verified.status_code != 200:
@@ -50,7 +59,8 @@ async def verify_line_identity(token: str) -> UserIdentity:
         if (data.get("client_id") != settings.line_login_channel_id
                 or data.get("expires_in", 0) <= 0):
             raise HTTPException(401, "Invalid session audience or expiry")
-        profile = await client.get("https://api.line.me/v2/profile", headers={"Authorization": f"Bearer {token}"})
+        if isinstance(profile, Exception):
+            raise profile
         if profile.status_code >= 500 or profile.status_code == 429:
             raise HTTPException(503, "Identity provider unavailable")
         if profile.status_code != 200:

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { Activity, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import './shared/styles/main.css';
 import './features/privacy/pdpa.css';
 import './features/home/home.css';
@@ -19,14 +19,15 @@ import PDPAModal from './features/privacy/PDPAModal';
 import './features/report/report.css';
 import { APP_SECTIONS, getAppEntry } from './features/auth/lineAuth';
 import { communityCache } from './shared/cache/pageCache';
-import { loadCommunity } from './features/community/utils/community';
+import { loadCommunity, loadCommunityViewer } from './features/community/utils/community';
+import { communityViewerCache } from './features/community/utils/communityViewerCache';
 
-// Avoid downloading every feature (including chart/slider code) for a History link.
-const Home = lazy(() => import('./features/home/home'));
-const Report = lazy(() => import('./features/report/report'));
-const Scanner = lazy(() => import('./features/scanner/scanner'));
-const Social = lazy(() => import('./features/community/social'));
-const History = lazy(() => import('./features/history/history'));
+// Lightweight page shells render immediately; only the heavy chart is deferred.
+import Home from './features/home/home';
+import Report from './features/report/report';
+import Scanner from './features/scanner/scanner';
+import Social from './features/community/social';
+import History from './features/history/history';
 const ScanImage = lazy(() => import('./features/scanner/ScanImage'));
 
 function App() {
@@ -38,11 +39,23 @@ function App() {
   const entry = authLoading ? initialEntry : getAppEntry(window.location.search);
   const activeSection = manualSection ?? entry.section;
   const historyEntryId = manualSection === null ? entry.historyId : null;
+  const [communityVisited, setCommunityVisited] = useState(initialEntry.section === 'social');
 
   useEffect(() => {
     // Public feed can load independently of LINE login and the current page.
     void communityCache.read('feed', loadCommunity).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let active = true;
+    const owner = user.uid;
+    // Reuse the feed request and load member reactions before Community opens.
+    void communityCache.read('feed', loadCommunity).then(feed => {
+      if (active) return communityViewerCache.read(owner, feed.posts.map(post => post.id), loadCommunityViewer);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [user?.uid]);
 
   const [showPDPA, setShowPDPA] = useState(() => localStorage.getItem('gungong_pdpa_accepted') !== 'true');
   // Sidebar State
@@ -73,10 +86,11 @@ function App() {
   }, []);
 
   const handleNavigate = useCallback((section) => {
+    if (activeSection === 'social' || section === 'social') setCommunityVisited(true);
     setManualSection(APP_SECTIONS.has(section) ? section : 'home');
     // Scroll to top when changing sections
     window.scrollTo(0, 0);
-  }, []);
+  }, [activeSection]);
 
   const handlePDPAAccept = () => {
     setShowPDPA(false);
@@ -100,7 +114,7 @@ function App() {
       case 'scanner':
         return <Scanner onNavigate={handleNavigate} currentSubPage={activeSection} />;
       case 'social':
-        return <Social key={user?.uid || 'anonymous'} userProfile={userProfile} />;
+        return null; // Kept below in Activity so post images/state survive navigation.
       case 'history':
         return <History key={user?.uid || 'anonymous'} entryId={historyEntryId} />;
       default:
@@ -130,9 +144,12 @@ function App() {
         />
 
         <main>
-          <Suspense fallback={<div role="status" className="page-loading">กำลังโหลดหน้า...</div>}>
+          <Suspense fallback={<div className="route-skeleton" role="status" aria-label="กำลังเตรียมหน้าตรวจสอบ"><span /><span /></div>}>
             {renderPage()}
           </Suspense>
+          {(communityVisited || activeSection === 'social') && <Activity key={user?.uid || 'anonymous'} mode={activeSection === 'social' ? 'visible' : 'hidden'}>
+            <Social />
+          </Activity>}
         </main>
 
         {/* BottomNav hidden on desktop via CSS media queries usually, but let's keep it structurally here */}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { commentCommunityPost, communityError, getCommunityImageUrl, getCommunityPost,
+import { commentCommunityPost, communityError, getCommunityImageUrl, readCommunityPost,
     loadPostComments, postExcerpt, reportCommunityPost } from '../utils/community';
 import { communityCommentCache, mergeCommunityComments, readCommunityComments } from '../utils/communityCommentCache';
 import { communityAvatarUrl, communityTimestamp } from '../utils/communityPresentation';
@@ -63,7 +63,7 @@ export function CommunityPostCard({ post, viewer = {}, full = false, liking, onL
                 {!full && excerpt.truncated && <button className="community-more-text" type="button" onClick={() => onOpen(post)}>ดูเพิ่มเติม</button>}
             </div>}
             {image && <button type="button" className="community-image-button" aria-label="ดูรูปเต็ม" onClick={() => onImage(image)}>
-                <img className="post-image" loading="lazy" src={image} alt="ภาพแนบในโพสต์" />
+                <img className="post-image" loading={full ? 'eager' : 'lazy'} src={image} alt="ภาพแนบในโพสต์" />
             </button>}
             <div className="community-post-actions">
                 <button type="button" className={`community-heart ${viewer.liked ? 'liked' : ''}`}
@@ -94,9 +94,10 @@ export function CommunityPostDetail({ post, onBack, onUpdate, ...actions }) {
         let stopped = false;
         let postMissing = false;
         // Comments need not wait for the separate post refresh to finish.
-        getCommunityPost(post.id).then(fresh => { if (!stopped) onUpdate(fresh); })
+        readCommunityPost(post.id).then(fresh => { if (!stopped) onUpdate(fresh); })
             .catch(failure => {
                 if (stopped) return;
+                if (failure.message === 'CACHE_INVALIDATED') return;
                 if (failure.message === 'POST_NOT_FOUND') {
                     postMissing = true; communityCommentCache.invalidate(post.id);
                     setComments([]); setCursor(null);

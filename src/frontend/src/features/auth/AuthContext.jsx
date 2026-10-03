@@ -4,6 +4,7 @@ import { initializeLineSession, loginWithLine, logoutFromLine, getDisplayUser, g
 import { historyCache } from '../../shared/cache/pageCache';
 import { loadHistory } from '../../shared/api/script';
 import { createHistoryStartup } from '../history/utils/historyStartup';
+import { communityViewerCache } from '../community/utils/communityViewerCache';
 
 const AuthContext = createContext(null);
 
@@ -23,6 +24,7 @@ export const AuthProvider = ({ children }) => {
     } }).then(profile => {
       if (active) {
         historyCache.invalidate();
+        communityViewerCache.invalidate();
         if (profile) void startup.bind(profile.userId).catch(() => {});
         setLineProfile(profile);
         initializeAnalytics(); // Only after LIFF has consumed confidential callback parameters.
@@ -30,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     }).catch(() => {
       // Public browsing remains available if LINE initialization fails.
     }).finally(() => { if (active) setLineLoading(false); });
-    return () => { active = false; startup.dispose(); historyCache.invalidate(); };
+    return () => { active = false; startup.dispose(); historyCache.invalidate(); communityViewerCache.invalidate(); };
   }, []);
 
   const signInWithLine = async (options) => {
@@ -38,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     setLineLoading(true);
     try {
       const profile = await loginWithLine(options);
-      if (profile) { historyCache.invalidate(); setLineProfile(profile); }
+      if (profile) { historyCache.invalidate(); communityViewerCache.invalidate(); setLineProfile(profile); }
       return { success: true, redirecting: !profile };
     } catch (err) {
       const message = getLineAuthError(err);
@@ -52,6 +54,7 @@ export const AuthProvider = ({ children }) => {
     try {
       if (lineProfile) logoutFromLine();
       historyCache.invalidate();
+      communityViewerCache.invalidate();
       setLineProfile(null);
       return { success: true };
     } catch {

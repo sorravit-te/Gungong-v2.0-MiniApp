@@ -43,6 +43,10 @@ section {
 }
 
 /* Page transition animations - apply to section content */
+.route-skeleton { max-width: 720px; margin: 24px auto; padding: 24px; border-radius: 24px; background: #fff; }
+.route-skeleton span { display: block; height: 56px; margin: 16px 0; border-radius: 16px; background: #f3f4f6; }
+html.dark-mode .route-skeleton { background: #2d3748; }
+html.dark-mode .route-skeleton span { background: #374151; }
 .section-content {
   animation: pageSlideIn 0.4s ease-out forwards;
   max-width: 480px;
