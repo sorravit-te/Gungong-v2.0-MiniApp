@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     # LINE Login channel owning the existing LIFF app (not Messaging API).
     line_login_channel_id: str = "2008548759"
 
+    # MINI App Service Messages are separate from the Messaging API bot.
+    # Keep disabled until the matching internal channel/template is configured.
+    line_service_messages_enabled: bool = False
+    line_service_messages_environment: Literal["developing", "published"] = "developing"
+    line_service_messages_published_approved: bool = False
+    line_miniapp_channel_id: str = ""
+    line_miniapp_channel_secret: Optional[SecretStr] = None
+    line_miniapp_liff_id: str = ""
+    line_service_messages_test_user_ids: str = ""
+
     # Application
     app_name: str = "GunGong (กันโกง)"
     debug: bool = False

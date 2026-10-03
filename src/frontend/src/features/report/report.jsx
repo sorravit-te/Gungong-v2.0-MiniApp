@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { REPORT_REASONS, reportError, submitContentReport, validateReport } from './reports';
+import { getReportDetail, getReportEntryId, sendReportReceiptNotification,
+  REPORT_REASONS, reportError, submitContentReport, validateReport } from './reports';
 import QrInputActions from '../../shared/qr/QrInputActions';
 
 const EMPTY_DRAFT = { kind: 'link', content: '', reason: 'phishing', details: '' };
@@ -18,6 +19,11 @@ export default function Report() {
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [isQrReading, setIsQrReading] = useState(false);
+  const [detailState, setDetailState] = useState(null);
+  const [notification, setNotification] = useState('disabled');
+  const [showNewForm, setShowNewForm] = useState(false);
+  const entryId = getReportEntryId(globalThis.window?.location?.search);
+  const detailId = showNewForm ? null : entryId;
   const attempt = useRef(null);
   const inFlight = useRef(false);
   const controller = useRef(null);
@@ -27,6 +33,19 @@ export default function Report() {
     mounted.current = true;
     return () => { mounted.current = false; controller.current?.abort(); };
   }, []);
+
+  useEffect(() => {
+    if (!detailId || !user || loading) return;
+    const request = new AbortController();
+    let active = true;
+    getReportDetail(detailId, request.signal).then(data => {
+      if (active) setDetailState({ owner: user.uid, id: detailId, data });
+    }).catch(() => {
+      if (active) setDetailState({ owner: user.uid, id: detailId, error: true });
+    });
+    return () => { active = false; request.abort(); };
+  }, [detailId, user, loading]);
+  const visibleDetail = detailState?.owner === user?.uid && detailState?.id === detailId ? detailState : null;
 
   function change(field, value) {
     if (inFlight.current) return;
@@ -51,7 +70,13 @@ export default function Report() {
       attempt.current ||= crypto.randomUUID();
       controller.current = new AbortController();
       const result = await submitContentReport(payload, attempt.current, controller.current.signal);
-      if (mounted.current) setReceipt(result);
+      if (mounted.current) {
+        setReceipt(result);
+        setNotification('sending');
+      }
+      // Show the confirmed receipt first; acknowledgement never reverses it.
+      const notified = await sendReportReceiptNotification(result.id, controller.current.signal);
+      if (mounted.current) setNotification(notified);
     } catch (cause) {
       if (mounted.current) setError(reportError(cause));
     } finally {
@@ -69,7 +94,23 @@ export default function Report() {
           </div>
           <div><h2 id="report-title">Report</h2><p>รายงาน / แจ้งเบาะแส</p></div>
         </header>
-        <form className="report-form" onSubmit={submit} aria-busy={saving}>
+        {detailId ? <div className="report-form report-detail" aria-live="polite">
+          {!user ? <p>{loading ? 'กำลังตรวจสอบการเข้าสู่ระบบ…' : 'กรุณาเข้าสู่ระบบ LINE เพื่อดูเบาะแสของคุณ'}</p>
+            : !visibleDetail ? <p>กำลังอ่านสถานะเบาะแส…</p>
+              : visibleDetail.error ? <p role="alert">ไม่สามารถเปิดเบาะแสนี้ได้ กรุณาลองใหม่หรือเข้าสู่ระบบด้วยบัญชีที่ส่งเบาะแส</p>
+                : <>
+                  <h3>{visibleDetail.data.status === 'reviewed' ? 'ตรวจสอบเสร็จสิ้น' : 'รอตรวจสอบ'}</h3>
+                  <p>หมายเลขอ้างอิง <span className="report-reference">{detailId}</span></p>
+                  <p>ประเภท: {visibleDetail.data.kind === 'link' ? 'ลิงก์ / QR Code' : 'ข้อความ'}</p>
+                  <p className="report-detail-text">{visibleDetail.data.content}</p>
+                  {visibleDetail.data.status === 'reviewed' && <>
+                    <p>ผลการตรวจสอบ: {{ no_risk_found: 'ไม่พบสัญญาณอันตรายจากการตรวจสอบ',
+                      risk: 'พบความเสี่ยง', inconclusive: 'ยังสรุปไม่ได้' }[visibleDetail.data.review_result]}</p>
+                    <p className="report-detail-text">{visibleDetail.data.review_note}</p>
+                  </>}
+                </>}
+          <button className="report-submit" type="button" onClick={() => setShowNewForm(true)}>ส่งเบาะแสใหม่</button>
+        </div> : <form className="report-form" onSubmit={submit} aria-busy={saving}>
           <fieldset disabled={saving || !!receipt}>
             <legend>ประเภทเบาะแส</legend>
             <div className="report-types scanner-feature-list">
@@ -116,13 +157,16 @@ export default function Report() {
           {receipt ? <div className="report-success" role="status">
             <strong>รับเบาะแสแล้ว</strong><p>สถานะ: รอตรวจสอบ</p>
             <p>หมายเลขอ้างอิง <span className="report-reference">{receipt.id}</span></p>
-            <button type="button" onClick={() => {
+            {notification === 'sending' && <p>กำลังส่งข้อความยืนยันผ่าน LINE…</p>}
+            {notification === 'sent' && <p>ส่งข้อความขอบคุณผ่าน LINE MINI App Notice แล้ว</p>}
+            {notification === 'unavailable' && <p>รับเบาะแสแล้ว แต่ยังยืนยันการส่งข้อความผ่าน LINE ไม่ได้</p>}
+            <button type="button" disabled={saving} onClick={() => {
               setDraft(EMPTY_DRAFT); setReceipt(null); attempt.current = null;
             }}>ส่งเบาะแสอื่น</button>
           </div> : <button className="report-submit" type="submit" disabled={!user || loading || saving || isQrReading}>
             {saving ? 'กำลังส่งเบาะแส…' : 'ส่งเบาะแส'}
           </button>}
-        </form>
+        </form>}
       </div>
     </section>
   );

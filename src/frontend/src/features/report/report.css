@@ -27,6 +27,8 @@
 .report-success { background: #effbe9; color: #166534; padding: 20px; border-radius: 16px; margin-top: 20px; }
 .report-success p { margin: 8px 0; font-size: 14px; }
 .report-reference { display: block; overflow-wrap: anywhere; font-size: 12px; }
+.report-detail-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-success button:disabled { opacity: 0.6; cursor: not-allowed; }
 .dark-mode .report-form { background: #1f2937; border-color: #374151; color: #e2e8f0; }
 .dark-mode .report-form legend { color: #e2e8f0; }
 .dark-mode .report-form :is(textarea, select) { background: #111827; border-color: #374151; }

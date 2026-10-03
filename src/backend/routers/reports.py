@@ -15,6 +15,10 @@ from slowapi.util import get_remote_address
 
 from ..services.database_service import get_database_service
 from ..services.user_identity_service import UserIdentity, require_user
+from ..core.config import settings
+from ..services.report_service_messages import (
+    owned_report, public_report, send_receipt_notification,
+)
 
 COLLECTION = "content_reports"
 
@@ -99,3 +103,44 @@ async def submit_report(request: Request, report: ReportRequest,
     except Exception:
         # A write might have completed before timeout; retrying the same ID is safe.
         raise HTTPException(503, "Receipt unavailable; retry with the same request ID") from None
+
+
+@router.get("/{report_id}")
+@limiter.limit("30/minute")
+async def report_detail(request: Request, report_id: str,
+                        user: UserIdentity = Depends(require_user)):
+    service = get_database_service()
+    if not service:
+        raise HTTPException(503, "Reports unavailable")
+    try:
+        data = await asyncio.to_thread(owned_report, service.db, report_id, user.user_id)
+        return public_report(report_id, data)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(503, "Reports unavailable") from None
+
+
+@router.post("/{report_id}/notification")
+@limiter.limit("5/minute")
+async def notify_receipt(request: Request, report_id: str,
+                               user: UserIdentity = Depends(require_user)):
+    # Called immediately after a confirmed receipt. Sends acknowledgement only,
+    # never changes review status. require_user verified this LINE bearer first.
+    if not settings.line_service_messages_enabled:
+        return {"notification": "disabled"}
+    if request.headers.get("X-Auth-Provider") != "line":
+        raise HTTPException(403, "LINE session required")
+    service = get_database_service()
+    if not service:
+        raise HTTPException(503, "Reports unavailable")
+    token = request.headers.get("Authorization", "").partition(" ")[2]
+    try:
+        status = await asyncio.to_thread(send_receipt_notification, service.db, settings,
+                                         report_id, user.user_id, token)
+        return {"notification": "sent" if status in {"sent", "already_sent"} else "unavailable"}
+    except HTTPException:
+        raise
+    except Exception:
+        # A saved report remains successful even if acknowledgement fails.
+        return {"notification": "unavailable"}

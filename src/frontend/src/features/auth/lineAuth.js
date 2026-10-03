@@ -1,6 +1,10 @@
 import { LIFF_ID } from './liff.js';
 
-export const LINE_ENDPOINT_URL = 'https://gungong-vercel-preview.vercel.app/';
+export const LINE_ENDPOINT_URL = import.meta.env?.VITE_LINE_ENDPOINT_URL || 'https://gungong-vercel-preview.vercel.app/';
+const endpoint = new URL(LINE_ENDPOINT_URL);
+if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+    throw new Error('INVALID_LINE_ENDPOINT');
+}
 export const APP_SECTIONS = new Set(['home', 'report',
     'scanner', 'check-link', 'check-sms', 'check-content', 'check-personal', 'scan-qr', 'social', 'history', 'scan-image']);
 const initializations = new WeakMap();
@@ -120,6 +124,10 @@ export function getLineLoginRedirect(section, search = '') {
     const historyId = new URLSearchParams(search).get('historyId');
     if (historyId && /^[A-Za-z0-9_-]{1,128}$/u.test(historyId)) {
         redirect.searchParams.set('historyId', historyId);
+    }
+    const reportId = new URLSearchParams(search).get('reportId');
+    if (section === 'report' && /^[a-f0-9]{64}$/u.test(reportId || '')) {
+        redirect.searchParams.set('reportId', reportId);
     }
     return redirect.href;
 }

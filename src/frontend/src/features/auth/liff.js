@@ -1,5 +1,8 @@
 // LIFF Configuration
-export const LIFF_ID = "2008548759-KkM4Noxa";
+// A separate Developing build can use its own internal channel without changing
+// the existing Published app. Never derive this ID from query parameters.
+export const LIFF_ID = import.meta.env?.VITE_LIFF_ID || "2008548759-KkM4Noxa";
+if (!/^[0-9]+-[A-Za-z0-9]+$/u.test(LIFF_ID)) throw new Error('INVALID_LIFF_ID');
 
 function getPublicAssetUrl(path) {
     if (typeof window === 'undefined' || !window.location?.origin) {
