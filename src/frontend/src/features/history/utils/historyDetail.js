@@ -8,7 +8,6 @@ function resultPopup(item, typeName) {
     const presentation = getHistoryResultPresentation(item);
     const isUrl = item.type === 'link' || item.type === 'qr';
     const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
-    const hasConfidence = presentation.showConfidence && item.confidence_score !== undefined && item.confidence_score !== null;
     return {
         title: isUrl ? presentation.status : item.is_safe ? 'ปลอดภัย' : 'อันตราย!',
         html: `
@@ -16,7 +15,6 @@ function resultPopup(item, typeName) {
                 <p><b>ข้อความ:</b> ${escapeHtml(displayText)}</p>
                 <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
                 <p><b>ประเภท:</b> ${escapeHtml(typeName(item.type))}</p>
-                ${hasConfidence ? `<p><b>ความมั่นใจ:</b> ${escapeHtml(item.confidence_score)}%</p>` : ''}
                 ${item.reason ? `<p><b>เหตุผล:</b> ${escapeHtml(item.reason)}</p>` : ''}
                 ${presentation.explanation ? `<p><b>คำอธิบาย:</b> ${escapeHtml(presentation.explanation)}</p>` : ''}
             </div>
@@ -40,10 +38,10 @@ export function createHistoryDetailController({ getDetail, swal, typeName, timeo
     }
 
     return {
-        async open(item) {
+        async open(item, { fetchDetail = false } = {}) {
             if (disposed) return;
             if (active) cancel(active);
-            if (!['link', 'qr'].includes(item.type)) {
+            if (!fetchDetail && !['link', 'qr'].includes(item.type)) {
                 swal.fire(resultPopup(item, typeName));
                 return;
             }
@@ -73,7 +71,8 @@ export function createHistoryDetailController({ getDetail, swal, typeName, timeo
                 ]);
                 if (disposed || active !== request) return;
                 if (!detail || Array.isArray(detail) || detail.id !== item.id
-                    || detail.type !== item.type || typeof detail.message_text !== 'string') {
+                    || (item.type && detail.type !== item.type) || typeof detail.type !== 'string'
+                    || typeof detail.message_text !== 'string') {
                     throw new Error('INVALID_HISTORY');
                 }
                 active = null;

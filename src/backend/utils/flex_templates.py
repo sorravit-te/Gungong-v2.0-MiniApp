@@ -40,19 +40,16 @@ def create_id_card_verification_flex(
         status_color = "#FF4444"
         header_color = "#FF6B6B"
         safety_text = "ไม่ปลอดภัย"
-        safety_percentage = "0%"
     elif not is_valid_format:
         status_text = "รูปแบบไม่ถูกต้อง"
         status_color = "#FF8C00"
         header_color = "#FFA500"
         safety_text = "ควรตรวจสอบ"
-        safety_percentage = "50%"
     else:
         status_text = "ปลอดภัย"
         status_color = "#00C851"
         header_color = "#7FD957"
         safety_text = "ปลอดภัย"
-        safety_percentage = "100%"
 
     # Display full address without truncation
     display_address = address
@@ -102,13 +99,6 @@ def create_id_card_verification_flex(
                             color="#FFFFFF",
                             align="center",
                             margin="xs"
-                        ),
-                        FlexText(
-                            text=f"ความเสี่ยง: {safety_percentage}",
-                            size="md",
-                            color="#FFFFFF",
-                            align="center",
-                            margin="sm"
                         )
                     ],
                     background_color=status_color,

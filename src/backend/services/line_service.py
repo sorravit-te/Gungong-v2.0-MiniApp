@@ -27,6 +27,12 @@ from ..core.logger import get_logger
 logger = get_logger(__name__)
 LINE_LOADING_REQUEST_TIMEOUT_SECONDS = 2.0
 
+def _miniapp_history_uri(history_id=None):
+    uri = "https://miniapp.line.me/2008548759-KkM4Noxa?section=history"
+    if isinstance(history_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", history_id):
+        uri += f"&historyId={history_id}"
+    return uri
+
 
 class LineService:
     """Service for handling LINE Bot operations."""
@@ -220,7 +226,7 @@ class LineService:
                                    "startColor": start_color, "endColor": end_color},
                     "alignItems": "center",
                     "action": {"type": "uri", "label": "เปิด Mini App",
-                               "uri": "https://miniapp.line.me/2008548759-KkM4Noxa"},
+                               "uri": _miniapp_history_uri(result.get("history_id"))},
                 },
                 "styles": {"body": {"backgroundColor": end_color}},
             },
@@ -248,8 +254,7 @@ class LineService:
             Flex message dict with contents and alt_text
         """
         # Base URI for Mini App
-        base_uri = "https://miniapp.line.me/2008548759-KkM4Noxa"
-        action_uri = f"{base_uri}?historyId={history_id}" if history_id else base_uri
+        action_uri = _miniapp_history_uri(history_id)
 
         # --- 1. Determine Risk Level ---
         danger_percentage = 0
@@ -344,7 +349,7 @@ class LineService:
                             "contents": [
                                 {
                                     "type": "text",
-                                    "text": f"ความเสี่ยง: {int(danger_percentage)}%",
+                                    "text": "พบข้อความน่าสงสัย",
                                     "color": "#ffffff",
                                     "align": "center",
                                     "weight": "bold",
@@ -463,7 +468,7 @@ class LineService:
                             "contents": [
                                 {
                                     "type": "text",
-                                    "text": f"ความเสี่ยง: {int(danger_percentage)}%",
+                                    "text": "ไม่พบสัญญาณอันตราย",
                                     "color": "#ffffff",
                                     "align": "center",
                                     "weight": "bold",
@@ -567,8 +572,7 @@ class LineService:
                 if times_seen > 1:
                     similarity_info += f"• ข้อความนี้ถูกรายงานแล้ว {times_seen} ครั้ง\n"
 
-                if danger_percentage > 0 and total_fraud_messages > 0:
-                    similarity_info += f"• ความคล้ายกับข้อความฉ้อโกง: {danger_percentage:.1f}%\n"
+                if total_fraud_messages > 0:
                     similarity_info += f"• เทียบกับฐานข้อมูล {total_fraud_messages} ข้อความ"
 
         if classification == "FRAUD_GAMBLING_AD":

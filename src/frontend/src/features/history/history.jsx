@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { getHistoryById, formatTime, getTypeName } from '../../shared/api/script';
 import HistoryCalendar from './components/HistoryCalendar';
 import { getHistoryResultPresentation } from '../../shared/results/fraudResultPresentation';
@@ -6,7 +7,9 @@ import { createHistoryDetailController } from './utils/historyDetail';
 import { useHistoryEntries } from './hooks/useHistoryEntries';
 import { HISTORY_TYPES, parseHistoryDate, selectHistoryItems } from './utils/historyView';
 
-const History = () => {
+const History = ({ entryId = null }) => {
+  const { user, loading: authLoading } = useAuth();
+  const openedEntry = useRef(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expanded, setExpanded] = useState(false);
   const { entries: historyData, loading, error: loadError } = useHistoryEntries();
@@ -47,6 +50,7 @@ const History = () => {
     return () => {
       detailController.current?.dispose();
       detailController.current = null;
+      openedEntry.current = null;
     };
   }, []);
 
@@ -100,13 +104,25 @@ const History = () => {
     return parseHistoryDate(dateString) ? formatTime(dateString) : '--:--';
   };
 
-  const handleCardClick = (item) => {
+  const handleCardClick = useCallback((item, options) => {
     if (!window.Swal) return;
     detailController.current ??= createHistoryDetailController({
       getDetail: getHistoryById, swal: window.Swal, typeName: getTypeName,
     });
-    void detailController.current.open(item);
-  };
+    void detailController.current.open(item, options);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading || !user?.uid || !entryId || openedEntry.current === entryId) return;
+    let cancelled = false;
+    // StrictMode's effect replay must not start two detail requests/popups.
+    queueMicrotask(() => {
+      if (cancelled || openedEntry.current === entryId) return;
+      openedEntry.current = entryId;
+      handleCardClick({ id: entryId }, { fetchDetail: true });
+    });
+    return () => { cancelled = true; };
+  }, [authLoading, user?.uid, entryId, handleCardClick]);
 
   const handleReport = (e) => {
     e.stopPropagation();

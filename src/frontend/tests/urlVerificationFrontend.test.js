@@ -212,12 +212,12 @@ test('completed AI danger explanations are retained without changing the aggrega
   }
 });
 
-test('legacy text results keep their existing reason and confidence presentation', () => {
+test('legacy text results preserve reasoning but no longer display confidence', () => {
   const result = getFraudResultPresentation({
     is_safe: true, reason_th: 'ข้อความทั่วไป', checks: { gemini: cleanGemini },
   });
   assert.equal(result.analysisReason, '');
-  assert.equal(result.showConfidence, true);
+  assert.equal(result.showConfidence, false);
   assert.equal(result.explanation, '');
 });
 
@@ -316,13 +316,13 @@ test('history incomplete URL is neither dangerous nor safe and hides AI safety p
   assert.equal(result.icon, 'info');
 });
 
-test('history uses URL verdict metadata and preserves legacy text confidence behavior', () => {
+test('history uses verdict metadata and hides confidence for text too', () => {
   const result = getHistoryResultPresentation({ type: 'link', is_safe: true,
     url_check_result: { verification_verdict: 'SUSPICIOUS' } });
   assert.equal(result.isRisk, true);
   assert.equal(result.isSafe, false);
   const text = getHistoryResultPresentation({ type: 'text', classification: 'SCAM_MALICIOUS', is_fraud: true });
-  assert.equal(text.showConfidence, true);
+  assert.equal(text.showConfidence, false);
 });
 
 test('nested URL metadata supplies a Thai explanation without altering text-only results', () => {

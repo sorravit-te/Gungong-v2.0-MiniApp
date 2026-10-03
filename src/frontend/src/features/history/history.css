@@ -545,6 +545,14 @@ html.dark-mode .history-card.safe .card-left-line {
   color: #dc2626;
 }
 
+.history-card.unknown .card-date-block {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.history-card.unknown .card-date-block .date-day {
+  color: #b45309;
+}
+
 .h-card-content {
   flex-grow: 1;
   padding: 12px 15px 12px 12px;
@@ -603,7 +611,7 @@ html.dark-mode .history-card.safe .card-left-line {
 }
 
 .h-icon.icon-unknown {
-  background-color: #E5E7EB;
+  background-color: #FBBF24;
 }
 
 /* Dark Mode Icon Backgrounds - same as light mode */
@@ -616,7 +624,7 @@ html.dark-mode .h-icon.icon-dangerous {
 }
 
 html.dark-mode .h-icon.icon-unknown {
-  background-color: #E5E7EB;
+  background-color: #FBBF24;
 }
 
 .main-text {

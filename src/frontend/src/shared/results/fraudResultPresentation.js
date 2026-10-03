@@ -96,7 +96,7 @@ export function getFraudResultPresentation(result = {}) {
         status,
         statusColor: isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#D97706',
         icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
-        showConfidence: !verdict,
+        showConfidence: false,
         analysisReason: analysisReason !== result.reason_th?.trim?.() ? analysisReason : '',
         explanation: verdict ? analysisReason || getSystemExplanation(verdict, checks) : '',
         explanationLabel: analysisReason ? 'คำอธิบายการตรวจสอบ (AI)' : 'คำอธิบายการตรวจสอบ',

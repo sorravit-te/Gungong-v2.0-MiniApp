@@ -54,7 +54,7 @@ function deferred() {
 test('History component wires the selected-record reader and disposes it on unmount', () => {
   const source = readFileSync(new URL('../src/features/history/history.jsx', import.meta.url), 'utf8');
   assert.match(source, /getDetail: getHistoryById/u);
-  assert.match(source, /detailController\.current\.open\(item\)/u);
+  assert.match(source, /detailController\.current\.open\(item, options\)/u);
   assert.match(source, /detailController\.current\?\.dispose\(\)/u);
 });
 
@@ -84,7 +84,7 @@ test('QR uses stored detail while text/bank/phone preserve the existing no-fetch
   for (const type of ['text', 'sms', 'bank', 'phone']) {
     await flow.open({ id: type, type, message_text: 'legacy', is_safe: true, confidence_score: 90 });
     assert.equal(swal.current.icon, 'success');
-    assert.match(swal.current.html, /ความมั่นใจ/u);
+    assert.doesNotMatch(swal.current.html, /ความมั่นใจ|90%/u);
   }
   assert.equal(reads, 1);
 });

@@ -117,8 +117,8 @@ test('Summary always renders its graph without sample counts and retains mobile 
     assert.match(summary, /showCounts=\{summary\.total > 0 \|\| \(!loading && !error\)\}/u);
     assert.match(summary, /className="chart-axis-tick chart-category-axis"/u);
     assert.match(summary, /ยังไม่มีประวัติการตรวจสอบ/u);
-    assert.match(css, /@media \(max-width: 767px\) \{\s*\.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*font-size: 12px;\s*font-weight: 400;\s*fill: #6d6d6d;/u);
-    assert.match(css, /html\.dark-mode \.summary-viz-card \.chart-category-axis \.recharts-cartesian-axis-tick-value \{\s*fill: #E2E8F0 !important;/u);
+    assert.match(css, /@media \(max-width: 767px\) \{\s*\.summary-viz-card \{\s*--summary-caption-size: 12px;\s*--summary-caption-weight: 500;\s*--summary-caption-color: #999;/u);
+    assert.match(css, /html\.dark-mode \.summary-viz-card \{\s*--summary-caption-color: #94a3b8;/u);
 });
 
 test('stacked Summary outcomes reconcile with feature and global totals without mutating history', () => {

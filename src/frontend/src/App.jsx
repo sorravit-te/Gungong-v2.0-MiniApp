@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import './shared/styles/main.css';
 import './features/privacy/pdpa.css';
 import './features/home/home.css';
@@ -15,22 +15,35 @@ import BottomNav from './shared/layout/BottomNav';
 import Sidebar from './shared/layout/Sidebar';
 import MobileLineEntry from './features/auth/components/MobileLineEntry';
 import PDPAModal from './features/privacy/PDPAModal';
-import Home from './features/home/home';
 // Verify components remain in source, but are not registered as active pages.
-import Report from './features/report/report';
 import './features/report/report.css';
-import Scanner from './features/scanner/scanner';
-import Social from './features/community/social';
-import History from './features/history/history';
-import ScanImage from './features/scanner/ScanImage';
-import { APP_SECTIONS } from './features/auth/lineAuth';
+import { APP_SECTIONS, getAppEntry } from './features/auth/lineAuth';
+import { communityCache } from './shared/cache/pageCache';
+import { loadCommunity } from './features/community/utils/community';
+
+// Avoid downloading every feature (including chart/slider code) for a History link.
+const Home = lazy(() => import('./features/home/home'));
+const Report = lazy(() => import('./features/report/report'));
+const Scanner = lazy(() => import('./features/scanner/scanner'));
+const Social = lazy(() => import('./features/community/social'));
+const History = lazy(() => import('./features/history/history'));
+const ScanImage = lazy(() => import('./features/scanner/ScanImage'));
 
 function App() {
-  const [activeSection, setActiveSection] = useState(() => {
-    const section = new URLSearchParams(window.location.search).get('section');
-    return APP_SECTIONS.has(section) ? section : 'home';
-  });
-  const { user, lineProfile: userProfile } = useAuth();
+  const { user, lineProfile: userProfile, loading: authLoading } = useAuth();
+  const [initialEntry] = useState(() => getAppEntry(window.location.search));
+  const [manualSection, setManualSection] = useState(null);
+  // Auth completion rerenders this component after LIFF restores its URL.
+  // Derive the entry directly, avoiding an extra render/effect waterfall.
+  const entry = authLoading ? initialEntry : getAppEntry(window.location.search);
+  const activeSection = manualSection ?? entry.section;
+  const historyEntryId = manualSection === null ? entry.historyId : null;
+
+  useEffect(() => {
+    // Public feed can load independently of LINE login and the current page.
+    void communityCache.read('feed', loadCommunity).catch(() => {});
+  }, []);
+
   const [showPDPA, setShowPDPA] = useState(() => localStorage.getItem('gungong_pdpa_accepted') !== 'true');
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
@@ -60,7 +73,7 @@ function App() {
   }, []);
 
   const handleNavigate = useCallback((section) => {
-    setActiveSection(APP_SECTIONS.has(section) ? section : 'home');
+    setManualSection(APP_SECTIONS.has(section) ? section : 'home');
     // Scroll to top when changing sections
     window.scrollTo(0, 0);
   }, []);
@@ -89,7 +102,7 @@ function App() {
       case 'social':
         return <Social key={user?.uid || 'anonymous'} userProfile={userProfile} />;
       case 'history':
-        return <History key={user?.uid || 'anonymous'} />;
+        return <History key={user?.uid || 'anonymous'} entryId={historyEntryId} />;
       default:
         return <Home key={user?.uid || 'anonymous'} onNavigate={handleNavigate} />;
     }
@@ -117,7 +130,9 @@ function App() {
         />
 
         <main>
-          {renderPage()}
+          <Suspense fallback={<div role="status" className="page-loading">กำลังโหลดหน้า...</div>}>
+            {renderPage()}
+          </Suspense>
         </main>
 
         {/* BottomNav hidden on desktop via CSS media queries usually, but let's keep it structurally here */}

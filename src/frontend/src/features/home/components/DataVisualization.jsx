@@ -69,7 +69,7 @@ export const SummaryResults = ({ summary, showCounts = true }) => {
         <span>จำนวนรายการ · แยกตามผลลัพธ์</span>
       </div>
       <div className="chart-container" role="group" aria-label="กราฟแท่งซ้อนจำนวนการตรวจสอบลิงก์ / QR Code และข้อความ แยกตามผลลัพธ์">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 300, height: 220 }}>
           <BarChart data={chartData} margin={{ top: 26, right: 10, left: -20, bottom: 5 }} barCategoryGap="20%" accessibilityLayer>
             <CartesianGrid vertical={false} strokeDasharray="3 3" className="summary-chart-grid" />
             <XAxis dataKey="shortName" axisLine={false} tickLine={false} interval={0}
@@ -128,7 +128,9 @@ const DataVisualization = ({ onNavigate }) => {
       </div>
 
       {/* Keep the chart axes visible even while signed out; never create sample scans. */}
-      <SummaryResults summary={summary} showCounts={summary.total > 0 || (!loading && !error)} />
+      {loading && summary.total === 0
+        ? <div className="summary-chart-loading" aria-hidden="true"><span /><span /></div>
+        : <SummaryResults summary={summary} showCounts={summary.total > 0 || (!loading && !error)} />}
       {loading ? <p role="status" className="summary-load-message">กำลังโหลดข้อมูล...</p>
         : error ? <p role="alert" className="summary-load-message">{error}</p>
         : summary.total === 0 ? <p className="summary-load-message">ยังไม่มีประวัติการตรวจสอบ</p>

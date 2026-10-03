@@ -112,6 +112,8 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reply["contents"]["styles"]["body"]["backgroundColor"], "#4AB918")
         self.assertNotIn("footer", reply["contents"])
         self.assertIn("policy_version", self.db.saved_results[0]["url_check_result"])
+        self.assertEqual(result["history_id"], "history-id")
+        self.assertTrue(reply["contents"]["body"]["action"]["uri"].endswith("&historyId=history-id"))
         self.line.show_loading_animation.assert_awaited_once_with("TEST_ONLY", loading_seconds=30)
 
     async def test_trusted_benign_skips_both_providers(self):
@@ -158,11 +160,13 @@ class WebhookURLRoutingTests(unittest.IsolatedAsyncioTestCase):
             miniapp = await fraud._check_link_request(fraud.FraudCheckRequest(
                 message="example.com", message_type="link", user_id="TEST_ONLY",
             ))
-            self.db.cached = {**miniapp, "cached": True}
+            self.db.cached = {**miniapp, "cached": True, "history_id": "another-owner-record"}
             await self.send("https://example.com/")
         bot = self.line.create_url_verification_flex_message.call_args.args[0]
         self.assertEqual(bot["verification_verdict"], miniapp["verification_verdict"])
         self.assertTrue(bot["cached"])
+        self.assertEqual(bot["history_id"], "history-id")
+        self.assertEqual(self.db.cached["history_id"], "another-owner-record")
         gemini.assert_awaited_once()
         requester.assert_awaited_once()
         vt.assert_not_awaited()
@@ -283,7 +287,7 @@ class URLFlexTests(unittest.TestCase):
             "type": "linearGradient", "angle": "135deg",
             "startColor": "#FFD060", "endColor": "#FF9500",
         })
-        self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa")
+        self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa?section=history")
         self.assertEqual(body["contents"][1], {
             "type": "image", "url": "https://img.icons8.com/ios-filled/100/ffffff/question-mark.png",
             "size": "xs", "aspectRatio": "1:1", "margin": "md",
@@ -356,7 +360,7 @@ class URLFlexTests(unittest.TestCase):
                 self.assertEqual(body["contents"][4]["contents"][0]["text"], badge)
                 self.assertEqual(body["contents"][5]["contents"][0]["wrap"], False)
                 self.assertEqual(len(body["contents"]), 7)
-                self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa")
+                self.assertEqual(body["action"]["uri"], "https://miniapp.line.me/2008548759-KkM4Noxa?section=history")
                 self.assertIsNotNone(FlexContainer.from_dict(result["contents"]))
 
     def test_full_explanations_and_ai_confidence_do_not_change_cards_or_history_data(self):

@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { initializeAnalytics } from './firebase';
 import { initializeLineSession, loginWithLine, logoutFromLine, getDisplayUser, getLineAuthError } from './lineAuth';
 import { historyCache } from '../../shared/cache/pageCache';
+import { loadHistory } from '../../shared/api/script';
+import { createHistoryStartup } from '../history/utils/historyStartup';
 
 const AuthContext = createContext(null);
 
@@ -13,16 +15,22 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let active = true;
-    initializeLineSession().then(profile => {
+    let startupToken = null;
+    const startup = createHistoryStartup({ cache: historyCache, load: loadHistory,
+      isCurrent: () => startupToken === window.liff?.getAccessToken() });
+    initializeLineSession({ onSessionReady: () => {
+      if (active) { startupToken = window.liff?.getAccessToken(); startup.start(); }
+    } }).then(profile => {
       if (active) {
         historyCache.invalidate();
+        if (profile) void startup.bind(profile.userId).catch(() => {});
         setLineProfile(profile);
         initializeAnalytics(); // Only after LIFF has consumed confidential callback parameters.
       }
     }).catch(() => {
       // Public browsing remains available if LINE initialization fails.
     }).finally(() => { if (active) setLineLoading(false); });
-    return () => { active = false; historyCache.invalidate(); };
+    return () => { active = false; startup.dispose(); historyCache.invalidate(); };
   }, []);
 
   const signInWithLine = async (options) => {

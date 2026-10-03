@@ -67,9 +67,9 @@
 }
 
 .summary-viz-title span {
-  font-size: 12px;
-  color: #999;
-  font-weight: 500;
+  font-size: var(--summary-caption-size, 12px);
+  color: var(--summary-caption-color, #999);
+  font-weight: var(--summary-caption-weight, 500);
 }
 
 .summary-viz-action {
@@ -318,16 +318,28 @@ html.dark-mode .tooltip-value {
 
 /* ==================== RESPONSIVE DESIGN ==================== */
 @media (max-width: 767px) {
-  .summary-viz-card .chart-category-axis .recharts-cartesian-axis-tick-value {
-    font-size: 12px;
-    font-weight: 400;
-    fill: #6d6d6d;
+  .summary-viz-card {
+    --summary-caption-size: 12px;
+    --summary-caption-weight: 500;
+    --summary-caption-color: #999;
   }
-
-  html.dark-mode .summary-viz-card .chart-category-axis .recharts-cartesian-axis-tick-value {
-    fill: #E2E8F0 !important;
+  .summary-viz-card .recharts-cartesian-axis-tick-value,
+  .summary-viz-card .summary-segment-count,
+  .summary-viz-card .summary-bar-total {
+    font-family: inherit;
+    font-size: var(--summary-caption-size);
+    font-weight: var(--summary-caption-weight);
+    fill: var(--summary-caption-color) !important;
+  }
+  html.dark-mode .summary-viz-card {
+    --summary-caption-color: #94a3b8;
   }
 }
+
+.summary-chart-loading { height: 220px; display: flex; align-items: flex-end; justify-content: space-evenly; padding: 28px; gap: 32px; }
+.summary-chart-loading span { width: 56px; height: 55%; border-radius: 8px; background: #f3f4f6; }
+.summary-chart-loading span:last-child { height: 75%; }
+html.dark-mode .summary-chart-loading span { background: #374151; }
 
 @media (max-width: 480px) {
   .summary-viz-card {

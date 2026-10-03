@@ -77,17 +77,20 @@ async function initializeSdk() {
     return sdk;
 }
 
-async function readProfile(sdk, signal) {
+async function readProfile(sdk, signal, onSessionReady) {
     assertActive(signal);
     if (!sdk.isLoggedIn()) return null;
     if (!sdk.getAccessToken()) throw new Error('LINE_SESSION_INVALID');
+    // The API verifies this token independently. Start reads while the display
+    // profile loads; do not treat this callback as an authenticated identity.
+    onSessionReady?.();
     const profile = await sdk.getProfile();
     assertActive(signal);
     if (!profile?.userId) throw new Error('LINE_SESSION_INVALID');
     return profile;
 }
 
-export function initializeLineSession({ timeoutMs = 8000 } = {}) {
+export function initializeLineSession({ timeoutMs = 8000, onSessionReady } = {}) {
     const parameters = new URLSearchParams(globalThis.window?.location?.search);
     const callback = ['code', 'state', 'liff.state', 'access_token', 'id_token', 'error'].some(key => parameters.has(key));
     // getOS/isInClient are documented pre-init APIs. A central-link handoff must
@@ -96,8 +99,18 @@ export function initializeLineSession({ timeoutMs = 8000 } = {}) {
     return withDeadline(async signal => {
         const sdk = await initializeSdk();
         assertActive(signal);
-        return readProfile(sdk, signal);
+        return readProfile(sdk, signal, onSessionReady);
     }, timeoutMs);
+}
+
+// Read again after LIFF initialization, which restores deep-link parameters.
+// Never mutate LIFF/OAuth parameters or accept an arbitrary navigation target.
+export function getAppEntry(search = '') {
+    const params = new URLSearchParams(search);
+    const rawId = params.get('historyId');
+    const historyId = rawId && /^[A-Za-z0-9_-]{1,128}$/u.test(rawId) ? rawId : null;
+    const requested = params.get('section');
+    return { section: historyId ? 'history' : APP_SECTIONS.has(requested) ? requested : 'home', historyId };
 }
 
 export function getLineLoginRedirect(section, search = '') {

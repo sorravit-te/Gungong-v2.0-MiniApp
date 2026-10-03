@@ -42,9 +42,6 @@ const showFraudResult = (result) => {
 
   if (result?.risk_level) rows.push(['ระดับความเสี่ยง', result.risk_level]);
   if (result?.category) rows.push(['หมวดหมู่', result.category]);
-  if (result?.confidence_score !== undefined && result?.confidence_score !== null) {
-    rows.push(['ความมั่นใจ', `${result.confidence_score}%`]);
-  }
   if (result?.reason_th) rows.push(['เหตุผล', result.reason_th]);
 
   window.Swal?.fire({

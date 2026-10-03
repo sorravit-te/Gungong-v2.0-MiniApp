@@ -76,9 +76,9 @@ def _cached_link_response(cached: dict) -> dict:
     return cached
 
 
-def _save_link_history(db_service, fraud_request: FraudCheckRequest, response: dict) -> None:
+def _save_link_history(db_service, fraud_request: FraudCheckRequest, response: dict) -> Optional[str]:
     url_check = response.get("url_check", {})
-    db_service.save_history(
+    return db_service.save_history(
         user_id=fraud_request.user_id,
         message=fraud_request.message,
         classification=response.get("category"),
@@ -163,7 +163,8 @@ async def _check_link_request(
             and (cached.get("verification_verdict") != "NO_THREAT_FOUND"
                  or prior_risk.get("status") == "not_listed")
         ):
-            cached = _cached_link_response(cached)
+            cached = dict(_cached_link_response(cached))
+            cached.pop("history_id", None)  # A shared URL cache never owns a user's history ID.
             if background_tasks:
                 background_tasks.add_task(db_service.record_url_cache_access, cache_key)
             else:
@@ -177,7 +178,9 @@ async def _check_link_request(
                 if background_tasks and not persist_history_before_return:
                     background_tasks.add_task(_save_link_history, db_service, fraud_request, cached)
                 else:
-                    await asyncio.to_thread(_save_link_history, db_service, fraud_request, cached)
+                    history_id = await asyncio.to_thread(_save_link_history, db_service, fraud_request, cached)
+                    if persist_history_before_return and history_id:
+                        cached["history_id"] = history_id
             return cached
 
     response = await get_url_verification_service().verify(
@@ -199,7 +202,9 @@ async def _check_link_request(
         if background_tasks and not persist_history_before_return:
             background_tasks.add_task(_save_link_history, db_service, fraud_request, response)
         else:
-            await asyncio.to_thread(_save_link_history, db_service, fraud_request, response)
+            history_id = await asyncio.to_thread(_save_link_history, db_service, fraud_request, response)
+            if persist_history_before_return and history_id:
+                response["history_id"] = history_id
 
     if (db_service and response.get("verification_complete") and response.get("verification_verdict") != "INVALID"
             and response.get("checks", {}).get("risk_history", {}).get("status") != "suspicious"):
