@@ -132,6 +132,64 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(self.submit().status_code, 503)
         self.assertEqual(self.db.records, {})
 
+    def test_detail_is_owner_only_and_has_no_notification_secrets(self):
+        report_id = self.submit().json()["id"]
+        self.db.records[report_id].update({"status": "reviewed", "review_result": "risk",
+            "review_note": "<script>literal explanation</script>", "reviewer": "private-operator",
+            "notification_session": "private-session", "notification_token": "private-token"})
+        response = self.client.get(f"/api/reports/{report_id}", headers={"X-Test-User": "line-user"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+        self.assertEqual(response.json()["status"], "reviewed")
+        self.assertEqual(response.json()["review_note"], "<script>literal explanation</script>")
+        self.assertNotIn("private-", response.text)
+        self.assertEqual(self.client.get(f"/api/reports/{report_id}").status_code, 401)
+        self.assertEqual(self.client.get(f"/api/reports/{report_id}",
+            headers={"X-Test-User": "other"}).status_code, 404)
+        self.assertEqual(self.client.get("/api/reports/not-valid", headers={"X-Test-User": "line-user"}).status_code, 404)
+
+    def test_notification_disabled_by_default_and_no_public_review_mutation(self):
+        report_id = self.submit().json()["id"]
+        with patch.object(reports.settings, "line_service_messages_enabled", False), \
+                patch.object(reports, "send_receipt_notification") as prepare:
+            response = self.client.post(f"/api/reports/{report_id}/notification",
+                                         headers={"X-Test-User": "line-user"})
+            self.assertEqual(response.json(), {"notification": "disabled"})
+            prepare.assert_not_called()
+        self.assertEqual(self.client.post(f"/api/reports/{report_id}/notification").status_code, 401)
+        self.assertEqual(self.client.patch(f"/api/reports/{report_id}", json={"status": "reviewed"},
+            headers={"X-Test-User": "line-user"}).status_code, 405)
+
+    def test_immediate_acknowledgement_is_separate_from_receipt_and_line_only(self):
+        report_id = self.submit().json()["id"]
+        with patch.object(reports.settings, "line_service_messages_enabled", True), \
+                patch.object(reports, "send_receipt_notification", return_value="sent") as prepare:
+            self.assertEqual(self.client.post(f"/api/reports/{report_id}/notification",
+                headers={"X-Test-User": "line-user", "X-Auth-Provider": "firebase"}).status_code, 403)
+            prepare.assert_not_called()
+            response = self.client.post(f"/api/reports/{report_id}/notification",
+                headers={"X-Test-User": "line-user", "X-Auth-Provider": "line",
+                         "Authorization": "Bearer test-token"})
+            self.assertEqual(response.json(), {"notification": "sent"})
+            prepare.assert_called_once_with(self.db, reports.settings, report_id, "line-user", "test-token")
+        with patch.object(reports.settings, "line_service_messages_enabled", True), \
+                patch.object(reports, "send_receipt_notification", side_effect=RuntimeError("private")):
+            response = self.client.post(f"/api/reports/{report_id}/notification",
+                headers={"X-Test-User": "line-user", "X-Auth-Provider": "line"})
+            self.assertEqual(response.json(), {"notification": "unavailable"})
+            self.assertEqual(self.db.records[report_id]["status"], "pending")
+
+    def test_acknowledgement_retry_does_not_claim_a_second_message(self):
+        report_id = self.submit().json()["id"]
+        with patch.object(reports.settings, "line_service_messages_enabled", True), \
+                patch.object(reports, "send_receipt_notification", return_value="already_sent"):
+            response = self.client.post(f"/api/reports/{report_id}/notification",
+                headers={"X-Test-User": "line-user", "X-Auth-Provider": "line",
+                         "Authorization": "Bearer test-token"})
+        self.assertEqual(response.json(), {"notification": "sent"})
+        self.assertEqual(response.headers["cache-control"], "private, no-store")
+        self.assertEqual(self.db.records[report_id]["status"], "pending")
+
     def test_rate_limit_rejects_excess_requests(self):
         reports.limiter.enabled = True
         reports.limiter.reset()

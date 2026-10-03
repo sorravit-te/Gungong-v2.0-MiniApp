@@ -6,6 +6,8 @@ import { getHistoryResultPresentation } from '../../shared/results/fraudResultPr
 import { createHistoryDetailController } from './utils/historyDetail';
 import { useHistoryEntries } from './hooks/useHistoryEntries';
 import { HISTORY_TYPES, parseHistoryDate, selectHistoryItems } from './utils/historyView';
+import HistoryShareDialog from './HistoryShareDialog';
+import { canShareHistory, historyShareError } from './historyShare';
 
 const History = ({ entryId = null }) => {
   const { user, loading: authLoading } = useAuth();
@@ -21,6 +23,25 @@ const History = ({ entryId = null }) => {
   const toolbar = useRef(null);
   const optionsPanel = useRef(null);
   const detailController = useRef(null);
+  const shareAttempts = useRef(new Map());
+  const [sharing, setSharing] = useState(null);
+  const [shareError, setShareError] = useState('');
+
+  const handleShare = (event, item) => {
+    event.stopPropagation();
+    if (!user?.uid || !canShareHistory()) {
+      setShareError(historyShareError(new Error('SHARE_NOT_SUPPORTED')));
+      return;
+    }
+    setShareError('');
+    const key = `${user.uid}:${item.id}`;
+    if (!shareAttempts.current.has(key)) shareAttempts.current.set(key, {});
+    const attempt = shareAttempts.current.get(key);
+    if (attempt.data && Date.parse(attempt.data.expires_at) <= Date.now()) {
+      delete attempt.data; delete attempt.token; delete attempt.includeContent;
+    }
+    setSharing({ item, attempt });
+  };
 
   const closePanel = () => {
     toolbar.current?.querySelector(`[aria-controls="history-${controlPanel}-panel"]`)?.focus({ preventScroll: true });
@@ -174,7 +195,9 @@ const History = ({ entryId = null }) => {
 
   return (
     <section id="history-page">
+      {sharing && <HistoryShareDialog key={sharing.item.id} entry={sharing.item} attempt={sharing.attempt} onClose={() => setSharing(null)} />}
       <div className="section-content">
+        {shareError && <p role="alert" className="history-share-error">{shareError}</p>}
         <div className="scanner-header">
           <h2>My History</h2>
         </div>
@@ -339,6 +362,10 @@ const History = ({ entryId = null }) => {
                           {presentation.isInvalid ? 'ข้อมูลไม่ถูกต้อง / ไม่อนุญาต' : isFraud ? 'มีความเสี่ยง' : 'ยังสรุปไม่ได้'}
                         </div>
                       )}
+                      <button type="button" className="history-share-button" onClick={event => handleShare(event, item)} aria-label="แชร์ผลตรวจสอบรายการนี้ผ่าน LINE">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 10.5 6.8-4m-6.8 7 6.8 4" /></svg>
+                        แชร์
+                      </button>
                       <button className="feedback-btn" onClick={handleReport}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                           <circle cx="12" cy="12" r="10"></circle>

@@ -22,11 +22,18 @@ The request UUID is reused after uncertain responses, and the document key is a
 hash of verified user ID plus UUID. Atomic create prevents duplicate writes;
 reusing an ID for different content returns 409. URL tips are never fetched.
 Limits: link 2048 characters, text 5000, context 1000, body 32 KiB, 5 requests/minute
-per client IP. No read/list endpoint is provided.
+per client IP. GET /api/reports/{id} is an authenticated owner-only detail endpoint;
+no public read/list endpoint is provided. It excludes tokens, session keys,
+operator identifiers and internal delivery state.
 
 Tips do not automatically enter any blacklist, modify scan results, trigger AI
-training, or send administrator notifications. Review is currently manual in
-Firestore; there is no moderation dashboard or automated review worker yet.
+training, or send administrator notifications. Review is manual; there is no
+moderation dashboard or automated review worker. When explicitly enabled, the
+authenticated flow sends an Answer completed (simple) MINI App Service Message
+immediately after a confirmed submission, thanking the reporter. The tip remains
+pending; receipt acknowledgement does not mean it has been reviewed. The local
+operator command records completion after actual review and never sends messages.
+See [Service Messages](service-messages.md) for setup and safeguards.
 
 The production policy file config/firestore.production.rules denies client
 reads/writes; backend Admin SDK access is separate. Confirm this policy remains

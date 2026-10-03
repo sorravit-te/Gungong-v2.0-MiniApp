@@ -1,5 +1,8 @@
 // LIFF Configuration
-export const LIFF_ID = "2008548759-KkM4Noxa";
+// A separate Developing build can use its own internal channel without changing
+// the existing Published app. Never derive this ID from query parameters.
+export const LIFF_ID = import.meta.env?.VITE_LIFF_ID || "2008548759-KkM4Noxa";
+if (!/^[0-9]+-[A-Za-z0-9]+$/u.test(LIFF_ID)) throw new Error('INVALID_LIFF_ID');
 
 function getPublicAssetUrl(path) {
     if (typeof window === 'undefined' || !window.location?.origin) {
@@ -303,115 +306,6 @@ export async function shareVerificationCard(profile, level = 'silver') {
                     label: "Open App",
                     uri: `https://liff.line.me/${LIFF_ID}`
                 }
-            }
-        }
-    };
-
-    if (window.liff.isApiAvailable("shareTargetPicker")) {
-        const result = await window.liff.shareTargetPicker([flexMessage]);
-        return !!result;
-    }
-
-    throw new Error("SHARE_NOT_SUPPORTED");
-}
-
-// Share History Result
-export async function shareHistoryResult(entry) {
-    if (!window.liff?.isInClient()) {
-        throw new Error("NOT_IN_LINE");
-    }
-
-    // Truncate text if too long
-    let displayText = entry.full_message || entry.message_text || "-";
-    const maxLength = 300;
-    if (displayText.length > maxLength) {
-        displayText = displayText.substring(0, maxLength) + "...";
-    }
-
-    const isSafe = entry.is_safe;
-    const themeColor = isSafe ? "#06C755" : "#FF334B";
-    const headerBgColor = isSafe ? "#D1FAE5" : "#FFE4E6";
-    const statusText = isSafe ? "ปลอดภัย" : "อันตราย";
-    const statusIconUrl = isSafe
-        ? "https://cdn-icons-png.flaticon.com/512/14025/14025484.png"
-        : "https://cdn-icons-png.flaticon.com/512/14025/14025539.png";
-
-    const flexMessage = {
-        type: "flex",
-        altText: `ผลการตรวจสอบ GunGong: ${statusText}`,
-        contents: {
-            type: "bubble",
-            size: "kilo",
-            header: {
-                type: "box",
-                layout: "vertical",
-                backgroundColor: headerBgColor,
-                paddingAll: "20px",
-                spacing: "md",
-                contents: [
-                    {
-                        type: "text",
-                        text: "ผลการตรวจสอบ GunGong",
-                        weight: "bold",
-                        color: themeColor,
-                        size: "xs"
-                    },
-                    {
-                        type: "box",
-                        layout: "horizontal",
-                        spacing: "sm",
-                        alignItems: "center",
-                        contents: [
-                            {
-                                type: "image",
-                                url: statusIconUrl,
-                                size: "sm",
-                                flex: 0
-                            },
-                            {
-                                type: "text",
-                                text: statusText,
-                                weight: "bold",
-                                size: "3xl",
-                                color: themeColor,
-                                flex: 1
-                            }
-                        ]
-                    }
-                ]
-            },
-            body: {
-                type: "box",
-                layout: "vertical",
-                paddingAll: "20px",
-                contents: [
-                    {
-                        type: "text",
-                        text: displayText,
-                        wrap: true,
-                        color: "#555555",
-                        size: "sm",
-                        maxLines: 5
-                    }
-                ]
-            },
-            footer: {
-                type: "box",
-                layout: "vertical",
-                paddingAll: "10px",
-                contents: [
-                    {
-                        type: "button",
-                        action: {
-                            type: "uri",
-                            label: "ตรวจสอบด้วยตัวเอง",
-                            uri: `https://liff.line.me/${LIFF_ID}`
-                        },
-                        style: "primary",
-                        color: "#8ef168",
-                        height: "sm"
-                    }
-                ]
             }
         }
     };
