@@ -39,3 +39,4 @@ langdetect==1.0.9
 
 # Image processing (for ID card OCR)
 Pillow==10.4.0
+zxing-cpp==3.0.0  # Decode LINE QR attachments locally; no AI transcription

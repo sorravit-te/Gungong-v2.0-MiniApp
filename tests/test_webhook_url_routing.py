@@ -334,7 +334,7 @@ class URLFlexTests(unittest.TestCase):
         }
         cases = [
             ("NO_THREAT_FOUND", "green", "ไม่พบสัญญาณอันตราย", "จากการตรวจสอบ"),
-            ("SUSPICIOUS", "yellow", "เสี่ยงอันตราย", "พบสัญญาณความเสี่ยง"),
+            ("SUSPICIOUS", "red", "มีความเสี่ยง", "พบสัญญาณความเสี่ยง"),
             ("MALICIOUS", "red", "อันตราย!", "พบหลักฐานอันตราย"),
             ("INCOMPLETE", "yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ"),
             ("INVALID", "yellow", "ยังสรุปไม่ได้", "ลิงก์ไม่ถูกต้อง"),
@@ -391,8 +391,8 @@ class URLFlexTests(unittest.TestCase):
                 self.assertEqual(url_card["contents"][1]["contents"][0]["contents"],
                                  text_card["contents"][1]["contents"][0]["contents"])
 
-    def test_yellow_icons_distinguish_risk_from_missing_evidence(self):
-        for verdict, icon in [("SUSPICIOUS", "high-priority.png"), ("INVALID", "question-mark.png"),
+    def test_yellow_icons_are_only_for_missing_evidence_or_invalid_input(self):
+        for verdict, icon in [("INVALID", "question-mark.png"),
                               ("INCOMPLETE", "question-mark.png"), (None, "question-mark.png")]:
             with self.subTest(verdict=verdict):
                 result = LineService.create_url_verification_flex_message(None, {

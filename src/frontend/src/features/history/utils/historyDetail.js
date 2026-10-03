@@ -6,10 +6,9 @@ const escapeHtml = (value) => String(value)
 
 function resultPopup(item, typeName) {
     const presentation = getHistoryResultPresentation(item);
-    const isUrl = item.type === 'link' || item.type === 'qr';
     const displayText = item.message_text || item.account_number || item.phone_number || 'No content';
     return {
-        title: isUrl ? presentation.status : item.is_safe ? 'ปลอดภัย' : 'อันตราย!',
+        title: presentation.status,
         html: `
             <div style="text-align: left; font-size: 14px;">
                 <p><b>ข้อความ:</b> ${escapeHtml(displayText)}</p>
@@ -20,6 +19,7 @@ function resultPopup(item, typeName) {
             </div>
         `,
         icon: presentation.icon,
+        iconColor: presentation.statusColor,
         confirmButtonColor: presentation.statusColor,
         confirmButtonText: 'ปิด',
         showCloseButton: true,

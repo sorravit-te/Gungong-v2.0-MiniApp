@@ -2,7 +2,8 @@ const GUNGONG_GREEN = '#3ACE00';
 
 export function getHistoryResultPresentation(item = {}) {
     const urlCheck = item.url_check_result ?? {};
-    const isUrl = ['link', 'qr'].includes(item.type) || Boolean(urlCheck.verification_verdict);
+    const isUrl = ['link', 'qr'].includes(item.type)
+        || (!['text', 'sms', 'message'].includes(item.type) && Boolean(urlCheck.verification_verdict));
     const fallback = isUrl ? {
         VERIFICATION_INCOMPLETE: 'INCOMPLETE', INVALID_URL: 'INVALID',
         SUSPICIOUS_URL: 'SUSPICIOUS', SCAM_MALICIOUS: 'MALICIOUS',
@@ -10,7 +11,7 @@ export function getHistoryResultPresentation(item = {}) {
     const presentation = getFraudResultPresentation({
         ...item, category: item.classification, reason_th: item.reason,
         url_check: urlCheck,
-        verification_verdict: urlCheck.verification_verdict ?? fallback,
+        verification_verdict: item.verification_verdict ?? (isUrl ? urlCheck.verification_verdict ?? fallback : undefined),
     });
     return { ...presentation, showConfidence: !isUrl && presentation.showConfidence };
 }
@@ -58,14 +59,23 @@ function getSystemExplanation(verdict, checks) {
     return 'ยังไม่สามารถสรุปผลการตรวจสอบลิงก์นี้ได้จากข้อมูลที่ได้รับ';
 }
 
+export function resolveResultVerdict(result = {}) {
+    const urlCheck = result.url_check ?? result.url_check_result ?? {};
+    if (!['link', 'qr'].includes(result.type) && !result.verification_verdict && result.is_fraud === true) return 'SUSPICIOUS';
+    const verdict = result.verification_verdict ?? urlCheck.verification_verdict;
+    if (verdict) return ['NO_THREAT_FOUND', 'SUSPICIOUS', 'MALICIOUS', 'INCOMPLETE', 'INVALID'].includes(verdict)
+        ? verdict : 'INCOMPLETE';
+    if (urlCheck.is_dangerous === true || result.has_malicious_urls === true || result.is_fraud === true) return 'SUSPICIOUS';
+    if (result.is_safe === true || (result.is_fraud === false && result.is_safe !== false)) return 'NO_THREAT_FOUND';
+    return 'INCOMPLETE';
+}
+
 export function getFraudResultPresentation(result = {}) {
-    const verdict = result.verification_verdict ?? result.url_check?.verification_verdict;
+    const verdict = resolveResultVerdict(result);
     const isIncomplete = verdict === 'INCOMPLETE';
     const isInvalid = verdict === 'INVALID';
-    const isSafe = verdict ? verdict === 'NO_THREAT_FOUND' : result.is_safe === true;
-    const isRisk = verdict
-        ? ['MALICIOUS', 'SUSPICIOUS'].includes(verdict)
-        : result.is_fraud === true;
+    const isSafe = verdict === 'NO_THREAT_FOUND';
+    const isRisk = ['MALICIOUS', 'SUSPICIOUS'].includes(verdict);
     const status = isSafe
         ? 'ไม่พบสัญญาณอันตรายจากการตรวจสอบ'
         : isIncomplete
@@ -74,6 +84,8 @@ export function getFraudResultPresentation(result = {}) {
                 ? 'ลิงก์ไม่ถูกต้องหรือไม่อนุญาต'
                 : isRisk ? 'มีความเสี่ยง' : 'ไม่สามารถระบุได้';
 
+    const isUrl = Boolean(result.verification_verdict || result.url_check?.verification_verdict
+        || ['link', 'qr'].includes(result.type));
     const checks = result.checks ?? result.url_check?.checks ?? {};
     const gemini = checks.gemini;
     // Preserve the aggregate verdict; only explain completed, consistent AI evidence.
@@ -82,7 +94,7 @@ export function getFraudResultPresentation(result = {}) {
         SUSPICIOUS: 'suspicious',
         MALICIOUS: 'malicious',
     }[verdict];
-    const analysisReason = expectedAssessment && gemini?.status === expectedAssessment
+    const analysisReason = isUrl && expectedAssessment && gemini?.status === expectedAssessment
         && gemini.complete === true && typeof gemini.reason_th === 'string'
         && /[ก-๙]/u.test(gemini.reason_th)
         && (verdict !== 'NO_THREAT_FOUND' || gemini.evidence_sufficient === true)
@@ -93,12 +105,13 @@ export function getFraudResultPresentation(result = {}) {
         isRisk,
         isIncomplete,
         isInvalid,
+        tone: isSafe ? 'green' : isRisk ? 'red' : 'yellow',
         status,
         statusColor: isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#D97706',
         icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
         showConfidence: false,
         analysisReason: analysisReason !== result.reason_th?.trim?.() ? analysisReason : '',
-        explanation: verdict ? analysisReason || getSystemExplanation(verdict, checks) : '',
+        explanation: isUrl ? analysisReason || getSystemExplanation(verdict, checks) : '',
         explanationLabel: analysisReason ? 'คำอธิบายการตรวจสอบ (AI)' : 'คำอธิบายการตรวจสอบ',
     };
 }

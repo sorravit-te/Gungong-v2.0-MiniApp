@@ -55,7 +55,7 @@ const renderResultRows = (rows, statusColor) => `
 
 const showFraudResult = (result, subjectLabel) => {
   const presentation = getFraudResultPresentation(result);
-  const { isSafe, isRisk, status, statusColor } = presentation;
+  const { status, statusColor } = presentation;
   const rows = [['สถานะ', status]];
 
   if (result?.risk_level) rows.push(['ระดับความเสี่ยง', presentation.isIncomplete ? 'ยังประเมินไม่ได้' : result.risk_level]);
@@ -65,9 +65,10 @@ const showFraudResult = (result, subjectLabel) => {
 
   window.Swal?.fire({
     icon: presentation.icon,
+    iconColor: statusColor,
     title: `ผลการตรวจสอบ${subjectLabel}`,
     html: renderResultRows(rows, statusColor),
-    confirmButtonColor: isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#D97706',
+    confirmButtonColor: statusColor,
     confirmButtonText: 'ตกลง'
   });
 };

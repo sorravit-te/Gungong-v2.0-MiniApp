@@ -22,6 +22,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from typing import Optional
 from ..core.config import settings
 from ..core.logger import get_logger
+from ..utils.result_presentation import resolve_result_verdict
 
 
 logger = get_logger(__name__)
@@ -152,378 +153,27 @@ class LineService:
 
     def create_url_verification_flex_message(self, result: dict) -> dict:
         """Use the three compact result designs; keep full evidence in History."""
-        # Choose presentation from the actual verdict, not AI confidence/is_fraud.
-        # Invalid, incomplete and unknown results must never become green cards.
-        presentations = {
-            "NO_THREAT_FOUND": ("green", "ไม่พบสัญญาณอันตราย", "จากการตรวจสอบ",
-                                "โปรดใช้ความระมัดระวัง", "ไม่พบสัญญาณอันตรายจากการตรวจสอบ"),
-            "SUSPICIOUS": ("yellow", "เสี่ยงอันตราย", "พบสัญญาณความเสี่ยง",
-                           "ควรตรวจสอบเพิ่มเติม", "พบสัญญาณความเสี่ยง"),
-            "MALICIOUS": ("red", "อันตราย!", "พบหลักฐานอันตราย",
-                          "หลีกเลี่ยงการเปิดลิงก์", "พบหลักฐานอันตราย"),
-            "INCOMPLETE": ("yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ",
-                           "ข้อมูลยังไม่เพียงพอ", "ยังสรุปไม่ได้ — ตรวจสอบได้ไม่ครบ"),
-            "INVALID": ("yellow", "ยังสรุปไม่ได้", "ลิงก์ไม่ถูกต้อง",
-                        "ตรวจสอบลิงก์อีกครั้ง", "ลิงก์ไม่ถูกต้องหรือปลายทางไม่อนุญาต"),
-        }
-        verdict = result.get("verification_verdict")
-        tone, title, badge, summary, label = presentations.get(verdict, presentations["INCOMPLETE"])
-        start_color, end_color = {
-            "green": ("#84FA50", "#4AB918"),
-            "yellow": ("#FFD060", "#FF9500"),
-            "red": ("#FF9500", "#FF3B30"),
-        }[tone]
-        if tone == "yellow":
-            icon = {
-                "type": "image",
-                "url": "https://img.icons8.com/ios-filled/100/ffffff/"
-                       + ("high-priority.png" if verdict == "SUSPICIOUS" else "question-mark.png"),
-                "size": "xs", "aspectRatio": "1:1", "margin": "md",
-            }
-        else:
-            # Preserve the existing green/red circle icons and gradient colours.
-            icon_url = ("https://img.icons8.com/ios-filled/100/4AB918/checkmark--v1.png"
-                        if tone == "green" else
-                        "https://img.icons8.com/ios-filled/100/FF3B30/high-priority.png")
-            icon = {
-                "type": "box", "layout": "vertical", "contents": [{
-                    "type": "box", "layout": "vertical", "contents": [{
-                        "type": "image", "url": icon_url, "size": "xxs", "aspectRatio": "1:1",
-                    }], "width": "60px", "height": "60px", "backgroundColor": "#ffffff",
-                    "cornerRadius": "30px", "justifyContent": "center", "alignItems": "center",
-                }], "alignItems": "center", "margin": "md",
-            }
-        return {
-            "alt_text": f"ผลการตรวจสอบลิงก์: {label}",
-            "contents": {
-                "type": "bubble", "size": "mega",
-                "body": {
-                    "type": "box", "layout": "vertical", "paddingAll": "lg",
-                    "contents": [
-                        {"type": "text", "text": "GunGong", "size": "xs",
-                         "weight": "bold", "color": "#ffffff", "align": "start"},
-                        icon,
-                        {"type": "text", "text": "ลิงก์ดังกล่าว", "size": "sm",
-                         "color": "#ffffff", "align": "center", "margin": "sm"},
-                        {"type": "text", "text": title, "size": "xl",
-                         "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
-                        {"type": "box", "layout": "vertical", "contents": [
-                            {"type": "text", "text": badge, "size": "md",
-                             "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
-                        ], "backgroundColor": "#ffffff44", "cornerRadius": "15px",
-                         "paddingAll": "sm", "width": "60%", "margin": "sm"},
-                        # Full explanations remain in the result saved to History.
-                        {"type": "box", "layout": "vertical",
-                         "contents": [{"type": "text", "text": summary,
-                                       "size": "sm", "color": "#ffffff",
-                                       "align": "center", "wrap": False}],
-                         "backgroundColor": "#ffffff44", "cornerRadius": "md",
-                         "paddingAll": "sm", "margin": "md"},
-                        {"type": "text", "text": "see more >", "size": "xxs",
-                         "color": "#ffffffcc", "align": "end", "margin": "sm"},
-                    ],
-                    "background": {"type": "linearGradient", "angle": "135deg",
-                                   "startColor": start_color, "endColor": end_color},
-                    "alignItems": "center",
-                    "action": {"type": "uri", "label": "เปิด Mini App",
-                               "uri": _miniapp_history_uri(result.get("history_id"))},
-                },
-                "styles": {"body": {"backgroundColor": end_color}},
-            },
-        }
+        return _create_result_flex_message(result, is_url=True)
+
 
     def create_fraud_flex_message(
         self,
         classification: str,
         is_fraud: bool,
-        message_hash: Optional[str] = None, # Added for feedback postback
+        message_hash: Optional[str] = None,
         url_check: Optional[dict] = None,
         similarity_data: Optional[dict] = None,
         history_id: Optional[str] = None,
-        confidence_score: Optional[float] = None
+        confidence_score: Optional[float] = None,
+        is_safe: Optional[bool] = None,
+        has_malicious_urls: bool = False,
     ) -> dict:
-        """
-        Create a Flex Message for fraud detection results (3 levels: High Risk, Medium Risk, Safe).
-        Args:
-            classification: The fraud classification result
-            is_fraud: Whether the message is fraudulent
-            message_hash: The SHA-256 hash of the original message for feedback tracking
-            url_check: VirusTotal URL check results (optional)
-            similarity_data: TF-IDF similarity analysis results (optional)
-        Returns:
-            Flex message dict with contents and alt_text
-        """
-        # Base URI for Mini App
-        action_uri = _miniapp_history_uri(history_id)
-
-        # --- 1. Determine Risk Level ---
-        danger_percentage = 0
-        if similarity_data:
-            danger_analysis = similarity_data.get("danger_analysis", {})
-            danger_percentage = danger_analysis.get("danger_percentage", 0)
-
-        if is_fraud and danger_percentage >= 70:
-            risk_level = "high"
-        elif is_fraud or danger_percentage >= 30:
-            risk_level = "medium"
-        else:
-            risk_level = "safe"
-
-        if url_check and url_check.get("is_dangerous"):
-            risk_level = "high"
-            danger_percentage = max(danger_percentage, 95.0)
-            print("OVERRIDE: Malicious URL detected. Forcing risk level to HIGH.")
-
-        # --- 2. Define Feedback Footer ---
-        # The postback data is a query string that will be handled by the webhook
-        original_assessment = "fraud" if is_fraud else "safe"
-        
-        # Feedback footer removed as per user request (moved to popup)
-        footer_block = None
-
-
-        if is_fraud:
-            # FRAUD - Red/Orange gradient
-            bubble = {
-                "type": "bubble",
-                "size": "mega",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": "GunGong",
-                            "weight": "bold",
-                            "color": "#ffffff",
-                            "size": "xs",
-                            "align": "start"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {
-                                    "type": "box",
-                                    "layout": "vertical",
-                                    "contents": [
-                                        {
-                                            "type": "image",
-                                            "url": "https://img.icons8.com/ios-filled/100/FF3B30/high-priority.png",
-                                            "size": "xxs",
-                                            "aspectRatio": "1:1"
-                                        }
-                                    ],
-                                    "width": "60px",
-                                    "height": "60px",
-                                    "backgroundColor": "#ffffff",
-                                    "cornerRadius": "30px",
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "margin": "none"
-                                }
-                            ],
-                            "alignItems": "center",
-                            "margin": "md"
-                        },
-                        {
-                            "type": "text",
-                            "text": "ลิ้งดังกล่าว",
-                            "color": "#ffffff",
-                            "align": "center",
-                            "size": "sm",
-                            "margin": "sm"
-                        },
-                        {
-                            "type": "text",
-                            "text": "อันตราย!",
-                            "color": "#ffffff",
-                            "align": "center",
-                            "size": "xl",
-                            "weight": "bold",
-                            "margin": "none"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {
-                                    "type": "text",
-                                    "text": "พบข้อความน่าสงสัย",
-                                    "color": "#ffffff",
-                                    "align": "center",
-                                    "weight": "bold",
-                                    "size": "md"
-                                 }
-                            ],
-                            "backgroundColor": "#ffffff44",
-                            "cornerRadius": "15px",
-                            "paddingAll": "sm",
-                            "width": "60%",
-                            "margin": "sm"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "horizontal",
-                            "contents": [],
-                            "justifyContent": "space-evenly",
-                            "margin": "md"
-                        },
-                        {
-                            "type": "text",
-                            "text": "see more >",
-                            "color": "#ffffffcc",
-                            "size": "xxs",
-                            "align": "end",
-                            "margin": "sm"
-                        }
-                    ],
-                    "background": {
-                        "type": "linearGradient",
-                        "angle": "135deg",
-                        "startColor": "#FF9500",
-                        "endColor": "#FF3B30"
-                    },
-                    "paddingAll": "lg",
-                    "action": {
-                        "type": "uri",
-                        "label": "action",
-                        "uri": action_uri
-                    },
-                    "alignItems": "center"
-                },
-                # "footer": footer_block, # Removed
-                "styles": {
-                    "body": {
-                        "backgroundColor": "#FF3B30"
-                    }
-                }
-            }
-            alt_text = "อันตราย! พบข้อความฉ้อโกง"
-
-        else:
-            # SAFE - Green gradient
-            bubble = {
-                "type": "bubble",
-                "size": "mega",
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": "GunGong",
-                            "weight": "bold",
-                            "color": "#ffffff",
-                            "size": "xs",
-                            "align": "start"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {
-                                    "type": "box",
-                                    "layout": "vertical",
-                                    "contents": [
-                                        {
-                                            "type": "image",
-                                            "url": "https://img.icons8.com/ios-filled/100/4AB918/checkmark--v1.png",
-                                            "size": "xxs",
-                                            "aspectRatio": "1:1"
-                                        }
-                                    ],
-                                    "width": "60px",
-                                    "height": "60px",
-                                    "backgroundColor": "#ffffff",
-                                    "cornerRadius": "30px",
-                                    "justifyContent": "center",
-                                    "alignItems": "center",
-                                    "margin": "none"
-                                }
-                            ],
-                            "alignItems": "center",
-                            "margin": "md"
-                        },
-                        {
-                            "type": "text",
-                            "text": "ลิ้งดังกล่าว",
-                            "color": "#ffffff",
-                            "align": "center",
-                            "size": "sm",
-                            "margin": "sm"
-                        },
-                        {
-                            "type": "text",
-                            "text": "ปลอดภัย",
-                            "color": "#ffffff",
-                            "align": "center",
-                            "size": "xl",
-                            "weight": "bold",
-                            "margin": "none"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "vertical",
-                            "contents": [
-                                {
-                                    "type": "text",
-                                    "text": "ไม่พบสัญญาณอันตราย",
-                                    "color": "#ffffff",
-                                    "align": "center",
-                                    "weight": "bold",
-                                    "size": "md"
-                                 }
-                            ],
-                            "backgroundColor": "#ffffff44",
-                            "cornerRadius": "15px",
-                            "paddingAll": "sm",
-                            "width": "60%",
-                            "margin": "sm"
-                        },
-                        {
-                            "type": "box",
-                            "layout": "horizontal",
-                            "contents": [],
-                            "justifyContent": "space-evenly",
-                            "margin": "md"
-                        },
-                        {
-                            "type": "text",
-                            "text": "see more >",
-                            "color": "#ffffffcc",
-                            "size": "xxs",
-                            "align": "end",
-                            "margin": "sm"
-                        }
-                    ],
-                    "background": {
-                        "type": "linearGradient",
-                        "angle": "135deg",
-                        "startColor": "#84FA50",
-                        "endColor": "#4AB918"
-                    },
-                    "paddingAll": "lg",
-                    "action": {
-                        "type": "uri",
-                        "label": "action",
-                        "uri": action_uri
-                    },
-                    "alignItems": "center"
-                },
-                # "footer": footer_block, # Removed
-                "styles": {
-                    "body": {
-                        "backgroundColor": "#4AB918"
-                    }
-                }
-            }
-            alt_text = "ปลอดภัย ข้อความนี้ไม่มีอันตราย"
-
-        return {
-            "alt_text": alt_text,
-            "contents": bubble
-        }
+        """Use the same risk/unknown/clear designs as URL results, without scores."""
+        return _create_result_flex_message({
+            "category": classification, "is_fraud": is_fraud, "is_safe": is_safe,
+            "url_check": url_check, "history_id": history_id,
+            "has_malicious_urls": has_malicious_urls,
+        }, is_url=False)
 
     def create_fraud_response(
         self,
@@ -635,6 +285,87 @@ class LineService:
             return True
         except InvalidSignatureError:
             return False
+
+
+def _create_result_flex_message(result: dict, *, is_url: bool) -> dict:
+    # Choose presentation from the actual verdict, not AI confidence/is_fraud.
+    # Invalid, incomplete and unknown results must never become green cards.
+    presentations = {
+        "NO_THREAT_FOUND": ("green", "ไม่พบสัญญาณอันตราย", "จากการตรวจสอบ",
+                            "โปรดใช้ความระมัดระวัง", "ไม่พบสัญญาณอันตรายจากการตรวจสอบ"),
+        "SUSPICIOUS": ("red", "มีความเสี่ยง", "พบสัญญาณความเสี่ยง",
+                       "ควรตรวจสอบเพิ่มเติม", "พบสัญญาณความเสี่ยง"),
+        "MALICIOUS": ("red", "อันตราย!", "พบหลักฐานอันตราย",
+                      "หลีกเลี่ยงการเปิดลิงก์", "พบหลักฐานอันตราย"),
+        "INCOMPLETE": ("yellow", "ยังสรุปไม่ได้", "ตรวจสอบได้ไม่ครบ",
+                       "ข้อมูลยังไม่เพียงพอ", "ยังสรุปไม่ได้ — ตรวจสอบได้ไม่ครบ"),
+        "INVALID": ("yellow", "ยังสรุปไม่ได้", "ลิงก์ไม่ถูกต้อง",
+                    "ตรวจสอบลิงก์อีกครั้ง", "ลิงก์ไม่ถูกต้องหรือปลายทางไม่อนุญาต"),
+    }
+    verdict = resolve_result_verdict(result, is_url=is_url)
+    tone, title, badge, summary, label = presentations.get(verdict, presentations["INCOMPLETE"])
+    start_color, end_color = {
+        "green": ("#84FA50", "#4AB918"),
+        "yellow": ("#FFD060", "#FF9500"),
+        "red": ("#FF9500", "#FF3B30"),
+    }[tone]
+    if tone == "yellow":
+        icon = {
+            "type": "image",
+            "url": "https://img.icons8.com/ios-filled/100/ffffff/question-mark.png",
+            "size": "xs", "aspectRatio": "1:1", "margin": "md",
+        }
+    else:
+        # Preserve the existing green/red circle icons and gradient colours.
+        icon_url = ("https://img.icons8.com/ios-filled/100/4AB918/checkmark--v1.png"
+                    if tone == "green" else
+                    "https://img.icons8.com/ios-filled/100/FF3B30/high-priority.png")
+        icon = {
+            "type": "box", "layout": "vertical", "contents": [{
+                "type": "box", "layout": "vertical", "contents": [{
+                    "type": "image", "url": icon_url, "size": "xxs", "aspectRatio": "1:1",
+                }], "width": "60px", "height": "60px", "backgroundColor": "#ffffff",
+                "cornerRadius": "30px", "justifyContent": "center", "alignItems": "center",
+            }], "alignItems": "center", "margin": "md",
+        }
+    return {
+        "alt_text": f"ผลการตรวจสอบ{'ลิงก์' if is_url else 'ข้อความ'}: {label}",
+        "contents": {
+            "type": "bubble", "size": "mega",
+            "body": {
+                "type": "box", "layout": "vertical", "paddingAll": "lg",
+                "contents": [
+                    {"type": "text", "text": "GunGong", "size": "xs",
+                     "weight": "bold", "color": "#ffffff", "align": "start"},
+                    icon,
+                    {"type": "text", "text": "ลิงก์ดังกล่าว" if is_url else "ข้อความดังกล่าว", "size": "sm",
+                     "color": "#ffffff", "align": "center", "margin": "sm"},
+                    {"type": "text", "text": title, "size": "xl",
+                     "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                    {"type": "box", "layout": "vertical", "contents": [
+                        {"type": "text", "text": badge, "size": "md",
+                         "weight": "bold", "color": "#ffffff", "align": "center", "wrap": True},
+                    ], "backgroundColor": "#ffffff44", "cornerRadius": "15px",
+                     "paddingAll": "sm", "width": "60%", "margin": "sm"},
+                    # Full explanations remain in the result saved to History.
+                    {"type": "box", "layout": "vertical",
+                     "contents": [{"type": "text", "text": summary,
+                                   "size": "sm", "color": "#ffffff",
+                                   "align": "center", "wrap": False}],
+                     "backgroundColor": "#ffffff44", "cornerRadius": "md",
+                     "paddingAll": "sm", "margin": "md"},
+                    {"type": "text", "text": "see more >", "size": "xxs",
+                     "color": "#ffffffcc", "align": "end", "margin": "sm"},
+                ],
+                "background": {"type": "linearGradient", "angle": "135deg",
+                               "startColor": start_color, "endColor": end_color},
+                "alignItems": "center",
+                "action": {"type": "uri", "label": "เปิด Mini App",
+                           "uri": _miniapp_history_uri(result.get("history_id"))},
+            },
+            "styles": {"body": {"backgroundColor": end_color}},
+        },
+    }
 
 
 # Singleton instance

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { callFraudCheckApi, getErrorMessage } from '../../shared/api/script';
 import { scanCode as liffScanCode } from '../auth/liff';
+import { getFraudResultPresentation } from '../../shared/results/fraudResultPresentation';
 
 const GUNGONG_GREEN = '#3ACE00';
 
@@ -34,21 +35,21 @@ const showLoadingDialog = () => {
 };
 
 const showFraudResult = (result) => {
-  const isSafe = result?.is_safe === true || result?.is_fraud === false;
-  const isRisk = result?.is_fraud === true || result?.is_safe === false;
-  const status = isSafe ? 'ปลอดภัย' : isRisk ? 'มีความเสี่ยง' : 'ไม่สามารถระบุได้';
-  const statusColor = isSafe ? GUNGONG_GREEN : isRisk ? '#E53935' : '#757575';
+  const presentation = getFraudResultPresentation(result);
+  const { status, statusColor } = presentation;
   const rows = [['สถานะ', status]];
 
-  if (result?.risk_level) rows.push(['ระดับความเสี่ยง', result.risk_level]);
+  if (result?.risk_level) rows.push(['ระดับความเสี่ยง', presentation.isIncomplete ? 'ยังประเมินไม่ได้' : result.risk_level]);
   if (result?.category) rows.push(['หมวดหมู่', result.category]);
-  if (result?.reason_th) rows.push(['เหตุผล', result.reason_th]);
+  if (result?.reason_th && result.reason_th !== presentation.explanation) rows.push(['เหตุผล', result.reason_th]);
+  if (presentation.explanation) rows.push([presentation.explanationLabel, presentation.explanation]);
 
   window.Swal?.fire({
-    icon: isSafe ? 'success' : isRisk ? 'warning' : 'info',
+    icon: presentation.icon,
+    iconColor: statusColor,
     title: 'ผลการตรวจสอบ QR Code',
     html: renderResultRows(rows, statusColor),
-    confirmButtonColor: isSafe ? GUNGONG_GREEN : '#E53935',
+    confirmButtonColor: statusColor,
     confirmButtonText: 'ตกลง'
   });
 };

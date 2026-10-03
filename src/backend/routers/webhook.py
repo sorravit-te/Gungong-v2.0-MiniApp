@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import re
 import asyncio
+import httpx
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Request, HTTPException, Header
 from urllib.parse import parse_qs
@@ -28,6 +29,7 @@ from ..services.gambling_domain_service import get_gambling_domain_service
 from ..services.id_card_service import get_id_card_service
 from ..services.similarity_service import get_similarity_service
 from ..services.image_classifier_service import get_image_classifier_service
+from ..services.qr_image_service import decode_qr_image, QRImageError, MAX_QR_IMAGE_BYTES
 from ..utils.message_helpers import is_analysis_request, is_bot_mentioned
 from ..utils.flex_templates import create_id_card_verification_flex
 from ..core.logger import get_logger
@@ -69,6 +71,24 @@ async def _show_personal_chat_loading(source: dict) -> None:
         await get_line_service().show_loading_animation(source["userId"], loading_seconds=30)
     except Exception as error:
         logger.warning("webhook_loading_skipped error_type=%s", type(error).__name__)
+
+
+async def _download_line_image(message_id: str, access_token: str) -> bytes:
+    """Download only the signed event's LINE content, with byte/time limits."""
+    if not isinstance(message_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", message_id):
+        raise QRImageError("QR_IMAGE_INVALID")
+    async with asyncio.timeout(10):
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False, trust_env=False) as client:
+            async with client.stream("GET", f"https://api-data.line.me/v2/bot/message/{message_id}/content",
+                                     headers={"Authorization": f"Bearer {access_token}"}) as response:
+                response.raise_for_status()
+                parts, size = [], 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > MAX_QR_IMAGE_BYTES:
+                        raise QRImageError("QR_IMAGE_SIZE")
+                    parts.append(chunk)
+    return b"".join(parts)
 
 
 @router.get("/webhook")
@@ -733,6 +753,8 @@ async def webhook(
                         classification=result["category"],
                         is_fraud=result["is_fraud"],
                         confidence_score=result.get("confidence_score"),
+                        is_safe=result.get("is_safe"),
+                        has_malicious_urls=has_malicious_urls,
                         url_check=url_check,
                         message_hash=message_hash,
                         similarity_data=similarity_data,
@@ -772,163 +794,131 @@ async def webhook(
             print(f"Received image from user: {user_id}")
 
             try:
+                await _show_personal_chat_loading(source)
                 line_service = get_line_service()
+                image_content = await _download_line_image(message_id, line_service.channel_access_token)
+                qr_value = await asyncio.wait_for(asyncio.to_thread(decode_qr_image, image_content), timeout=10)
+                if qr_value:
+                    if not _is_url_only(qr_value):
+                        line_service.reply_message(reply_token, text="QR Code นี้ไม่ได้เป็นลิงก์ จึงยังตรวจสอบด้วยระบบตรวจลิงก์ไม่ได้")
+                        continue
+                    source_id = source.get("userId") or source.get("groupId") or source.get("roomId")
+                    result = await _check_link_request(FraudCheckRequest(
+                        message=qr_value, user_id=source_id, message_type="qr",
+                    ), background_tasks, persist_history_before_return=True)
+                    line_service.reply_message(
+                        reply_token, flex_message=line_service.create_url_verification_flex_message(result),
+                        quote_token=event["message"].get("quoteToken"),
+                    )
+                    continue
+
+                # Preserve the existing non-QR/id-card path. Never trust an AI-guessed QR URL.
+                image_base64 = base64.b64encode(image_content).decode("utf-8")
                 classifier_service = get_image_classifier_service()
-                id_card_service = get_id_card_service()
 
-                # Import LINE SDK components for image download
-                from linebot.v3.messaging import MessagingApi, MessagingApiBlob, ApiClient
+                # Step 1: Classify image type
+                print("[CLASSIFY] Classifying image type...")
+                classification = await asyncio.to_thread(classifier_service.classify_image, image_base64)
 
-                # Download image from LINE
-                with ApiClient(line_service.configuration) as api_client:
-                    line_bot_blob_api = MessagingApiBlob(api_client)
+                image_type = classification.get("image_type", "general")
+                confidence = classification.get("confidence", 0)
 
-                    # Get image binary content
-                    image_content = line_bot_blob_api.get_message_content(message_id)
+                print(f"[CLASSIFY] Type: {image_type}, Confidence: {confidence:.2f}")
 
-                    # Convert to base64
-                    image_base64 = base64.b64encode(image_content).decode('utf-8')
+                # Step 2: Handle based on image type
+                if image_type == "general":
+                    # General image (photos, animals, people, etc.) - No response
+                    print(f"[SKIP] General image detected, no action needed")
+                    continue
 
-                    print(f"[OK] Image downloaded, size: {len(image_content)} bytes")
+                elif image_type == "qr_code":
+                    line_service.reply_message(
+                        reply_token, text="ไม่สามารถอ่าน QR Code จากภาพนี้ได้ กรุณาแนบภาพต้นฉบับหรือถ่ายให้ชัดเจนขึ้น"
+                    )
+                    continue
 
-                    # Step 1: Classify image type
-                    print("[CLASSIFY] Classifying image type...")
-                    classification = classifier_service.classify_image(image_base64)
+                elif image_type == "id_card":
+                    # ID Card detected - Verify
+                    id_card_service = get_id_card_service()
+                    print("[ID CARD] ID card detected, verifying...")
+                    result = id_card_service.verify_id_card(image_base64)
 
-                    image_type = classification.get("image_type", "general")
-                    confidence = classification.get("confidence", 0)
-
-                    print(f"[CLASSIFY] Type: {image_type}, Confidence: {confidence:.2f}")
-
-                    # Step 2: Handle based on image type
-                    if image_type == "general":
-                        # General image (photos, animals, people, etc.) - No response
-                        print(f"[SKIP] General image detected, no action needed")
+                    if not result.get("success"):
+                        error_msg = result.get("error", "Unknown error")
+                        print(f"[ERROR] ID card verification failed: {error_msg}")
+                        line_service.reply_message(
+                            reply_token,
+                            text=f"ไม่สามารถอ่านบัตรประชาชนได้\n\n"
+                                 f"กรุณาถ่ายรูปให้ชัดเจนและแสงสว่างเพียงพอ\n"
+                                 f"ตรวจสอบว่าบัตรอยู่ในกรอบทั้งหมด"
+                        )
                         continue
 
-                    elif image_type == "qr_code":
-                        # QR Code detected - Check if dangerous
-                        print("[QR] QR Code detected, checking URL...")
-                        qr_url = classification.get("qr_url")
+                    # Extract data
+                    extracted_data = result.get("extracted_data", {})
+                    id_number = result.get("id_number", "-")
+                    name_th = extracted_data.get("name_th", "")
+                    surname_th = extracted_data.get("surname_th", "")
+                    date_of_birth = extracted_data.get("date_of_birth", "-")
+                    address = extracted_data.get("address", "-")
 
-                        if not qr_url:
-                            line_service.reply_message(
-                                reply_token,
-                                text="พบ QR Code แต่ไม่สามารถอ่านข้อมูลได้\nกรุณาถ่ายรูปให้ชัดเจนขึ้น"
-                            )
-                            continue
+                    is_blacklisted = result.get("is_blacklisted", False)
+                    is_valid_format = result.get("is_valid_format", False)
+                    risk_level = result.get("risk_level", "LOW")
+                    reports_count = result.get("reports_count", 0)
 
-                        # Check URL safety using fraud detection
-                        print(f"[QR] Checking URL: {qr_url}")
-                        fraud_detector = get_fraud_detector()
-                        fraud_result = fraud_detector.check_message(qr_url)
+                    # Determine status icon and message
+                    if is_blacklisted:
+                        icon = ""
+                        status = "พบในบัญชีดำ"
+                        safety = "ไม่ปลอดภัย"
+                        warning_msg = f"• ระวัง! เลขบัตรนี้มี {reports_count} รายงานการฉ้อโกง"
+                    elif not is_valid_format:
+                        icon = ""
+                        status = "รูปแบบไม่ถูกต้อง"
+                        safety = "ควรตรวจสอบ"
+                        warning_msg = "• เลขบัตรไม่ผ่านการตรวจสอบ checksum"
+                    else:
+                        icon = ""
+                        status = "ปลอดภัย"
+                        safety = "ปลอดภัย"
+                        warning_msg = "• ไม่พบข้อมูลในบัญชีดำ"
 
-                        is_fraud = fraud_result.get("is_fraud", False)
-                        category = fraud_result.get("category", "SAFE_NORMAL")
-                        confidence_score = fraud_result.get("confidence_score", 0)
+                    # Build Flex Message response
+                    try:
+                        print("[FLEX] Creating Flex Message...")
+                        flex_message_obj = create_id_card_verification_flex(
+                            id_number=id_number,
+                            name_th=name_th,
+                            surname_th=surname_th,
+                            date_of_birth=date_of_birth,
+                            address=address,
+                            is_blacklisted=is_blacklisted,
+                            is_valid_format=is_valid_format,
+                            risk_level=risk_level,
+                            reports_count=reports_count
+                        )
 
-                        if is_fraud:
-                            # Dangerous QR Code
-                            risk_emoji = "" if confidence_score >= 80 else ""
-                            line_service.reply_message(
-                                reply_token,
-                                text=f"{risk_emoji} **ระวัง! QR Code อันตราย**\n\n"
-                                     f"URL: {qr_url}\n\n"
-                                     f"ประเภท: {fraud_result.get('reason_th', 'อันตราย')}\n"
-                                     f"ความมั่นใจ: {confidence_score}%\n\n"
-                                     f"**อย่าสแกนหรือเปิดลิงก์นี้!**"
-                            )
-                        else:
-                            # Safe QR Code
-                            line_service.reply_message(
-                                reply_token,
-                                text=f"QR Code ปลอดภัย\n\n"
-                                     f"URL: {qr_url}\n\n"
-                                     f"ไม่พบความเสี่ยง"
-                            )
-                        continue
+                        print(f"[OK] ID card verified: {id_number[:4]}****{id_number[-2:]}, "
+                              f"blacklisted: {is_blacklisted}, risk: {risk_level}")
 
-                    elif image_type == "id_card":
-                        # ID Card detected - Verify
-                        print("[ID CARD] ID card detected, verifying...")
-                        result = id_card_service.verify_id_card(image_base64)
+                        # Convert FlexMessage to dict for reply_message
+                        flex_message_dict = {
+                            "alt_text": flex_message_obj.alt_text,
+                            "contents": flex_message_obj.contents.to_dict()
+                        }
 
-                        if not result.get("success"):
-                            error_msg = result.get("error", "Unknown error")
-                            print(f"[ERROR] ID card verification failed: {error_msg}")
-                            line_service.reply_message(
-                                reply_token,
-                                text=f"ไม่สามารถอ่านบัตรประชาชนได้\n\n"
-                                     f"กรุณาถ่ายรูปให้ชัดเจนและแสงสว่างเพียงพอ\n"
-                                     f"ตรวจสอบว่าบัตรอยู่ในกรอบทั้งหมด"
-                            )
-                            continue
+                        print("[FLEX] Sending Flex Message...")
+                        # Reply to user with Flex Message
+                        line_service.reply_message(reply_token, flex_message=flex_message_dict)
+                        print("[FLEX] Flex Message sent successfully!")
+                    except Exception as flex_error:
+                        print(f"[ERROR] Flex Message creation failed: {flex_error}")
+                        import traceback
+                        traceback.print_exc()
 
-                        # Extract data
-                        extracted_data = result.get("extracted_data", {})
-                        id_number = result.get("id_number", "-")
-                        name_th = extracted_data.get("name_th", "")
-                        surname_th = extracted_data.get("surname_th", "")
-                        date_of_birth = extracted_data.get("date_of_birth", "-")
-                        address = extracted_data.get("address", "-")
-
-                        is_blacklisted = result.get("is_blacklisted", False)
-                        is_valid_format = result.get("is_valid_format", False)
-                        risk_level = result.get("risk_level", "LOW")
-                        reports_count = result.get("reports_count", 0)
-
-                        # Determine status icon and message
-                        if is_blacklisted:
-                            icon = ""
-                            status = "พบในบัญชีดำ"
-                            safety = "ไม่ปลอดภัย"
-                            warning_msg = f"• ระวัง! เลขบัตรนี้มี {reports_count} รายงานการฉ้อโกง"
-                        elif not is_valid_format:
-                            icon = ""
-                            status = "รูปแบบไม่ถูกต้อง"
-                            safety = "ควรตรวจสอบ"
-                            warning_msg = "• เลขบัตรไม่ผ่านการตรวจสอบ checksum"
-                        else:
-                            icon = ""
-                            status = "ปลอดภัย"
-                            safety = "ปลอดภัย"
-                            warning_msg = "• ไม่พบข้อมูลในบัญชีดำ"
-
-                        # Build Flex Message response
-                        try:
-                            print("[FLEX] Creating Flex Message...")
-                            flex_message_obj = create_id_card_verification_flex(
-                                id_number=id_number,
-                                name_th=name_th,
-                                surname_th=surname_th,
-                                date_of_birth=date_of_birth,
-                                address=address,
-                                is_blacklisted=is_blacklisted,
-                                is_valid_format=is_valid_format,
-                                risk_level=risk_level,
-                                reports_count=reports_count
-                            )
-
-                            print(f"[OK] ID card verified: {id_number[:4]}****{id_number[-2:]}, "
-                                  f"blacklisted: {is_blacklisted}, risk: {risk_level}")
-
-                            # Convert FlexMessage to dict for reply_message
-                            flex_message_dict = {
-                                "alt_text": flex_message_obj.alt_text,
-                                "contents": flex_message_obj.contents.to_dict()
-                            }
-
-                            print("[FLEX] Sending Flex Message...")
-                            # Reply to user with Flex Message
-                            line_service.reply_message(reply_token, flex_message=flex_message_dict)
-                            print("[FLEX] Flex Message sent successfully!")
-                        except Exception as flex_error:
-                            print(f"[ERROR] Flex Message creation failed: {flex_error}")
-                            import traceback
-                            traceback.print_exc()
-
-                            # Fallback to text message
-                            fallback_text = f"""
+                        # Fallback to text message
+                        fallback_text = f"""
 {icon} ผลการตรวจสอบบัตรประชาชน
 
 ข้อมูลบัตร:
@@ -940,9 +930,16 @@ async def webhook(
 • สถานะ: {status}
 • ระดับความเสี่ยง: {risk_level}
 • จำนวนรายงาน: {reports_count} ครั้ง
-                            """.strip()
-                            line_service.reply_message(reply_token, text=fallback_text)
+                        """.strip()
+                        line_service.reply_message(reply_token, text=fallback_text)
 
+            except QRImageError as error:
+                messages = {
+                    "QR_IMAGE_SIZE": "ภาพมีขนาดใหญ่เกินไป กรุณาแนบภาพไม่เกิน 10 MB",
+                    "QR_IMAGE_MULTIPLE": "พบ QR Code หลายรายการ กรุณาแนบภาพที่มี QR Code เพียงรายการเดียว",
+                    "QR_READER_UNAVAILABLE": "ระบบอ่าน QR Code ยังไม่พร้อม กรุณาลองใหม่ภายหลัง",
+                }
+                get_line_service().reply_message(reply_token, text=messages.get(str(error), "ไม่สามารถอ่านภาพนี้ได้ กรุณาแนบภาพ JPG, PNG หรือ WEBP ที่ชัดเจน"))
             except Exception as e:
                 print(f"[ERROR] Image processing error: {e}")
                 import traceback

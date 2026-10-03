@@ -92,10 +92,10 @@ test('QR uses stored detail while text/bank/phone preserve the existing no-fetch
 test('non-URL History titles are plain text and retain their result icons', async () => {
   const { flow, swal } = controller(async () => { throw new Error('unexpected detail read'); });
   await flow.open({ id: 'safe-text', type: 'text', is_safe: true });
-  assert.equal(swal.current.title, 'ปลอดภัย');
+  assert.equal(swal.current.title, 'ไม่พบสัญญาณอันตรายจากการตรวจสอบ');
   assert.equal(swal.current.icon, 'success');
   await flow.open({ id: 'risk-text', type: 'text', is_safe: false, is_fraud: true });
-  assert.equal(swal.current.title, 'อันตราย!');
+  assert.equal(swal.current.title, 'มีความเสี่ยง');
   assert.equal(swal.current.icon, 'warning');
 });
 
