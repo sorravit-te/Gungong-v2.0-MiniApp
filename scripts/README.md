@@ -2,8 +2,8 @@
 
 - `data/`: imports, cache maintenance, database migrations and Firestore checks.
   These can read or modify real data. They are not run during build or tests.
-- `legacy/cloud-run/`: historical deployment/setup scripts retained for reference.
-  The active deployment is Vercel via the root `Dockerfile` and `vercel.json`.
+- `local-url-renderer/`: optional isolated Chromium worker for local testing only.
+  This is not cloud hosting; its isolation and credential exclusions must remain.
 
 Run scripts from the repository root and review their target configuration first.
-This reorganization does not execute any script or modify credentials.
+Cloud deployment/setup scripts are not included. No script is executed automatically.

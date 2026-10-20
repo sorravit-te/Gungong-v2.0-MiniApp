@@ -17,7 +17,7 @@ test('Android and iOS central links target the Published HTTPS Mini App, not a d
 
 test('desktop stays in the website; localhost and generated previews are not automatically redirected', () => {
   assert.equal(getMobileLineTarget(mobile({ os: 'web' })), null);
-  for (const host of ['http://localhost:5173', 'https://generated.vercel.app', 'https://evil.test']) {
+  for (const host of ['http://localhost:5173', 'https://other-app.test', 'https://evil.test']) {
     assert.equal(getMobileLineTarget(mobile({ host })), null);
   }
 });

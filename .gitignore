@@ -20,6 +20,12 @@ logs/
 config.local.js
 secrets/
 service-account.json
+*.pem
+*.key
+*.p12
+*.pfx
+.playwright-cli/
+src/frontend/output/
 
 # Firebase
 emulator-data/

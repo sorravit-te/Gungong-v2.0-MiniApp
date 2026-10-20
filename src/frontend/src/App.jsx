@@ -2,7 +2,6 @@ import { Activity, useState, useEffect, useCallback, lazy, Suspense } from 'reac
 import './shared/styles/main.css';
 import './features/privacy/pdpa.css';
 import './features/home/home.css';
-import './legacy/verify/verify.css';
 import './features/scanner/scanner.css';
 import './features/community/social.css';
 import './features/history/history.css';
@@ -15,7 +14,6 @@ import BottomNav from './shared/layout/BottomNav';
 import Sidebar from './shared/layout/Sidebar';
 import MobileLineEntry from './features/auth/components/MobileLineEntry';
 import PDPAModal from './features/privacy/PDPAModal';
-// Verify components remain in source, but are not registered as active pages.
 import './features/report/report.css';
 import { APP_SECTIONS, getAppEntry } from './features/auth/lineAuth';
 import { communityCache } from './shared/cache/pageCache';

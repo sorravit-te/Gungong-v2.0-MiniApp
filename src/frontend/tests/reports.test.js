@@ -62,7 +62,7 @@ test('both navigations use Home, Community, Scanner, History, Report in that ord
     }
 });
 
-test('Verify is dormant, including direct links, but its source is preserved', () => {
+test('removed Verify routes stay unavailable, including direct links', () => {
     for (const route of ['verify', 'verify-phone', 'verify-bank', 'verify-id-card', 'id-card-scanner']) {
         assert.equal(APP_SECTIONS.has(route), false);
     }
@@ -71,8 +71,8 @@ test('Verify is dormant, including direct links, but its source is preserved', (
     const app = read('../src/App.jsx');
     assert.doesNotMatch(app, /import Verify|import IDCardScanner|case 'verify'/u);
     assert.match(app, /case 'report'/u);
-    assert.ok(existsSync(new URL('../src/legacy/verify/verify.jsx', import.meta.url)));
-    assert.ok(existsSync(new URL('../src/legacy/verify/IDCardScanner.jsx', import.meta.url)));
+    assert.equal(existsSync(new URL('../src/legacy/verify/verify.jsx', import.meta.url)), false);
+    assert.equal(existsSync(new URL('../src/legacy/verify/IDCardScanner.jsx', import.meta.url)), false);
 });
 
 test('link and text drafts reject invalid data without fetching reported URLs', () => {

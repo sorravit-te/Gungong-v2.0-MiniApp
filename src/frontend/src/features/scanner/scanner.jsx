@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  banks,
   checkLink as apiCheckLink,
   checkSMS as apiCheckSMS,
-  checkBank as apiCheckBank,
-  checkPhone as apiCheckPhone,
   getErrorMessage
 } from '../../shared/api/script';
 import QrInputActions from '../../shared/qr/QrInputActions';
@@ -73,129 +70,28 @@ const showFraudResult = (result, subjectLabel) => {
   });
 };
 
-const showBlacklistResult = (result, type, submittedValue, bank) => {
-  if (result?.error) {
-    throw new Error(result.error);
-  }
-
-  const isBlacklisted = result?.is_blacklisted === true;
-  const details = result?.details && typeof result.details === 'object' ? result.details : {};
-  const isBank = type === 'bank';
-  const rows = [[
-    'สถานะ',
-    isBlacklisted ? 'พบข้อมูลตรงกับ Blacklist' : 'ไม่พบข้อมูลใน Blacklist'
-  ]];
-
-  if (isBank) {
-    rows.push(['ธนาคาร', bank?.name || bank?.code || details.bank_code || '-']);
-    rows.push(['เลขบัญชี', details.account_number || submittedValue]);
-  } else {
-    rows.push(['เบอร์โทรศัพท์', details.phone_number || submittedValue]);
-  }
-
-  if (isBlacklisted) {
-    const ownerName = isBank ? details.account_name : details.owner_name;
-    if (ownerName) rows.push([isBank ? 'ชื่อบัญชี' : 'ชื่อที่รายงาน', ownerName]);
-    if (details.category) rows.push(['หมวดหมู่', details.category]);
-    if (details.risk_level) rows.push(['ระดับความเสี่ยง', details.risk_level]);
-    if (details.report_count !== undefined && details.report_count !== null) {
-      rows.push(['จำนวนรายงาน', `${details.report_count} ครั้ง`]);
-    }
-    if (details.last_reported && typeof details.last_reported !== 'object') {
-      rows.push(['รายงานล่าสุด', details.last_reported]);
-    }
-  }
-
-  window.Swal?.fire({
-    icon: isBlacklisted ? 'warning' : 'success',
-    title: isBlacklisted ? 'พบข้อมูลใน Blacklist' : 'ไม่พบข้อมูลใน Blacklist',
-    html: renderResultRows(rows, isBlacklisted ? '#E53935' : GUNGONG_GREEN),
-    confirmButtonColor: isBlacklisted ? '#E53935' : GUNGONG_GREEN,
-    confirmButtonText: 'ตกลง'
-  });
-};
-
 const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
-  const [currentSubPage, setCurrentSubPage] = useState(() => resolveScannerSubPage(externalSubPage));
-  const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
-  const [selectedBank, setSelectedBank] = useState(null);
+  const [internalSubPage, setCurrentSubPage] = useState(null);
+  const currentSubPage = externalSubPage === undefined
+    ? internalSubPage : resolveScannerSubPage(externalSubPage);
   const contentTab = currentSubPage === 'check-sms' ? 'sms' : 'link';
-  const [personalTab, setPersonalTab] = useState('bank'); // 'bank' or 'phone'
   const [isQrScanning, setIsQrScanning] = useState(false);
-  const bankDropdownRef = useRef(null);
   const linkTextareaRef = useRef(null);
   const smsTextareaRef = useRef(null);
 
   // --- Point A Refactor: State สำหรับจัดการ Input ทั้งหมด ---
   const [inputs, setInputs] = useState({
     link: '',
-    sms: '',
-    bank: '',
-    phone: ''
+    sms: ''
   });
-
-  // State สำหรับแสดงข้อความเตือนเมื่อพิมพ์ตัวอักษรในช่องตัวเลข
-  const [inputWarnings, setInputWarnings] = useState({
-    bank: false,
-    phone: false
-  });
-
-  // Sync external subpage prop with internal state
-  useEffect(() => {
-    if (externalSubPage !== undefined) {
-      setCurrentSubPage(resolveScannerSubPage(externalSubPage));
-    }
-  }, [externalSubPage]);
 
   const handleInputChange = (field, value) => {
     setInputs(prev => ({ ...prev, [field]: value }));
   };
 
-  // Handler สำหรับ input ตัวเลขเท่านั้น พร้อมแสดง warning และจัดรูปแบบเบอร์โทร
-  const handleNumericInput = (field, value) => {
-    // ตรวจสอบว่ามีตัวอักษรที่ไม่ใช่ตัวเลขและเครื่องหมายขีดหรือไม่
-    const hasInvalidChar = /[^\d-]/.test(value);
-    // ดึงเฉพาะตัวเลขออกมา
-    const numericOnly = value.replace(/\D/g, '');
-
-    if (hasInvalidChar) {
-      setInputWarnings(prev => ({ ...prev, [field]: true }));
-    } else if (numericOnly.length > 0) {
-      setInputWarnings(prev => ({ ...prev, [field]: false }));
-    }
-
-    let finalValue = numericOnly;
-
-    // จัดรูปแบบสำหรับเบอร์โทรศัพท์ (0xx-xxx-xxxx)
-    if (field === 'phone') {
-      const limitedNumber = numericOnly.slice(0, 10); // จำกัด 10 หลัก
-      if (limitedNumber.length > 6) {
-        finalValue = `${limitedNumber.slice(0, 3)}-${limitedNumber.slice(3, 6)}-${limitedNumber.slice(6)}`;
-      } else if (limitedNumber.length > 3) {
-        finalValue = `${limitedNumber.slice(0, 3)}-${limitedNumber.slice(3)}`;
-      } else {
-        finalValue = limitedNumber;
-      }
-    }
-
-    setInputs(prev => ({ ...prev, [field]: finalValue }));
-  };
-
   const clearInput = (field) => {
     setInputs(prev => ({ ...prev, [field]: '' }));
-    setInputWarnings(prev => ({ ...prev, [field]: false }));
   };
-  // -----------------------------------------------------
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (bankDropdownRef.current && !bankDropdownRef.current.contains(event.target)) {
-        setIsBankDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
 
   // Auto-resize textareas when values exist on mount
   useEffect(() => {
@@ -212,9 +108,7 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
   const goBack = () => {
     setCurrentSubPage(null);
     // Clear all inputs when exiting subpages
-    setInputs({ link: '', sms: '', bank: '', phone: '' });
-    setInputWarnings({ bank: false, phone: false });
-    setSelectedBank(null);
+    setInputs({ link: '', sms: '' });
     // Also notify parent to update activeSection if needed
     if (onNavigate) {
       onNavigate('scanner');
@@ -260,51 +154,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
     } catch (error) {
       showRequestError(error);
     }
-  };
-
-  const checkBank = async () => {
-    const accountNumber = inputs.bank.trim();
-    if (!selectedBank) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาเลือกธนาคาร', confirmButtonColor: GUNGONG_GREEN });
-      return;
-    }
-    if (!accountNumber) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เลขบัญชี', confirmButtonColor: GUNGONG_GREEN });
-      return;
-    }
-
-    showLoadingDialog('กำลังตรวจสอบบัญชี...', `ธนาคาร: ${selectedBank.name}`);
-    try {
-      const result = await apiCheckBank(selectedBank.code, accountNumber);
-      showBlacklistResult(result, 'bank', accountNumber, selectedBank);
-    } catch (error) {
-      showRequestError(error);
-    }
-  };
-
-  const checkPhone = async () => {
-    const phone = inputs.phone.trim();
-    if (!phone) {
-      window.Swal?.fire({ icon: 'warning', title: 'กรุณาใส่เบอร์โทร', confirmButtonColor: GUNGONG_GREEN });
-      return;
-    }
-
-    showLoadingDialog('กำลังตรวจสอบเบอร์โทร...', phone);
-    try {
-      const result = await apiCheckPhone(phone);
-      showBlacklistResult(result, 'phone', phone);
-    } catch (error) {
-      showRequestError(error);
-    }
-  };
-
-
-
-  const handlePersonalTabChange = (tab) => {
-    setPersonalTab(tab);
-    setInputs(prev => ({ ...prev, bank: '', phone: '' }));
-    setInputWarnings(prev => ({ ...prev, bank: false, phone: false }));
-    setIsBankDropdownOpen(false); // Close dropdown if open
   };
 
   // Sub-pages Logic
@@ -382,145 +231,6 @@ const Scanner = ({ onNavigate, currentSubPage: externalSubPage }) => {
                 <button className="form-submit-btn" onClick={checkSMS}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
                   ตรวจสอบข้อความ
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Temporarily retained for later re-enabling; the route resolver cannot open this form.
-  if (currentSubPage === 'check-personal') {
-    return (
-      <section id="check-personal-page">
-        <div className="section-content">
-          <div className="scanner-subpage-header">
-            <button className="back-btn-modern" onClick={goBack}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
-            <div className="subpage-title-block">
-              <div className="subpage-icon icon-bank">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                  <line x1="1" y1="10" x2="23" y2="10"></line>
-                </svg>
-              </div>
-              <div>
-                <h2>ตรวจสอบข้อมูลส่วนตัว</h2>
-                <p className="subpage-subtitle">ค้นหาบัญชีและเบอร์ใน Blacklist</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="scanner-tabs-modern">
-            <button className={`tab-modern ${personalTab === 'bank' ? 'active' : ''}`} onClick={() => handlePersonalTabChange('bank')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-                <line x1="1" y1="10" x2="23" y2="10"></line>
-              </svg>
-              บัญชี
-            </button>
-            <button className={`tab-modern ${personalTab === 'phone' ? 'active' : ''}`} onClick={() => handlePersonalTabChange('phone')}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-              </svg>
-              เบอร์โทร
-            </button>
-          </div>
-
-          <div className="scanner-form-card">
-            {personalTab === 'bank' ? (
-              <>
-                <label className="form-label">เลือกธนาคาร</label>
-                <div
-                  className={`bank-select-wrapper ${isBankDropdownOpen ? 'active' : ''}`}
-                  ref={bankDropdownRef}
-                >
-                  <div
-                    className="selected-bank-box"
-                    onClick={() => setIsBankDropdownOpen(!isBankDropdownOpen)}
-                  >
-                    <div className="bank-info">
-                      {selectedBank ? (
-                        <>
-                          <img src={`/img/banks/${selectedBank.code}.png`} alt={selectedBank.name} className="bank-logo" />
-                          <span>{selectedBank.name}</span>
-                        </>
-                      ) : (
-                        <span className="placeholder-text">เลือกธนาคาร</span>
-                      )}
-                    </div>
-                    <svg className="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                  </div>
-
-                  <div className="bank-options-list">
-                    {banks.map((bank) => (
-                      <div
-                        key={bank.code}
-                        className="bank-option-item"
-                        onClick={() => {
-                          setSelectedBank(bank);
-                          setIsBankDropdownOpen(false);
-                        }}
-                      >
-                        <img src={`/img/banks/${bank.code}.png`} alt={bank.name} className="bank-logo" />
-                        <span>{bank.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <label className="form-label" style={{ marginTop: '20px' }}>ระบุเลขบัญชี</label>
-                <div className="form-input-group">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className={`form-input ${inputWarnings.bank ? 'input-error' : ''}`}
-                    placeholder="เลขบัญชี 10-12 หลัก"
-                    value={inputs.bank}
-                    onChange={(e) => handleNumericInput('bank', e.target.value)}
-                  />
-                  <button className="form-clear-btn" onClick={() => clearInput('bank')}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  </button>
-                </div>
-                {inputWarnings.bank && (
-                  <p className="input-warning-text">กรุณากรอกเฉพาะตัวเลขเท่านั้น</p>
-                )}
-                <p className="form-hint">ตรวจสอบว่าเลขบัญชีอยู่ในรายชื่อมิจฉาชีพหรือไม่</p>
-                <button className="form-submit-btn" onClick={checkBank}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-                  ตรวจสอบบัญชี
-                </button>
-              </>
-            ) : (
-              <>
-                <label className="form-label">ระบุเบอร์โทรศัพท์</label>
-                <div className="form-input-group">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className={`form-input ${inputWarnings.phone ? 'input-error' : ''}`}
-                    placeholder="09x-xxx-xxxx"
-                    value={inputs.phone}
-                    onChange={(e) => handleNumericInput('phone', e.target.value)}
-                  />
-                  <button className="form-clear-btn" onClick={() => clearInput('phone')}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  </button>
-                </div>
-                {inputWarnings.phone && (
-                  <p className="input-warning-text">กรุณากรอกเฉพาะตัวเลขเท่านั้น</p>
-                )}
-                <p className="form-hint">ตรวจสอบว่าเบอร์นี้เป็น Call Center หลอกลวงหรือไม่</p>
-                <button className="form-submit-btn" onClick={checkPhone}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-                  ตรวจสอบเบอร์โทร
                 </button>
               </>
             )}

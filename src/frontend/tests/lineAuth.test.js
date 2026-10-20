@@ -168,3 +168,17 @@ test('official SDK, LINE entry points, identity remount and delayed analytics ar
   assert.doesNotMatch(read('../src/features/auth/session.js'), /firebase/u);
   assert.doesNotMatch(read('../src/features/auth/liff.js'), /import\('\.\/firebase/u);
 });
+
+test('unconfigured forks cannot use retired hosting or original Firebase analytics', () => {
+  const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const firebase = read('../src/features/auth/firebase.js');
+  assert.match(firebase, /VITE_FIREBASE_API_KEY/u);
+  assert.match(firebase, /VITE_FIREBASE_PROJECT_ID/u);
+  assert.match(firebase, /VITE_FIREBASE_APP_ID/u);
+  assert.match(firebase, /\? initializeApp\(firebaseConfig\) : null/u);
+  assert.match(firebase, /if \(!app \|\| !firebaseConfig\.measurementId \|\| analytics\) return/u);
+  assert.doesNotMatch(firebase, /AIza[\w-]{35}|gungong-6502f|G-8R3F5JPBPB/u);
+  const auth = read('../src/features/auth/lineAuth.js');
+  assert.match(auth, /https:\/\/example\.invalid\//u);
+  assert.doesNotMatch(auth, /gungong-vercel-preview/u);
+});

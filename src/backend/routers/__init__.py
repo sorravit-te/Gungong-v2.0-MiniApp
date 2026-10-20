@@ -1,5 +1,5 @@
 """Router modules for GunGong API."""
 
-from . import health, blacklist, history, fraud, webhook
+from . import health, history, fraud, webhook
 
-__all__ = ["health", "blacklist", "history", "fraud", "webhook"]
+__all__ = ["health", "history", "fraud", "webhook"]

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { callFraudCheckApi, getErrorMessage } from '../../shared/api/script';
 import { scanCode as liffScanCode } from '../auth/liff';
 import { getFraudResultPresentation } from '../../shared/results/fraudResultPresentation';
@@ -76,8 +76,7 @@ const showScanError = (error) => {
   });
 };
 
-const ScanImage = ({ onNavigate, initialTab = 'qr', backTarget = 'scanner' }) => {
-  const [activeTab, setActiveTab] = useState(initialTab);
+const ScanImage = ({ onNavigate, backTarget = 'scanner' }) => {
 
   const handleQrScan = async () => {
     try {
@@ -111,34 +110,12 @@ const ScanImage = ({ onNavigate, initialTab = 'qr', backTarget = 'scanner' }) =>
             </div>
             <div>
               <h2>ตรวจสอบรูปภาพ</h2>
-              <p className="subpage-subtitle">สแกน QR Code และบัตรประชาชน</p>
+              <p className="subpage-subtitle">สแกน QR Code เพื่อตรวจสอบลิงก์</p>
             </div>
           </div>
         </div>
 
-        <div className="scanner-tabs-modern">
-          <button className={`tab-modern ${activeTab === 'qr' ? 'active' : ''}`} onClick={() => setActiveTab('qr')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-              <path d="M14 14h3v3h-3zM18 18h3v3h-3zM18 14h3M14 18v3"></path>
-            </svg>
-            QR Code
-          </button>
-          <button className={`tab-modern ${activeTab === 'id-card' ? 'active' : ''}`} onClick={() => setActiveTab('id-card')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-              <circle cx="8" cy="10" r="2"></circle>
-              <path d="M5.5 16c.7-1.8 4.3-1.8 5 0M14 9h4M14 13h4"></path>
-            </svg>
-            บัตรประชาชน
-          </button>
-        </div>
-
         <div className="scanner-form-card qr-card">
-          {activeTab === 'qr' ? (
-            <>
               <div className="qr-illustration">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="80" height="80">
                   <rect x="3" y="3" width="7" height="7"></rect>
@@ -159,29 +136,6 @@ const ScanImage = ({ onNavigate, initialTab = 'qr', backTarget = 'scanner' }) =>
                 </svg>
                 เริ่มสแกน QR Code
               </button>
-            </>
-          ) : (
-            <>
-              <div className="qr-illustration">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="80" height="80">
-                  <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-                  <circle cx="8" cy="10" r="2"></circle>
-                  <path d="M5 17c.8-2.5 5.2-2.5 6 0M14 9h4M14 13h4M14 17h3"></path>
-                </svg>
-              </div>
-              <label className="form-label">สแกนบัตรประชาชน</label>
-              <p className="qr-description">ถ่ายภาพหรืออัปโหลดบัตรประชาชนเพื่อตรวจสอบข้อมูล</p>
-              <p className="form-hint">ระบบจะตรวจสอบข้อมูลตาม flow ที่มีอยู่แล้ว</p>
-              <button className="form-submit-btn" onClick={() => onNavigate('id-card-scanner')}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-                  <circle cx="8" cy="10" r="2"></circle>
-                  <path d="M5.5 16c.7-1.8 4.3-1.8 5 0M14 9h4M14 13h4"></path>
-                </svg>
-                เริ่มสแกนบัตรประชาชน
-              </button>
-            </>
-          )}
         </div>
       </div>
     </section>

@@ -14,13 +14,12 @@ import os
 from datetime import datetime
 
 from .core.config import settings
-from .services.blacklist_service import get_blacklist_service
 
 # Import routers (v1.0)
-from .routers import health, blacklist, history, fraud, webhook, community, reports, history_shares
+from .routers import health, history, fraud, webhook, community, reports, history_shares
 
 # Import v2.0 routers
-from .routers import conversation, fraud_v2, verification
+from .routers import conversation, fraud_v2
 
 # Configure logging
 logging.basicConfig(
@@ -78,7 +77,6 @@ app.add_middleware(
 
 # Register v1.0 routers
 app.include_router(health.router, tags=["health"])
-app.include_router(blacklist.router, tags=["blacklist"])
 app.include_router(history.router, tags=["history"])
 app.include_router(community.router, tags=["community"])
 app.include_router(reports.router, tags=["reports"])
@@ -89,7 +87,6 @@ app.include_router(webhook.router, tags=["webhook"])
 # Register v2.0 routers
 app.include_router(conversation.router, tags=["v2-conversation"])
 app.include_router(fraud_v2.router, tags=["v2-fraud"])
-app.include_router(verification.router, tags=["v2-verification"])
 
 # Mount static files (frontend built by Vite)
 # Check for Vite build output first (production), then fallback to old frontend
@@ -132,20 +129,7 @@ async def startup_event():
     """Run on startup."""
     logger.info("Application starting up...")
 
-    # Seed mock blacklist data
-    if os.getenv("SEED_MOCK_DATA", "false").lower() == "true":
-        try:
-            blacklist_service = get_blacklist_service()
-            if blacklist_service:
-                blacklist_service.seed_mock_data()
-                logger.info("Mock blacklist data seeded")
-        except Exception as e:
-            logger.warning(f"Failed to seed mock data: {e}")
-        else:
-            logger.info("Mock blacklist seeding disabled")
-
-    # Playwright browser warmup disabled to prevent Cloud Run startup timeout
-    # Browser will be initialized on first use (lazy loading)
+    # Browser initialization is deferred until first use.
     logger.info("Startup complete (browser will lazy load)")
 
 

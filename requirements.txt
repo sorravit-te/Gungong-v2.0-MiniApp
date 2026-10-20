@@ -37,6 +37,6 @@ playwright-stealth==2.0.3
 # Language detection (v2.0)
 langdetect==1.0.9
 
-# Image processing (for ID card OCR)
+# Image processing for local QR decoding
 Pillow==10.4.0
 zxing-cpp==3.0.0  # Decode LINE QR attachments locally; no AI transcription

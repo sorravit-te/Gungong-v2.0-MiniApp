@@ -76,7 +76,7 @@ class QRImageDecoderTests(unittest.TestCase):
 
 
 class QRImageWebhookTests(unittest.IsolatedAsyncioTestCase):
-    async def send(self, image=None, *, decoded=URL, valid_signature=True, loading_error=None, classifier=None,
+    async def send(self, image=None, *, decoded=URL, valid_signature=True, loading_error=None,
                    verdict='SUSPICIOUS', source=None):
         event = {'type': 'message', 'replyToken': 'test-reply',
                  'source': source or {'type': 'user', 'userId': USER},
@@ -106,29 +106,25 @@ class QRImageWebhookTests(unittest.IsolatedAsyncioTestCase):
         line.reply_message.side_effect = lambda *a, **kw: order.append('reply')
         reader = AsyncMock(side_effect=download)
         verifier = AsyncMock(side_effect=check)
-        classifier = classifier or Mock()
         with patch.object(webhook, 'settings', SimpleNamespace(line_channel_secret=secret)), \
              patch.object(webhook, 'LINE_SERVICE_AVAILABLE', True), \
              patch.object(webhook, 'get_line_service', return_value=line), \
              patch.object(webhook, '_download_line_image', reader), \
              patch.object(webhook, '_check_link_request', verifier), \
-             patch.object(webhook, 'get_image_classifier_service', return_value=classifier) as classifier_factory, \
-             patch.object(webhook, 'get_fraud_detector') as old_detector, \
-             patch.object(webhook, 'get_id_card_service') as id_cards:
-            id_cards.return_value.verify_id_card.return_value = {'success': False}
+             patch.object(webhook, 'get_fraud_detector') as old_detector:
             if not valid_signature:
                 with self.assertRaises(webhook.HTTPException):
                     await webhook.webhook(Request({'type': 'http'}, receive), BackgroundTasks(), 'invalid')
             else:
                 await webhook.webhook(Request({'type': 'http'}, receive), BackgroundTasks(), signature)
         old_detector.assert_not_called()
-        return line, verifier, reader, classifier_factory, id_cards, order
+        return line, verifier, reader, order
 
     async def test_loading_then_real_qr_then_same_miniapp_pipeline_and_flex_for_every_verdict(self):
         for verdict, color in [('SUSPICIOUS', '#FF3B30'), ('MALICIOUS', '#FF3B30'),
                                ('NO_THREAT_FOUND', '#4AB918'), ('INCOMPLETE', '#FF9500'), ('INVALID', '#FF9500')]:
             with self.subTest(verdict=verdict):
-                line, verify, download, classifier, ids, order = await self.send(verdict=verdict)
+                line, verify, download, order = await self.send(verdict=verdict)
                 self.assertEqual(order, ['loading', 'download', 'check', 'reply'])
                 line.show_loading_animation.assert_awaited_once_with(USER, loading_seconds=30)
                 download.assert_awaited_once_with('123456789', 'test-only-token')
@@ -139,8 +135,6 @@ class QRImageWebhookTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(reply['quote_token'], 'test-quote')
                 self.assertIn('historyId=stored-qr', reply['flex_message']['contents']['body']['action']['uri'])
                 self.assertEqual(reply['flex_message']['contents']['styles']['body']['backgroundColor'], color)
-                classifier.assert_not_called()
-                ids.assert_not_called()
 
     async def test_loading_failure_does_not_block_qr_verification(self):
         line, verifier, *_ = await self.send(loading_error=RuntimeError('test error'))
@@ -163,11 +157,9 @@ class QRImageWebhookTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(verifier.call_args.args[0].message, 'file:///etc/passwd')
         self.assertEqual(line.reply_message.call_args.kwargs['flex_message']['contents']['styles']['body']['backgroundColor'], '#FF9500')
 
-    async def test_undecodable_qr_never_uses_classifier_guessed_url(self):
-        classifier = Mock()
-        classifier.classify_image.return_value = {'image_type': 'qr_code', 'qr_url': 'https://guessed.example/'}
+    async def test_undecodable_qr_never_uses_ai_or_a_guessed_url(self):
         blank = encode_image(Image.new('RGB', (300, 300), 'white'))
-        line, verifier, *_ = await self.send(image=blank, classifier=classifier)
+        line, verifier, *_ = await self.send(image=blank)
         verifier.assert_not_awaited()
         self.assertIn('ไม่สามารถอ่าน QR Code', line.reply_message.call_args.kwargs['text'])
 
@@ -176,19 +168,14 @@ class QRImageWebhookTests(unittest.IsolatedAsyncioTestCase):
         verifier.assert_not_awaited()
         self.assertIn('ไม่สามารถอ่านภาพ', line.reply_message.call_args.kwargs['text'])
 
-    async def test_general_and_id_card_images_preserve_existing_non_qr_behavior(self):
-        for image_type in ['general', 'id_card']:
-            classifier = Mock()
-            classifier.classify_image.return_value = {'image_type': image_type}
-            line, verifier, _, _, ids, _ = await self.send(
-                image=encode_image(Image.new('RGB', (300, 300), 'white')), classifier=classifier)
-            verifier.assert_not_awaited()
-            if image_type == 'general':
-                ids.assert_not_called()
-                line.reply_message.assert_not_called()
-            else:
-                ids.return_value.verify_id_card.assert_called_once()
-                self.assertIn('ไม่สามารถอ่านบัตรประชาชน', line.reply_message.call_args.kwargs['text'])
+    async def test_non_qr_images_get_guidance_without_identity_or_ai_processing(self):
+        line, verifier, _, order = await self.send(
+            image=encode_image(Image.new('RGB', (300, 300), 'white')))
+        verifier.assert_not_awaited()
+        self.assertEqual(order, ['loading', 'download', 'reply'])
+        self.assertIn('ไม่สามารถอ่าน QR Code', line.reply_message.call_args.kwargs['text'])
+        self.assertFalse(hasattr(webhook, 'get_id_card_service'))
+        self.assertFalse(hasattr(webhook, 'get_image_classifier_service'))
 
 
 class QRImageDownloadTests(unittest.IsolatedAsyncioTestCase):

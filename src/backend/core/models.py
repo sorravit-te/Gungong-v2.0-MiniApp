@@ -58,43 +58,4 @@ COLLECTION_URL_REPUTATION = "url_reputation_cache"
 COLLECTION_FRAUD_MESSAGES = "fraud_messages"
 COLLECTION_FEEDBACK_LOGS = "feedback_logs"
 COLLECTION_WHITELISTED_DOMAINS = "whitelisted_domains"
-COLLECTION_BLACKLIST_BANK_ACCOUNTS = "blacklist_bank_accounts"
-COLLECTION_BLACKLIST_PHONE_NUMBERS = "blacklist_phone_numbers"
-COLLECTION_BLACKLIST_ID_CARDS = "blacklist_id_cards"
 COLLECTION_HISTORY = "fraud_check_history"
-
-
-# ==================== ID Card Verification Models ====================
-
-
-class IDCardVerificationRequest(BaseModel):
-    """Request model for Thai ID card verification."""
-
-    image_base64: str = Field(..., description="Base64 encoded ID card image (JPEG/PNG)")
-    user_id: Optional[str] = Field(None, description="User ID for tracking")
-
-
-class IDCardData(BaseModel):
-    """Extracted ID card data from OCR."""
-
-    id_number: str = Field(..., description="13-digit Thai ID number")
-    name_th: Optional[str] = Field(None, description="Thai first name")
-    surname_th: Optional[str] = Field(None, description="Thai surname")
-    date_of_birth: Optional[str] = Field(None, description="Date of birth")
-    address: Optional[str] = Field(None, description="Address on card")
-    issue_date: Optional[str] = Field(None, description="Card issue date")
-    expiry_date: Optional[str] = Field(None, description="Card expiry date")
-
-
-class IDCardVerificationResponse(BaseModel):
-    """Response model for ID card verification."""
-
-    id_number: str = Field(..., description="Thai ID number")
-    is_valid_format: bool = Field(..., description="Whether ID format/checksum is valid")
-    is_blacklisted: bool = Field(..., description="Whether ID is blacklisted")
-    is_safe: bool = Field(..., description="Whether ID is safe")
-    reports_count: int = Field(..., description="Number of fraud reports")
-    risk_level: str = Field(..., description="Risk level: LOW, MEDIUM, HIGH, CRITICAL")
-    extracted_data: Optional[IDCardData] = Field(None, description="Extracted card data")
-    category: Optional[str] = Field(None, description="Fraud category if blacklisted")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Verification timestamp")

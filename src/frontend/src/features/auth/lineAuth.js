@@ -1,12 +1,13 @@
 import { LIFF_ID } from './liff.js';
 
-export const LINE_ENDPOINT_URL = import.meta.env?.VITE_LINE_ENDPOINT_URL || 'https://gungong-vercel-preview.vercel.app/';
+// Configure your own LINE endpoint; never redirect to the retired hosted app.
+export const LINE_ENDPOINT_URL = import.meta.env?.VITE_LINE_ENDPOINT_URL || 'https://example.invalid/';
 const endpoint = new URL(LINE_ENDPOINT_URL);
 if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
     throw new Error('INVALID_LINE_ENDPOINT');
 }
 export const APP_SECTIONS = new Set(['home', 'report',
-    'scanner', 'check-link', 'check-sms', 'check-content', 'check-personal', 'scan-qr', 'social', 'history', 'scan-image']);
+    'scanner', 'check-link', 'check-sms', 'check-content', 'scan-qr', 'social', 'history', 'scan-image']);
 const initializations = new WeakMap();
 const mobileAttempts = new WeakSet();
 const MOBILE_HANDOFF_KEY = 'gungong_line_handoff';

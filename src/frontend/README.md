@@ -1,17 +1,16 @@
 # GunGong frontend
 
 React + Vite Mini App. `src/App.jsx` controls existing routes; `src/main.jsx` is the
-entrypoint. Vercel's frontend root remains `src/frontend`.
+entrypoint. Run the frontend locally from `src/frontend`.
 
 - `src/features/`: home, community, scanner, history, report, auth and privacy.
   Keep a feature's UI, styles, hooks and helpers together.
 - `src/shared/`: layout, navigation, API transport, cache, result presentation,
   QR camera/image utilities and global styles. Used by more than one feature.
-- `src/legacy/verify/`: inactive Verify / ID-card UI kept in source.
-- `public/img/`: stable image URLs; do not rename without updating callers.
+- `public/img/`: images used by the active frontend; tests check references.
 - `tests/`: regression tests, including relative-import and QR-worker checks.
 
-Full [repository and backend feature map](../../docs/PROJECT_STRUCTURE.md).
+See the [repository overview](../../README.md) for setup, features and data boundaries.
 
 ## Local development
 

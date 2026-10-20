@@ -5,7 +5,6 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from linebot.v3.messaging.models import FlexContainer
 from src.backend.services.line_service import LineService
-from src.backend.utils.flex_templates import create_id_card_verification_flex
 from src.backend.utils.result_presentation import resolve_result_verdict
 
 
@@ -71,9 +70,3 @@ class ResultMessagePresentationTests(unittest.TestCase):
             message = LineService.create_fraud_flex_message(None, 'TEST', False, history_id=history_id)
             query = parse_qs(urlsplit(message['contents']['body']['action']['uri']).query)
             self.assertEqual(query, {'section': ['history']})
-
-    def test_remaining_legacy_id_card_template_has_no_risk_percentage(self):
-        for blacklisted, valid in [(True, True), (False, True), (False, False)]:
-            message = create_id_card_verification_flex('test', 'Name', 'Surname', 'date', 'address',
-                blacklisted, valid, 'LOW', 0)
-            self.assertFalse(any('%' in text for text in texts(message.to_dict())))

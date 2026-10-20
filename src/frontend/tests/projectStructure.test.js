@@ -12,7 +12,7 @@ function sources(folder) {
   });
 }
 
-test('every relocated relative import and QR worker resolves, including inactive Verify', () => {
+test('all active relative imports and the QR worker resolve', () => {
   let checked = 0;
   for (const file of sources(root)) {
     const source = readFileSync(file, 'utf8');
@@ -39,4 +39,5 @@ test('feature boundaries and stable entrypoints are explicit without old catch-a
   const app = readFileSync(path.join(root, 'App.jsx'), 'utf8');
   assert.match(app, /features\/report\/report/u);
   assert.doesNotMatch(app, /case 'verify'|import Verify|import IDCardScanner/u);
+  assert.equal(existsSync(path.join(root, 'legacy/verify/verify.jsx')), false);
 });

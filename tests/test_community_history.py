@@ -16,7 +16,7 @@ from google.api_core.exceptions import AlreadyExists, FailedPrecondition
 from google.cloud import firestore
 from PIL import Image
 
-from src.backend.routers import community, history, fraud, blacklist
+from src.backend.routers import community, history, fraud
 from src.backend.services import user_identity_service as identity
 
 
@@ -550,15 +550,6 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
         response = TestClient(app).post('/check-fraud', json={
             'message': 'example.com', 'message_type': 'link', 'user_id': 'victim'})
         self.assertEqual(response.status_code, 401)
-
-    async def test_personal_checks_cannot_spoof_history_owner(self):
-        app = FastAPI()
-        app.state.limiter = blacklist.limiter
-        app.include_router(blacklist.router)
-        for path, body in [('/check-phone', {'phone_number': '0812345678'}),
-                           ('/check-bank', {'bank_code': 'KBANK', 'account_number': '1234567890'})]:
-            response = TestClient(app).post(path, json={**body, 'user_id': 'victim'})
-            self.assertEqual(response.status_code, 401)
 
 
 if __name__ == '__main__':

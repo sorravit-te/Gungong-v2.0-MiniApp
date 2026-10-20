@@ -57,9 +57,9 @@ class Settings(BaseSettings):
         "(+https://github.com/sorravit-te/gungong-v2.0-MiniApp)"
     )
 
-    # Anonymous passive SPA fallback, never CAPTCHA/anti-bot bypass. Docker
-    # installs Chromium; local testing can explicitly select installed Chrome.
-    # Opt in only after the deployment supports the mandatory browser sandbox
+    # Anonymous passive SPA fallback, never CAPTCHA/anti-bot bypass.
+    # Local testing can explicitly select installed Chrome.
+    # Opt in only when the runtime supports the mandatory browser sandbox
     # and isolated resource limits. Never silently disable Chromium's sandbox.
     url_render_enabled: bool = False
     url_render_browser_channel: Optional[str] = None
